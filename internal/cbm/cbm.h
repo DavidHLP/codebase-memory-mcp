@@ -249,6 +249,7 @@ typedef enum {
 
 typedef struct {
     const char *callee_name;            // raw callee text ("pkg.Func", "foo")
+    const char *resolution_name;        // canonical lookup name, when distinct from raw text
     const char *enclosing_func_qn;      // QN of enclosing function (or module QN)
     const char *first_string_arg;       // first string literal argument (URL, topic, key) or NULL
     const char *second_arg_name;        // second argument identifier (handler ref) or NULL
@@ -274,6 +275,11 @@ typedef struct {
                                         // module-level foo. Python only today. Read by the
                                         // weak-local-binding guard. Default false.
 } CBMCall;
+
+static inline const char *cbm_call_resolution_name(const CBMCall *call) {
+    return call && call->resolution_name ? call->resolution_name
+                                          : (call ? call->callee_name : NULL);
+}
 
 typedef struct {
     const char *local_name;  // local alias or name

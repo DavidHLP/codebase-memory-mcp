@@ -1069,6 +1069,11 @@ static const char *compute_func_qn(CBMExtractCtx *ctx, TSNode node, const CBMLan
         return NULL;
     }
 
+    const char *qn_name = name;
+    if (ctx->language == CBM_LANG_SWIFT) {
+        qn_name = cbm_swift_callable_name(ctx->arena, node, ctx->source, name, true);
+    }
+
     /* C++/CUDA out-of-line method `void Foo::bar() {...}`: the def extractor
      * records this as Method "proj.file.Foo.bar". The call-scope QN must match
      * (be class-qualified) so an in-body call sources to the method, not a bare
@@ -1089,7 +1094,6 @@ static const char *compute_func_qn(CBMExtractCtx *ctx, TSNode node, const CBMLan
      * extractor bakes it into the def QN. Compose it identically here — otherwise
      * an in-body call sources to a QN one or more segments short of the def, and
      * the edge is dropped at write. */
-    const char *qn_name = name;
     if (ctx->language == CBM_LANG_NIX) {
         qn_name = cbm_nix_qn_name(ctx->arena, node, ctx->source, name);
         if (!qn_name || !qn_name[0]) {

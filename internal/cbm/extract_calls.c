@@ -3648,6 +3648,11 @@ CBMInvocationDescriptor handle_calls(CBMExtractCtx *ctx, TSNode node, const CBML
         if (primary_callee_name_is_allowed(ctx, &callee)) {
             CBMCall call = {0};
             call.callee_name = callee.name;
+            if (ctx->language == CBM_LANG_SWIFT &&
+                strcmp(ts_node_type(node), "call_expression") == 0) {
+                call.resolution_name =
+                    cbm_swift_callable_name(ctx->arena, node, ctx->source, call.callee_name, false);
+            }
             call.enclosing_func_qn = state->enclosing_func_qn;
             call.loop_depth = state->loop_depth;     // enclosing loop nesting at this call
             call.branch_depth = state->branch_depth; // enclosing branch nesting at this call

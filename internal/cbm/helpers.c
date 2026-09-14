@@ -982,6 +982,129 @@ char *cbm_func_name_node_text(CBMArena *a, TSNode name_node, const char *source,
     return text;
 }
 
+/* Swift's tree-sitter grammar keeps function parameters directly under a
+ * function_declaration and call arguments under call_suffix/value_arguments.
+ * The external label is the selector identity; a shorthand parameter uses its
+ * local name as the implicit label, while an unlabeled parameter uses `_`. */
+static TSNode swift_selector_container(TSNode node, bool declaration) {
+    if (declaration) {
+        return node;
+    }
+
+    TSNode suffix = cbm_find_child_by_kind(node, "call_suffix");
+    if (ts_node_is_null(suffix)) {
+        TSNode null_node = {0};
+        return null_node;
+    }
+    return cbm_find_child_by_kind(suffix, "value_arguments");
+}
+
+static bool swift_selector_item(TSNode node, bool declaration) {
+    const char *kind = ts_node_type(node);
+    return declaration ? strcmp(kind, "parameter") == 0 : strcmp(kind, "value_argument") == 0;
+}
+
+static TSNode swift_selector_label(TSNode item, bool declaration) {
+    TSNode label = {0};
+    if (declaration) {
+        label = ts_node_child_by_field_name(item, TS_FIELD("external_name"));
+        if (ts_node_is_null(label)) {
+            label = ts_node_child_by_field_name(item, TS_FIELD("name"));
+        }
+    } else {
+        label = ts_node_child_by_field_name(item, TS_FIELD("name"));
+    }
+    return label;
+}
+
+static int swift_selector_label_count(TSNode node, bool declaration) {
+    TSNode container = swift_selector_container(node, declaration);
+    if (ts_node_is_null(container)) {
+        return 0;
+    }
+
+    int count = 0;
+    uint32_t child_count = ts_node_child_count(container);
+    for (uint32_t i = 0; i < child_count; i++) {
+        if (swift_selector_item(ts_node_child(container, i), declaration)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+static TSNode swift_selector_label_at(TSNode node, bool declaration, int wanted) {
+    TSNode null_node = {0};
+    TSNode container = swift_selector_container(node, declaration);
+    if (ts_node_is_null(container)) {
+        return null_node;
+    }
+
+    int index = 0;
+    uint32_t child_count = ts_node_child_count(container);
+    for (uint32_t i = 0; i < child_count; i++) {
+        TSNode item = ts_node_child(container, i);
+        if (!swift_selector_item(item, declaration)) {
+            continue;
+        }
+        if (index++ == wanted) {
+            return swift_selector_label(item, declaration);
+        }
+    }
+    return null_node;
+}
+
+const char *cbm_swift_callable_name(CBMArena *a, TSNode node, const char *source,
+                                    const char *base_name, bool declaration) {
+    if (!a || !source || !base_name || !base_name[0]) {
+        return base_name;
+    }
+
+    int label_count = swift_selector_label_count(node, declaration);
+    if (label_count == 0) {
+        return base_name;
+    }
+
+    size_t total = strlen(base_name) + 3; /* parentheses plus NUL */
+    for (int i = 0; i < label_count; i++) {
+        TSNode label = swift_selector_label_at(node, declaration, i);
+        size_t label_len = ts_node_is_null(label)
+                               ? 1
+                               : (size_t)(ts_node_end_byte(label) - ts_node_start_byte(label));
+        total += label_len + 1; /* label plus colon */
+    }
+
+    char *result = (char *)cbm_arena_alloc(a, total);
+    if (!result) {
+        return base_name;
+    }
+
+    char *out = result;
+    size_t base_len = strlen(base_name);
+    memcpy(out, base_name, base_len);
+    out += base_len;
+    *out++ = '(';
+    for (int i = 0; i < label_count; i++) {
+        if (i > 0) {
+            *out++ = ':';
+        }
+        TSNode label = swift_selector_label_at(node, declaration, i);
+        if (ts_node_is_null(label)) {
+            *out++ = '_';
+        } else {
+            uint32_t start = ts_node_start_byte(label);
+            uint32_t end = ts_node_end_byte(label);
+            size_t label_len = (size_t)(end - start);
+            memcpy(out, source + start, label_len);
+            out += label_len;
+        }
+        *out++ = ':';
+    }
+    *out++ = ')';
+    *out = '\0';
+    return result;
+}
+
 /* ── Nix attrpath helpers ───────────────────────────────────
  * A Nix binding's name is a PATH (`a.b.c = …`), whose segments may be quoted or
  * interpolated. These render it the way the rest of the extractor expects: leaf

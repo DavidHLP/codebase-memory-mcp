@@ -1060,6 +1060,8 @@ static void pxc_append_synthetic_calls(CBMArena *dst_arena, CBMCallArray *dst_ca
 
         CBMCall dst = *src;
         dst.callee_name = cbm_arena_strdup(dst_arena, src->callee_name);
+        dst.resolution_name =
+            src->resolution_name ? cbm_arena_strdup(dst_arena, src->resolution_name) : NULL;
         dst.enclosing_func_qn = cbm_arena_strdup(dst_arena, src->enclosing_func_qn);
         dst.first_string_arg =
             src->first_string_arg ? cbm_arena_strdup(dst_arena, src->first_string_arg) : NULL;

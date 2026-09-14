@@ -544,7 +544,7 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call,
         }
     }
 
-    cbm_resolution_t res = cbm_registry_resolve(ctx->registry, call->callee_name, module_qn,
+    cbm_resolution_t res = cbm_registry_resolve(ctx->registry, cbm_call_resolution_name(call), module_qn,
                                                 imp_keys, imp_vals, imp_count);
     if (!res.qualified_name || res.qualified_name[0] == '\0') {
         /* Resolution is empty when the callee belongs to an EXTERNAL client

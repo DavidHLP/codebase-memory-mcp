@@ -3645,8 +3645,6 @@ static void extract_func_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec 
         return;
     }
 
-    TSNode func_node = unwrap_template_inner(node, ctx->language);
-
     CBMDefinition def;
     memset(&def, 0, sizeof(def));
 
@@ -3655,7 +3653,12 @@ static void extract_func_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec 
      * are scope, so `a.b.fn = …` gets the same QN as `a = { b = { fn = …; }; }`.
      * Without this every binding whose path shares a leaf name collapsed onto one
      * node, silently discarding the later definition and its CALLS edges. */
+    TSNode func_node = unwrap_template_inner(node, ctx->language);
+
     const char *qn_name = name;
+    if (ctx->language == CBM_LANG_SWIFT) {
+        qn_name = cbm_swift_callable_name(a, func_node, ctx->source, name, true);
+    }
     if (ctx->language == CBM_LANG_NIX) {
         qn_name = cbm_nix_qn_name(a, node, ctx->source, name);
     }
@@ -4932,7 +4935,11 @@ static void push_method_def(CBMExtractCtx *ctx, TSNode child, TSNode class_node,
         return;
     }
 
-    const char *method_qn = cbm_arena_sprintf(a, "%s.%s", class_qn, name);
+    const char *method_name = name;
+    if (ctx->language == CBM_LANG_SWIFT) {
+        method_name = cbm_swift_callable_name(a, child, ctx->source, name, true);
+    }
+    const char *method_qn = cbm_arena_sprintf(a, "%s.%s", class_qn, method_name);
 
     CBMDefinition def;
     memset(&def, 0, sizeof(def));

@@ -2495,7 +2495,7 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
          * exact LSP target and must fail closed rather than accepting a textual
          * registry match. */
         if ((!res.qualified_name || !res.qualified_name[0]) && !call->requires_lsp_resolution) {
-            res = cbm_registry_resolve(rc->registry, call->callee_name, module_qn, imp_keys,
+            res = cbm_registry_resolve(rc->registry, cbm_call_resolution_name(call), module_qn, imp_keys,
                                        imp_vals, imp_count);
         }
         atomic_fetch_add_explicit(&rc->time_ns_rc_resolve, extract_now_ns() - _rc_t0,

@@ -67,6 +67,13 @@ TSNode cbm_resolve_c_declarator_name_node(TSNode func_node);
 // language for that reason; every caller must pass ctx->language.
 char *cbm_func_name_node_text(CBMArena *a, TSNode name_node, const char *source, CBMLanguage lang);
 
+/* Give Swift callables their argument-label selector (for example `work(flag:)`)
+ * so overloaded declarations and calls share one qualified-name identity. For
+ * declarations, node is the function declaration; for calls, it is the
+ * call_expression. No-argument callables keep their existing bare name. */
+const char *cbm_swift_callable_name(CBMArena *a, TSNode node, const char *source,
+                                    const char *base_name, bool declaration);
+
 // ── Nix attrpath helpers ──
 // A Nix binding's name is a PATH (`a.b.c = …`) whose segments may be quoted or
 // interpolated. Shared by the defs and unified (call-scope) extractors so both
