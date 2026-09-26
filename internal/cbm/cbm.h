@@ -242,6 +242,9 @@ typedef struct {
      * qualified_name (base QN = the first qn_sig_off bytes); 0 = no suffix.
      * Always 0 until a language enables its callable_identity mode. */
     uint32_t qn_sig_off;
+    /* Swift only: defaulted parameters, indexed in declaration order. */
+    uint64_t swift_default_mask;
+    uint8_t swift_param_count;
 } CBMDefinition;
 
 /* Argument captured from a call expression */
@@ -298,6 +301,8 @@ typedef struct {
                                      // (self.compiler.apply_converters()). An object the
                                      // class owns, not a parameter: read by the weak-member
                                      // guard's unique-name exemption. Default false.
+    bool swift_trailing_closure;
+    bool swift_args_truncated;
 } CBMCall;
 
 typedef struct {

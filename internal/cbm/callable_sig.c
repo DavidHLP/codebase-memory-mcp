@@ -32,11 +32,10 @@ static const uint64_t SIG_FNV_PRIME = 0x100000001b3ULL;
 static const char SIG_OPERATOR_CHARS[] = "+-*/%^&|~!=<>?[]";
 
 CBMCallableIdentity cbm_callable_identity(CBMLanguage lang) {
-    /* Every language keeps its historical QN until its enable change lands
-     * (with the index-format bump that change carries). The planned modes:
-     * Java/Kotlin/C#/C++/CUDA/Scala TYPED, Swift LABELED_TYPED, ObjC LABELED,
-     * dynamic tier-2 languages ARITY. */
-    (void)lang;
+    /* Each language enables identity with its own index-format bump. */
+    if (lang == CBM_LANG_SWIFT) {
+        return CBM_CALLABLE_ID_LABELED_TYPED;
+    }
     return CBM_CALLABLE_ID_NONE;
 }
 
@@ -737,6 +736,11 @@ static void sig_swift_param(sig_ctx_t *c, TSNode p) {
             if (ts_node_eq(ch, internal)) {
                 continue;
             }
+            /* A default expression selects call arity, not type identity. */
+            if ((field && strcmp(field, "default_value") == 0) ||
+                sig_node_text_is(c, ch, "=")) {
+                break;
+            }
             const char *k = ts_node_type(ch);
             if (strcmp(k, "parameter_modifiers") == 0) {
                 uint32_t mc = ts_node_named_child_count(ch);
@@ -768,6 +772,42 @@ static void sig_swift_params(sig_ctx_t *c, TSNode node) {
             sig_swift_param(c, ch);
         }
     }
+}
+
+uint64_t cbm_swift_default_mask(TSNode node, const char *source, uint8_t *count) {
+    (void)source;
+    uint64_t defaults = 0;
+    unsigned parameters = 0;
+    int last = -1;
+    uint32_t children = ts_node_child_count(node);
+    for (uint32_t i = 0; i < children; i++) {
+        TSNode ch = ts_node_child(node, i);
+        const char *kind = ts_node_type(ch);
+        if (strcmp(kind, "parameter") == 0) {
+            last = (int)parameters++;
+            if (last < 64) {
+                uint32_t pc = ts_node_child_count(ch);
+                for (uint32_t j = 0; j < pc; j++) {
+                    TSNode part = ts_node_child(ch, j);
+                    const char *pk = ts_node_type(part);
+                    if (strcmp(pk, "=") == 0 || strstr(pk, "default_value") != NULL) {
+                        defaults |= UINT64_C(1) << last;
+                        break;
+                    }
+                }
+            }
+        } else if (last >= 0 && last < 64 && strcmp(kind, "=") == 0) {
+            defaults |= UINT64_C(1) << last;
+        } else if (last >= 0 && (strcmp(kind, ")") == 0 || strcmp(kind, "function_body") == 0)) {
+            break;
+        }
+    }
+    if (count) {
+        /* ponytail: >64 parameters have no bitmask; use a dynamic mask if Swift
+         * code with that many parameters needs overload call resolution. */
+        *count = parameters > 64 ? UINT8_MAX : (uint8_t)parameters;
+    }
+    return defaults;
 }
 
 /* ── Scala ─────────────────────────────────────────────────────── */

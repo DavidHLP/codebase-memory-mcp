@@ -6844,6 +6844,180 @@ TEST(pipeline_swift_http_call_makes_route_issue1892) {
     PASS();
 }
 
+static int pipeline_has_calls_edge(cbm_store_t *s, int64_t source_id, int64_t target_id) {
+    cbm_edge_t *edges = NULL;
+    int edge_count = 0;
+    if (cbm_store_find_edges_by_source_type(s, source_id, "CALLS", &edges, &edge_count) !=
+        CBM_STORE_OK) {
+        return -1;
+    }
+
+    int found = 0;
+    for (int i = 0; i < edge_count; i++) {
+        if (edges[i].target_id == target_id) {
+            found = 1;
+            break;
+        }
+    }
+    cbm_store_free_edges(edges, edge_count);
+    return found;
+}
+
+/* #2061: distinct signature QNs keep each overload's CALLS edges separate. */
+TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_swiftoverload_XXXXXX");
+    if (!cbm_mkdtemp(tmp)) {
+        FAIL("tmpdir");
+    }
+
+    write_temp_file(tmp, "Sources/Sink.swift",
+                    "class Sink {\n"
+                    "    func target() {}\n"
+                    "}\n");
+    write_temp_file(tmp, "Sources/Service.swift",
+                    "class Service {\n"
+                    "    let sink = Sink()\n"
+                    "\n"
+                    "    // Overload A: DOES call target()\n"
+                    "    func work(flag: Bool) {\n"
+                    "        self.sink.target()\n"
+                    "    }\n"
+                    "\n"
+                    "    // Overload B: does NOT call target()\n"
+                    "    func work(name: String) {\n"
+                    "        print(name)\n"
+                    "    }\n"
+                    "    func upload(_ data: Data, to url: URL) { sink.target() }\n"
+                    "    func upload(_ fileURL: URL, to url: URL) { print(fileURL) }\n"
+                    "    func withDefault(message: String, flag: Bool = true) { sink.target() }\n"
+                    "    func withCallback(completion: () -> Void) { sink.target() }\n"
+                    "}\n");
+    write_temp_file(tmp, "Sources/Caller.swift",
+                    "class Caller {\n"
+                    "    let service = Service()\n"
+                    "\n"
+                    "    // Calls ONLY overload B, which never reaches target()\n"
+                    "    func onlyCallsOverloadB() {\n"
+                    "        self.service.work(name: \"x\")\n"
+                    "    }\n"
+                    "    func callAmbiguousUpload() {\n"
+                    "        self.service.upload(Data(), to: URL(string: \"/x\")!)\n"
+                    "    }\n"
+                    "    func callWithDefault() { self.service.withDefault(message: \"x\") }\n"
+                    "    func callWithClosure() { self.service.withCallback { } }\n"
+                    "}\n");
+
+    char db_path[512];
+    snprintf(db_path, sizeof(db_path), "%s/swiftoverload.db", tmp);
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(cbm_pipeline_run(p), 0);
+    const char *project = cbm_pipeline_project_name(p);
+
+    cbm_store_t *s = cbm_store_open_path(db_path);
+    ASSERT_NOT_NULL(s);
+
+    cbm_node_t *works = NULL;
+    int work_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "work", &works, &work_count), CBM_STORE_OK);
+    ASSERT_EQ(work_count, 2);
+    cbm_store_free_nodes(works, work_count);
+    cbm_node_t *uploads = NULL;
+    int upload_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "upload", &uploads, &upload_count),
+              CBM_STORE_OK);
+    ASSERT_EQ(upload_count, 2);
+    cbm_store_free_nodes(uploads, upload_count);
+
+    char flag_qn[512];
+    char name_qn[512];
+    char target_qn[512];
+    char caller_qn[512];
+    snprintf(flag_qn, sizeof(flag_qn), "%s.Sources.Service.Service.work(flag:Bool)", project);
+    snprintf(name_qn, sizeof(name_qn), "%s.Sources.Service.Service.work(name:String)", project);
+    snprintf(target_qn, sizeof(target_qn), "%s.Sources.Sink.Sink.target()", project);
+    snprintf(caller_qn, sizeof(caller_qn), "%s.Sources.Caller.Caller.onlyCallsOverloadB()", project);
+
+    cbm_node_t flag = {0};
+    cbm_node_t name = {0};
+    cbm_node_t target = {0};
+    cbm_node_t caller = {0};
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, flag_qn, &flag), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, name_qn, &name), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, target_qn, &target), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, caller_qn, &caller), CBM_STORE_OK);
+    ASSERT_EQ(flag.start_line, 5);
+    ASSERT_EQ(flag.end_line, 7);
+    ASSERT_EQ(name.start_line, 10);
+    ASSERT_EQ(name.end_line, 12);
+
+    ASSERT_EQ(pipeline_has_calls_edge(s, flag.id, target.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, name.id, target.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, caller.id, name.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, caller.id, flag.id), 0);
+
+    char data_qn[512], url_qn[512], upload_caller_qn[512];
+    char default_qn[512], default_caller_qn[512], closure_qn[512], closure_caller_qn[512];
+    snprintf(data_qn, sizeof(data_qn), "%s.Sources.Service.Service.upload(_:Data,to:URL)",
+             project);
+    snprintf(url_qn, sizeof(url_qn), "%s.Sources.Service.Service.upload(_:URL,to:URL)", project);
+    snprintf(upload_caller_qn, sizeof(upload_caller_qn),
+             "%s.Sources.Caller.Caller.callAmbiguousUpload()", project);
+    snprintf(default_qn, sizeof(default_qn),
+             "%s.Sources.Service.Service.withDefault(message:String,flag:Bool)", project);
+    snprintf(default_caller_qn, sizeof(default_caller_qn),
+             "%s.Sources.Caller.Caller.callWithDefault()", project);
+    snprintf(closure_qn, sizeof(closure_qn),
+             "%s.Sources.Service.Service.withCallback(completion:()=>Void)", project);
+    snprintf(closure_caller_qn, sizeof(closure_caller_qn),
+             "%s.Sources.Caller.Caller.callWithClosure()", project);
+    cbm_node_t data = {0}, url = {0}, upload_caller = {0};
+    cbm_node_t with_default = {0}, default_caller = {0}, with_closure = {0}, closure_caller = {0};
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, data_qn, &data), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, url_qn, &url), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, upload_caller_qn, &upload_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, default_qn, &with_default), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, default_caller_qn, &default_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, closure_qn, &with_closure), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, closure_caller_qn, &closure_caller), CBM_STORE_OK);
+    ASSERT_EQ(pipeline_has_calls_edge(s, upload_caller.id, data.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, upload_caller.id, url.id), 1);
+    cbm_edge_t *upload_edges = NULL;
+    int upload_edges_count = 0;
+    ASSERT_EQ(cbm_store_find_edges_by_source_type(s, upload_caller.id, "CALLS", &upload_edges,
+                                                  &upload_edges_count),
+              CBM_STORE_OK);
+    int ambiguous_edges = 0;
+    for (int i = 0; i < upload_edges_count; i++) {
+        if ((upload_edges[i].target_id == data.id || upload_edges[i].target_id == url.id) &&
+            upload_edges[i].properties_json &&
+            strstr(upload_edges[i].properties_json, "\"candidates\":2")) {
+            ambiguous_edges++;
+        }
+    }
+    ASSERT_EQ(ambiguous_edges, 2);
+    cbm_store_free_edges(upload_edges, upload_edges_count);
+    ASSERT_EQ(pipeline_has_calls_edge(s, default_caller.id, with_default.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, closure_caller.id, with_closure.id), 1);
+    cbm_node_free_fields(&data);
+    cbm_node_free_fields(&url);
+    cbm_node_free_fields(&upload_caller);
+    cbm_node_free_fields(&with_default);
+    cbm_node_free_fields(&default_caller);
+    cbm_node_free_fields(&with_closure);
+    cbm_node_free_fields(&closure_caller);
+
+    cbm_node_free_fields(&flag);
+    cbm_node_free_fields(&name);
+    cbm_node_free_fields(&target);
+    cbm_node_free_fields(&caller);
+    cbm_store_close(s);
+    cbm_pipeline_free(p);
+    th_rmtree(tmp);
+    PASS();
+}
+
 /* Native `fetch()` (#856), parallel path (>= 50 files -> pass_parallel.c's
  * resolve_file_calls). Mirrors pipeline_native_fetch_classified_as_http_calls
  * but forces the parallel resolver, since the empty-resolution fallback is a
@@ -15132,6 +15306,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_native_fetch_classified_as_http_calls);
     RUN_TEST(pipeline_swift_nested_url_makes_route_issue1892);
     RUN_TEST(pipeline_swift_http_call_makes_route_issue1892);
+    RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
     RUN_TEST(pipeline_native_fetch_parallel_classified_as_http_calls);
     RUN_TEST(pipeline_local_fetch_shadow_not_classified_as_http);
     /* Git history pass */

@@ -38,6 +38,7 @@
 #include "arena.h"
 #include "tree_sitter/api.h"
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum {
     CBM_CALLABLE_ID_NONE = 0,      /* historical base QN, no suffix */
@@ -55,6 +56,10 @@ enum { CBM_CALLABLE_SIG_MAX = 200 };
  * a CBMLangSpec field: the ~160 positional lang_specs rows would all have to
  * spell the new member under -Wmissing-field-initializers. */
 CBMCallableIdentity cbm_callable_identity(CBMLanguage lang);
+
+/* Swift parameter defaults are call-resolution metadata, not graph identity.
+ * Returns a bit per parameter; count > 64 is reported as 255. */
+uint64_t cbm_swift_default_mask(TSNode func_node, const char *source, uint8_t *count);
 
 /* The identity suffix for the callable at `func_node` in the language's own
  * mode, or NULL when that mode is NONE (or the node carries no parameter

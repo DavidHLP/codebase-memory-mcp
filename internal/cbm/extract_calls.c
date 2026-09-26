@@ -2061,6 +2061,8 @@ static void process_keyword_arg(CBMExtractCtx *ctx, TSNode arg_node, CBMCallArg 
     }
 }
 
+static TSNode swift_argument_value(TSNode arg);
+
 /* Extract all arguments from a call expression into call->args[]. */
 static void extract_call_args(CBMExtractCtx *ctx, TSNode args, CBMCall *call) {
     uint32_t argc = ts_node_named_child_count(args);
@@ -2084,6 +2086,26 @@ static void extract_call_args(CBMExtractCtx *ctx, TSNode args, CBMCall *call) {
         }
         CBMCallArg *ca = &call->args[call->arg_count];
         memset(ca, 0, sizeof(*ca));
+
+        if (ctx->language == CBM_LANG_SWIFT && strcmp(ak, "value_argument") == 0) {
+            TSNode first = ts_node_named_child(arg_node, 0);
+            if (!ts_node_is_null(first) &&
+                strcmp(ts_node_type(first), "value_argument_label") == 0) {
+                TSNode label = ts_node_named_child(first, 0);
+                if (ts_node_is_null(label)) {
+                    label = first;
+                }
+                ca->keyword = cbm_node_text(ctx->arena, label, ctx->source);
+                if (ca->keyword) {
+                    size_t n = strlen(ca->keyword);
+                    if (n > 0 && ca->keyword[n - 1] == ':') {
+                        ca->keyword = cbm_arena_strndup(ctx->arena, ca->keyword, n - 1);
+                    }
+                }
+            }
+            arg_node = swift_argument_value(arg_node);
+            ak = ts_node_type(arg_node);
+        }
 
         if (strcmp(ak, "keyword_argument") == 0 || strcmp(ak, "pair") == 0) {
             process_keyword_arg(ctx, arg_node, ca);
@@ -3830,6 +3852,17 @@ CBMInvocationDescriptor handle_calls(CBMExtractCtx *ctx, TSNode node, const CBML
             // Swift has no "arguments" field either; its args hang off call_suffix.
             if (ts_node_is_null(args) && ctx->language == CBM_LANG_SWIFT) {
                 args = swift_call_args(node);
+            }
+            if (ctx->language == CBM_LANG_SWIFT) {
+                TSNode suffix = cbm_find_child_by_kind(node, "call_suffix");
+                if (!ts_node_is_null(suffix)) {
+                    call.swift_trailing_closure =
+                        !ts_node_is_null(cbm_find_child_by_kind(suffix, "lambda_literal"));
+                }
+                if (!ts_node_is_null(args) &&
+                    ts_node_named_child_count(args) > CBM_MAX_CALL_ARGS) {
+                    call.swift_args_truncated = true;
+                }
             }
             if (!ts_node_is_null(args)) {
                 call.first_string_arg = extract_url_or_topic_arg(ctx, args);

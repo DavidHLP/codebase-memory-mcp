@@ -512,6 +512,12 @@ static void build_def_props(char *buf, size_t bufsize, const CBMDefinition *def)
         return;
     }
     size_t pos = (size_t)n;
+    if (def->qn_sig_off && bufsize - pos > 80) {
+        pos += (size_t)snprintf(buf + pos, bufsize - pos,
+                                ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
+                                (unsigned long long)def->swift_default_mask,
+                                (unsigned)def->swift_param_count);
+    }
     append_json_string(buf, bufsize, &pos, "docstring", def->docstring);
     append_json_string(buf, bufsize, &pos, "signature", def->signature);
     append_json_string(buf, bufsize, &pos, "return_type", def->return_type);
@@ -1589,6 +1595,10 @@ static int register_and_link_def(cbm_pipeline_ctx_t *ctx, const CBMDefinition *d
      * (helpers.c) — see pass_definitions.c for the per-label rationale. */
     if (cbm_label_is_registry_symbol(def->label)) {
         cbm_registry_add(ctx->registry, def->name, def->qualified_name, def->label);
+        if (def->qn_sig_off) {
+            cbm_registry_set_swift_signature(ctx->registry, def->qualified_name,
+                                             def->swift_default_mask, def->swift_param_count);
+        }
         (*reg_entries)++;
     }
     const cbm_gbuf_node_t *def_node = cbm_gbuf_find_by_qn(ctx->gbuf, def->qualified_name);
@@ -2981,6 +2991,33 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
                                   module_qn, rc->registry, rc->main_gbuf, imp_keys, imp_vals,
                                   imp_count, false);
                 continue;
+            }
+        }
+
+        if (lang == CBM_LANG_SWIFT && !lsp_target) {
+            const char *candidates[CBM_SZ_256];
+            int count = cbm_registry_swift_candidates(rc->registry, call, module_qn, imp_vals,
+                                                      imp_count, candidates, CBM_SZ_256);
+            if (count > 0) {
+                for (int i = 0; i < count; i++) {
+                    const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(rc->main_gbuf,
+                                                                         candidates[i]);
+                    if (!target || target->id == source_node->id) {
+                        continue;
+                    }
+                    cbm_resolution_t selected = {.qualified_name = candidates[i],
+                                                 .strategy = "swift_labels",
+                                                 .confidence = count == 1 ? 0.90 : 0.55,
+                                                 .candidate_count = count};
+                    emit_service_edge(ws->local_edge_buf, source_node, target, call, &selected,
+                                      module_qn, rc->registry, rc->main_gbuf, imp_keys, imp_vals,
+                                      imp_count, false);
+                    ws->calls_resolved++;
+                }
+                continue;
+            }
+            if (count < 0) {
+                res = (cbm_resolution_t){0};
             }
         }
 

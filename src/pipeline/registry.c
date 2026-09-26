@@ -86,6 +86,11 @@ typedef struct {
     int is_test_cap;
 } qn_array_t;
 
+typedef struct {
+    uint64_t defaults;
+    uint8_t count;
+} swift_signature_t;
+
 struct cbm_registry {
     /* Interned label strings (<=~30 distinct labels; owned here, freed in
      * _free). The exact map's VALUES point into this pool instead of one
@@ -97,6 +102,7 @@ struct cbm_registry {
 
     /* byName: simpleName → qn_array_t* (heap-owned) */
     CBMHashTable *by_name;
+    CBMHashTable *swift_signatures; /* borrowed exact-map keys; owned values */
 };
 
 /* ── Helpers ─────────────────────────────────────────────────────── */
@@ -842,6 +848,12 @@ static void free_qn_array(const char *key, void *value, void *ud) {
     free((void *)key);
 }
 
+static void free_swift_signature(const char *key, void *value, void *ud) {
+    (void)key;
+    (void)ud;
+    free(value);
+}
+
 void cbm_registry_free(cbm_registry_t *r) {
     if (!r) {
         return;
@@ -849,6 +861,10 @@ void cbm_registry_free(cbm_registry_t *r) {
     /* by_name first: its items borrow exact's keys. */
     cbm_ht_foreach(r->by_name, free_qn_array, NULL);
     cbm_ht_free(r->by_name);
+    if (r->swift_signatures) {
+        cbm_ht_foreach(r->swift_signatures, free_swift_signature, NULL);
+        cbm_ht_free(r->swift_signatures);
+    }
     cbm_ht_foreach(r->exact, free_label, NULL);
     cbm_ht_free(r->exact);
     for (int i = 0; i < r->label_pool_n; i++) {
@@ -922,6 +938,33 @@ void cbm_registry_add(cbm_registry_t *r, const char *name, const char *qualified
     if (arr->count <= arr->is_test_cap) {
         arr->is_test[arr->count - SKIP_ONE] = is_test_qn(owned_qn) ? 1 : 0;
     }
+}
+
+void cbm_registry_set_swift_signature(cbm_registry_t *r, const char *qualified_name,
+                                      uint64_t default_mask, uint8_t param_count) {
+    if (!r || !qualified_name) {
+        return;
+    }
+    const char *owned = cbm_ht_get_key(r->exact, qualified_name);
+    if (!owned) {
+        return;
+    }
+    if (!r->swift_signatures) {
+        r->swift_signatures = cbm_ht_create(CBM_SZ_512);
+        if (!r->swift_signatures) {
+            return;
+        }
+    }
+    swift_signature_t *sig = cbm_ht_get(r->swift_signatures, owned);
+    if (!sig) {
+        sig = malloc(sizeof(*sig));
+        if (!sig) {
+            return;
+        }
+        cbm_ht_set(r->swift_signatures, owned, sig);
+    }
+    sig->defaults = default_mask;
+    sig->count = param_count;
 }
 
 /* ── Lookup ──────────────────────────────────────────────────────── */
@@ -1402,6 +1445,164 @@ cbm_resolution_t cbm_registry_resolve(const cbm_registry_t *r, const char *calle
         }
     }
     return res;
+}
+
+/* Read labels from the signature-qualified QN. Types may contain commas in
+ * tuples, generic arguments or function types, so only top-level commas split
+ * parameters. The type text is used only to recognize a trailing closure. */
+static bool swift_signature_matches(const char *qn, const char *name,
+                                    const swift_signature_t *meta, const CBMCall *call) {
+    if (!meta || meta->count == UINT8_MAX || call->swift_args_truncated) {
+        return false;
+    }
+    size_t base_len = cbm_qn_callable_base_len_named(qn, name);
+    const char *sig = qn + base_len;
+    size_t n = strlen(sig);
+    if (n < 2 || sig[0] != '(' || sig[n - 1] != ')' || strchr(sig, '#')) {
+        return false;
+    }
+    const char *labels[64];
+    size_t label_lens[64];
+    bool closures[64];
+    unsigned count = 0;
+    const char *entry = sig + 1;
+    const char *end = sig + n - 1;
+    int parens = 0, brackets = 0, angles = 0;
+    for (const char *p = entry; p <= end; p++) {
+        char ch = *p;
+        if (p == end || (ch == ',' && parens == 0 && brackets == 0 && angles == 0)) {
+            if (p > entry) {
+                if (count >= 64) {
+                    return false;
+                }
+                const char *colon = memchr(entry, ':', (size_t)(p - entry));
+                if (!colon) {
+                    return false;
+                }
+                labels[count] = entry;
+                label_lens[count] = (size_t)(colon - entry);
+                closures[count] = false;
+                for (const char *t = colon + 1; t + 1 < p; t++) {
+                    if (t[0] == '=' && t[1] == '>') {
+                        closures[count] = true;
+                        break;
+                    }
+                }
+                count++;
+            }
+            entry = p + 1;
+        } else if (ch == '(') {
+            parens++;
+        } else if (ch == ')' && parens > 0) {
+            parens--;
+        } else if (ch == '[') {
+            brackets++;
+        } else if (ch == ']' && brackets > 0) {
+            brackets--;
+        } else if (ch == '<') {
+            angles++;
+        } else if (ch == '>' && angles > 0) {
+            angles--;
+        }
+    }
+    if (count != meta->count) {
+        return false;
+    }
+    int arg = 0;
+    bool used_closure = false;
+    for (unsigned i = 0; i < count; i++) {
+        const char *given = arg < call->arg_count ? call->args[arg].keyword : NULL;
+        if (!given) {
+            given = "_";
+        }
+        if (arg < call->arg_count && strlen(given) == label_lens[i] &&
+            memcmp(given, labels[i], label_lens[i]) == 0) {
+            arg++;
+        } else if (call->swift_trailing_closure && !used_closure && arg == call->arg_count &&
+                   i + 1 == count && closures[i]) {
+            used_closure = true;
+        } else if ((meta->defaults & (UINT64_C(1) << i)) == 0) {
+            return false;
+        }
+    }
+    return arg == call->arg_count && (!call->swift_trailing_closure || used_closure);
+}
+
+int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
+                                  const char *module_qn, const char **import_vals,
+                                  int import_count, const char **out, int out_cap) {
+    if (!r || !r->swift_signatures || !call || !call->callee_name || !out || out_cap < 1) {
+        return 0;
+    }
+    const char *name = simple_name(call->callee_name);
+    qn_array_t *bucket = cbm_ht_get(r->by_name, name);
+    if (!bucket || bucket->count > REG_MAX_CANDIDATES) {
+        return 0;
+    }
+    const char *matches[REG_MAX_CANDIDATES];
+    int matched = 0;
+    bool has_swift = false;
+    for (int i = 0; i < bucket->count; i++) {
+        const char *qn = bucket->items[i];
+        swift_signature_t *meta = cbm_ht_get(r->swift_signatures, qn);
+        has_swift |= meta != NULL;
+        if (meta && receiver_chain_admits(call->callee_name, qn) &&
+            swift_signature_matches(qn, name, meta, call)) {
+            matches[matched++] = qn;
+        }
+    }
+    if (matched == 0) {
+        return has_swift ? -1 : 0;
+    }
+    /* Preserve the receiver when it names a class or namespace explicitly. */
+    const char *chosen = NULL;
+    size_t callee_len = strlen(call->callee_name);
+    if (strchr(call->callee_name, '.')) {
+        for (int i = 0; i < matched; i++) {
+            size_t base = cbm_qn_callable_base_len_named(matches[i], name);
+            if (base >= callee_len &&
+                memcmp(matches[i] + base - callee_len, call->callee_name, callee_len) == 0 &&
+                (base == callee_len || matches[i][base - callee_len - 1] == '.')) {
+                chosen = matches[i];
+                break;
+            }
+        }
+    }
+    if (!chosen) {
+        const char *reachable[REG_MAX_CANDIDATES];
+        int reachable_count = 0;
+        if (import_vals) {
+            for (int i = 0; i < matched; i++) {
+                if (is_import_reachable(matches[i], import_vals, import_count)) {
+                    reachable[reachable_count++] = matches[i];
+                }
+            }
+        }
+        if (reachable_count > 0) {
+            chosen = module_qn ? best_by_import_distance(reachable, NULL, reachable_count,
+                                                         module_qn)
+                               : reachable[0];
+        }
+    }
+    if (!chosen) {
+        chosen = module_qn ? best_by_import_distance(matches, NULL, matched, module_qn)
+                           : matches[0];
+    }
+    if (!chosen) {
+        return 0;
+    }
+    size_t chosen_base = cbm_qn_callable_base_len_named(chosen, name);
+    int found = 0;
+    for (int i = 0; i < matched; i++) {
+        size_t base = cbm_qn_callable_base_len_named(matches[i], name);
+        if (base == chosen_base && memcmp(matches[i], chosen, base) == 0) {
+            if (found == out_cap) {
+                return -1;
+            }
+            out[found++] = matches[i];
+        }
+    }
+    return found;
 }
 
 cbm_resolution_t cbm_registry_resolve_lineage(const cbm_registry_t *r, const char *callee_name,

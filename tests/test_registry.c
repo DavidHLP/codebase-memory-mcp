@@ -1171,6 +1171,55 @@ TEST(resolve_import_map_alias_with_suffix_hits_method) {
     PASS();
 }
 
+TEST(swift_overload_labels_defaults_and_trailing_closure) {
+    cbm_registry_t *r = cbm_registry_new();
+    ASSERT_NOT_NULL(r);
+    const char *qns[] = {
+        "proj.Service.work(flag:Bool)",
+        "proj.Service.work(name:String)",
+        "proj.Service.work(name:Int)",
+        "proj.Other.work(name:String)",
+        "proj.Service.send(value:Int,completion:()=>Void)",
+        "proj.Service.configure(a:Int,b:Int,c:Int)",
+    };
+    const char *names[] = {"work", "work", "work", "work", "send", "configure"};
+    const uint8_t counts[] = {1, 1, 1, 1, 2, 3};
+    for (int i = 0; i < 6; i++) {
+        cbm_registry_add(r, names[i], qns[i], "Method");
+        cbm_registry_set_swift_signature(r, qns[i], i == 5 ? UINT64_C(1) << 1 : 0, counts[i]);
+    }
+
+    const char *out[8] = {0};
+    CBMCallArg args[2] = {{.keyword = "name"}};
+    CBMCall call = {.callee_name = "Service.work", .args = args, .arg_count = 1};
+    int n = cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8);
+    ASSERT_EQ(n, 2); /* type is unknown: keep both compatible overloads */
+    ASSERT_TRUE((strcmp(out[0], qns[1]) == 0 && strcmp(out[1], qns[2]) == 0) ||
+                (strcmp(out[0], qns[2]) == 0 && strcmp(out[1], qns[1]) == 0));
+
+    args[0].keyword = "flag";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[0]);
+    args[0].keyword = "missing";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+
+    args[0].keyword = "a";
+    args[1].keyword = "c";
+    call.callee_name = "configure";
+    call.arg_count = 2;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[5]);
+
+    args[0].keyword = "value";
+    call.callee_name = "send";
+    call.arg_count = 1;
+    call.swift_trailing_closure = true;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[4]);
+    cbm_registry_free(r);
+    PASS();
+}
+
 SUITE(registry) {
     /* FQN */
     RUN_TEST(fqn_simple);
@@ -1206,6 +1255,7 @@ SUITE(registry) {
     RUN_TEST(resolve_import_map_bare_alias);
     RUN_TEST(resolve_import_map_aliased_from_import);
     RUN_TEST(resolve_import_map_alias_with_suffix_hits_method);
+    RUN_TEST(swift_overload_labels_defaults_and_trailing_closure);
     RUN_TEST(resolve_unique_name);
     RUN_TEST(resolve_unresolved);
     RUN_TEST(resolve_many_nodes);

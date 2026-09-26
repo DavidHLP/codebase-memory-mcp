@@ -544,6 +544,28 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call,
         }
     }
 
+    if (lang == CBM_LANG_SWIFT) {
+        const char *candidates[CBM_SZ_256];
+        int count = cbm_registry_swift_candidates(ctx->registry, call, module_qn, imp_vals,
+                                                  imp_count, candidates, CBM_SZ_256);
+        if (count != 0) {
+            int emitted = 0;
+            for (int i = 0; i < count; i++) {
+                const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(ctx->gbuf, candidates[i]);
+                if (target && target->id != source_node->id) {
+                    cbm_resolution_t selected = {.qualified_name = candidates[i],
+                                                 .strategy = "swift_labels",
+                                                 .confidence = count == 1 ? 0.90 : 0.55,
+                                                 .candidate_count = count};
+                    emit_classified_edge(ctx, call, source_node, target, &selected, module_qn,
+                                         imp_keys, imp_vals, imp_count, false);
+                    emitted++;
+                }
+            }
+            return emitted > 0 ? SKIP_ONE : 0;
+        }
+    }
+
     cbm_resolution_t res = cbm_registry_resolve(ctx->registry, call->callee_name, module_qn,
                                                 imp_keys, imp_vals, imp_count);
     if (!res.qualified_name || res.qualified_name[0] == '\0') {
