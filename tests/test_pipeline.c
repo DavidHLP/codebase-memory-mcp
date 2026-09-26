@@ -6937,7 +6937,8 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     snprintf(flag_qn, sizeof(flag_qn), "%s.Sources.Service.Service.work(flag:Bool)", project);
     snprintf(name_qn, sizeof(name_qn), "%s.Sources.Service.Service.work(name:String)", project);
     snprintf(target_qn, sizeof(target_qn), "%s.Sources.Sink.Sink.target()", project);
-    snprintf(caller_qn, sizeof(caller_qn), "%s.Sources.Caller.Caller.onlyCallsOverloadB()", project);
+    snprintf(caller_qn, sizeof(caller_qn), "%s.Sources.Caller.Caller.onlyCallsOverloadB()",
+             project);
 
     cbm_node_t flag = {0};
     cbm_node_t name = {0};
@@ -6959,8 +6960,7 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
 
     char data_qn[512], url_qn[512], upload_caller_qn[512];
     char default_qn[512], default_caller_qn[512], closure_qn[512], closure_caller_qn[512];
-    snprintf(data_qn, sizeof(data_qn), "%s.Sources.Service.Service.upload(_:Data,to:URL)",
-             project);
+    snprintf(data_qn, sizeof(data_qn), "%s.Sources.Service.Service.upload(_:Data,to:URL)", project);
     snprintf(url_qn, sizeof(url_qn), "%s.Sources.Service.Service.upload(_:URL,to:URL)", project);
     snprintf(upload_caller_qn, sizeof(upload_caller_qn),
              "%s.Sources.Caller.Caller.callAmbiguousUpload()", project);
@@ -6976,11 +6976,14 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     cbm_node_t with_default = {0}, default_caller = {0}, with_closure = {0}, closure_caller = {0};
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, data_qn, &data), CBM_STORE_OK);
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, url_qn, &url), CBM_STORE_OK);
-    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, upload_caller_qn, &upload_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, upload_caller_qn, &upload_caller),
+              CBM_STORE_OK);
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, default_qn, &with_default), CBM_STORE_OK);
-    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, default_caller_qn, &default_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, default_caller_qn, &default_caller),
+              CBM_STORE_OK);
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, closure_qn, &with_closure), CBM_STORE_OK);
-    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, closure_caller_qn, &closure_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, closure_caller_qn, &closure_caller),
+              CBM_STORE_OK);
     ASSERT_EQ(pipeline_has_calls_edge(s, upload_caller.id, data.id), 1);
     ASSERT_EQ(pipeline_has_calls_edge(s, upload_caller.id, url.id), 1);
     cbm_edge_t *upload_edges = NULL;

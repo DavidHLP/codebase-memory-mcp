@@ -513,10 +513,9 @@ static void build_def_props(char *buf, size_t bufsize, const CBMDefinition *def)
     }
     size_t pos = (size_t)n;
     if (def->qn_sig_off && bufsize - pos > 80) {
-        pos += (size_t)snprintf(buf + pos, bufsize - pos,
-                                ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
-                                (unsigned long long)def->swift_default_mask,
-                                (unsigned)def->swift_param_count);
+        pos += (size_t)snprintf(
+            buf + pos, bufsize - pos, ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
+            (unsigned long long)def->swift_default_mask, (unsigned)def->swift_param_count);
     }
     append_json_string(buf, bufsize, &pos, "docstring", def->docstring);
     append_json_string(buf, bufsize, &pos, "signature", def->signature);
@@ -3000,8 +2999,8 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
                                                       imp_count, candidates, CBM_SZ_256);
             if (count > 0) {
                 for (int i = 0; i < count; i++) {
-                    const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(rc->main_gbuf,
-                                                                         candidates[i]);
+                    const cbm_gbuf_node_t *target =
+                        cbm_gbuf_find_by_qn(rc->main_gbuf, candidates[i]);
                     if (!target || target->id == source_node->id) {
                         continue;
                     }

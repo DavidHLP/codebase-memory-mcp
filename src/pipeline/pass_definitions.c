@@ -285,10 +285,9 @@ static void build_def_props(char *buf, size_t bufsize, const CBMDefinition *def)
     }
     size_t pos = (size_t)n;
     if (def->qn_sig_off && bufsize - pos > 80) {
-        pos += (size_t)snprintf(buf + pos, bufsize - pos,
-                                ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
-                                (unsigned long long)def->swift_default_mask,
-                                (unsigned)def->swift_param_count);
+        pos += (size_t)snprintf(
+            buf + pos, bufsize - pos, ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
+            (unsigned long long)def->swift_default_mask, (unsigned)def->swift_param_count);
     }
     append_json_string(buf, bufsize, &pos, "docstring", def->docstring);
     append_json_string(buf, bufsize, &pos, "signature", def->signature);

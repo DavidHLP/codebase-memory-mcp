@@ -232,8 +232,8 @@ void cbm_registry_add(cbm_registry_t *r, const char *name, const char *qualified
 void cbm_registry_set_swift_signature(cbm_registry_t *r, const char *qualified_name,
                                       uint64_t default_mask, uint8_t param_count);
 int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
-                                  const char *module_qn, const char **import_vals,
-                                  int import_count, const char **out, int out_cap);
+                                  const char *module_qn, const char **import_vals, int import_count,
+                                  const char **out, int out_cap);
 
 /* Resolve a callee name using prioritized strategies.
  * import_map: NULL-terminated array of {local_name, resolved_qn} pairs, or NULL.

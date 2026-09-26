@@ -230,8 +230,7 @@ TEST(callable_sig_only_swift_enabled) {
     const char *src = "class A { void f(int x) {} }";
     for (int lang = 0; lang < CBM_LANG_COUNT; lang++) {
         ASSERT_EQ(cbm_callable_identity((CBMLanguage)lang),
-                  lang == CBM_LANG_SWIFT ? CBM_CALLABLE_ID_LABELED_TYPED
-                                         : CBM_CALLABLE_ID_NONE);
+                  lang == CBM_LANG_SWIFT ? CBM_CALLABLE_ID_LABELED_TYPED : CBM_CALLABLE_ID_NONE);
     }
     TSParser *parser = ts_parser_new();
     ts_parser_set_language(parser, cbm_ts_language(CBM_LANG_JAVA));
@@ -258,8 +257,7 @@ TEST(callable_sig_swift_default_parameters) {
     ASSERT_TRUE(find_nth(ts_tree_root_node(tree), "function_declaration", &left, &method));
     CBMArena a;
     cbm_arena_init(&a);
-    ASSERT_STR_EQ(cbm_callable_sig(&a, method, src, CBM_LANG_SWIFT),
-                  "(a:Int,b:String,c:()=>Void)");
+    ASSERT_STR_EQ(cbm_callable_sig(&a, method, src, CBM_LANG_SWIFT), "(a:Int,b:String,c:()=>Void)");
     uint8_t count = 0;
     ASSERT_EQ(cbm_swift_default_mask(method, src, &count), UINT64_C(1) << 1);
     ASSERT_EQ(count, 3);

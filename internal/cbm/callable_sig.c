@@ -737,8 +737,7 @@ static void sig_swift_param(sig_ctx_t *c, TSNode p) {
                 continue;
             }
             /* A default expression selects call arity, not type identity. */
-            if ((field && strcmp(field, "default_value") == 0) ||
-                sig_node_text_is(c, ch, "=")) {
+            if ((field && strcmp(field, "default_value") == 0) || sig_node_text_is(c, ch, "=")) {
                 break;
             }
             const char *k = ts_node_type(ch);

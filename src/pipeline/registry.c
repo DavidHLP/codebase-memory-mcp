@@ -1450,8 +1450,8 @@ cbm_resolution_t cbm_registry_resolve(const cbm_registry_t *r, const char *calle
 /* Read labels from the signature-qualified QN. Types may contain commas in
  * tuples, generic arguments or function types, so only top-level commas split
  * parameters. The type text is used only to recognize a trailing closure. */
-static bool swift_signature_matches(const char *qn, const char *name,
-                                    const swift_signature_t *meta, const CBMCall *call) {
+static bool swift_signature_matches(const char *qn, const char *name, const swift_signature_t *meta,
+                                    const CBMCall *call) {
     if (!meta || meta->count == UINT8_MAX || call->swift_args_truncated) {
         return false;
     }
@@ -1529,8 +1529,8 @@ static bool swift_signature_matches(const char *qn, const char *name,
 }
 
 int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
-                                  const char *module_qn, const char **import_vals,
-                                  int import_count, const char **out, int out_cap) {
+                                  const char *module_qn, const char **import_vals, int import_count,
+                                  const char **out, int out_cap) {
     if (!r || !r->swift_signatures || !call || !call->callee_name || !out || out_cap < 1) {
         return 0;
     }
@@ -1579,14 +1579,14 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
             }
         }
         if (reachable_count > 0) {
-            chosen = module_qn ? best_by_import_distance(reachable, NULL, reachable_count,
-                                                         module_qn)
-                               : reachable[0];
+            chosen = module_qn
+                         ? best_by_import_distance(reachable, NULL, reachable_count, module_qn)
+                         : reachable[0];
         }
     }
     if (!chosen) {
-        chosen = module_qn ? best_by_import_distance(matches, NULL, matched, module_qn)
-                           : matches[0];
+        chosen =
+            module_qn ? best_by_import_distance(matches, NULL, matched, module_qn) : matches[0];
     }
     if (!chosen) {
         return 0;

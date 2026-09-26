@@ -3859,8 +3859,7 @@ CBMInvocationDescriptor handle_calls(CBMExtractCtx *ctx, TSNode node, const CBML
                     call.swift_trailing_closure =
                         !ts_node_is_null(cbm_find_child_by_kind(suffix, "lambda_literal"));
                 }
-                if (!ts_node_is_null(args) &&
-                    ts_node_named_child_count(args) > CBM_MAX_CALL_ARGS) {
+                if (!ts_node_is_null(args) && ts_node_named_child_count(args) > CBM_MAX_CALL_ARGS) {
                     call.swift_args_truncated = true;
                 }
             }
