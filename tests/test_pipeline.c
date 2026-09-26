@@ -7021,6 +7021,79 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     PASS();
 }
 
+/* The parallel call pass must retain both type-only overload candidates. */
+TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_swiftoverload_par_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    write_temp_file(tmp, "Sources/Service.swift",
+                    "class Service {\n"
+                    "    func upload(_ data: Data, to url: URL) {}\n"
+                    "    func upload(_ file: URL, to url: URL) {}\n"
+                    "}\n");
+    write_temp_file(tmp, "Sources/Caller.swift",
+                    "class Caller {\n"
+                    "    let service = Service()\n"
+                    "    func invoke() { self.service.upload(Data(), to: URL(string: \"/x\")!) }\n"
+                    "}\n");
+    for (int i = 0; i < 50; i++) {
+        char path[64], source[80];
+        snprintf(path, sizeof(path), "Sources/Filler%d.swift", i);
+        snprintf(source, sizeof(source), "func filler%d() {}\n", i);
+        write_temp_file(tmp, path, source);
+    }
+
+    char *previous_workers = getenv("CBM_WORKERS");
+    char *saved_workers = previous_workers ? strdup(previous_workers) : NULL;
+    cbm_setenv("CBM_WORKERS", "4", 1);
+    char db_path[512];
+    snprintf(db_path, sizeof(db_path), "%s/swiftoverload.db", tmp);
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    int run_result = p ? cbm_pipeline_run(p) : -1;
+    if (saved_workers) {
+        cbm_setenv("CBM_WORKERS", saved_workers, 1);
+    } else {
+        cbm_unsetenv("CBM_WORKERS");
+    }
+    free(saved_workers);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(run_result, 0);
+    const char *project = cbm_pipeline_project_name(p);
+    cbm_store_t *s = cbm_store_open_path(db_path);
+    ASSERT_NOT_NULL(s);
+
+    char caller_qn[512], data_qn[512], url_qn[512];
+    snprintf(caller_qn, sizeof(caller_qn), "%s.Sources.Caller.Caller.invoke()", project);
+    snprintf(data_qn, sizeof(data_qn), "%s.Sources.Service.Service.upload(_:Data,to:URL)", project);
+    snprintf(url_qn, sizeof(url_qn), "%s.Sources.Service.Service.upload(_:URL,to:URL)", project);
+    cbm_node_t caller = {0}, data = {0}, url = {0};
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, caller_qn, &caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, data_qn, &data), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, url_qn, &url), CBM_STORE_OK);
+    ASSERT_EQ(pipeline_has_calls_edge(s, caller.id, data.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, caller.id, url.id), 1);
+    cbm_edge_t *edges = NULL;
+    int edge_count = 0;
+    ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &edge_count),
+              CBM_STORE_OK);
+    int ambiguous = 0;
+    for (int i = 0; i < edge_count; i++) {
+        if ((edges[i].target_id == data.id || edges[i].target_id == url.id) &&
+            edges[i].properties_json && strstr(edges[i].properties_json, "\"candidates\":2")) {
+            ambiguous++;
+        }
+    }
+    ASSERT_EQ(ambiguous, 2);
+    cbm_store_free_edges(edges, edge_count);
+    cbm_node_free_fields(&caller);
+    cbm_node_free_fields(&data);
+    cbm_node_free_fields(&url);
+    cbm_store_close(s);
+    cbm_pipeline_free(p);
+    th_rmtree(tmp);
+    PASS();
+}
+
 /* Native `fetch()` (#856), parallel path (>= 50 files -> pass_parallel.c's
  * resolve_file_calls). Mirrors pipeline_native_fetch_classified_as_http_calls
  * but forces the parallel resolver, since the empty-resolution fallback is a
@@ -15310,6 +15383,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_nested_url_makes_route_issue1892);
     RUN_TEST(pipeline_swift_http_call_makes_route_issue1892);
     RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
+    RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
     RUN_TEST(pipeline_native_fetch_parallel_classified_as_http_calls);
     RUN_TEST(pipeline_local_fetch_shadow_not_classified_as_http);
     /* Git history pass */
