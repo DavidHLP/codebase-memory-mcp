@@ -1,0 +1,33 @@
+internal/cbm/callable_sig.c
+  s_bbcc2e0b5a1509::t_0f65ae11d135bd 740
+internal/cbm/extract_calls.c
+  s_bbcc2e0b5a1509::t_eab5941d9595cf 3862
+src/pipeline/pass_definitions.c
+  s_bbcc2e0b5a1509::t_65b3ea6c2f6e6f 288-290
+src/pipeline/pass_parallel.c
+  s_bbcc2e0b5a1509::t_8348a6f5dddf1b 516-518,3002-3003
+src/pipeline/pipeline.h
+  s_bbcc2e0b5a1509::t_517d2de3dba0fa 235-236
+src/pipeline/registry.c
+  s_bbcc2e0b5a1509::t_c1d61b65971cfd 1453-1454,1532-1533,1582-1584,1588-1589
+tests/test_callable_sig.c
+  s_bbcc2e0b5a1509::t_657cada3c38324 233,260
+tests/test_pipeline.c
+  s_bbcc2e0b5a1509::t_120a703a20aea7 6940-6941,6963,6979-6980,6982-6983,6985-6986
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7ae83006798c73813fbfc80c318b9680bd134c02",
+  "prompts": {},
+  "sessions": {
+    "s_bbcc2e0b5a1509": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dbab-1ce3-7d31-a82d-3bb82ef6222b",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
