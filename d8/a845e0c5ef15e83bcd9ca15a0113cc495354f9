@@ -1,0 +1,65 @@
+src/store/store.h
+  s_bbcc2e0b5a1509::t_2d4c7deed71f15 26
+src/pipeline/pipeline_incremental.c
+  s_bbcc2e0b5a1509::t_73be90cf842b28 1045-1061
+internal/cbm/callable_sig.h
+  s_bbcc2e0b5a1509::t_bdeb7696348389 41,60-62
+  s_bbcc2e0b5a1509::t_590f553046cd89 63
+internal/cbm/extract_defs.c
+  s_bbcc2e0b5a1509::t_2d4c7deed71f15 2,3948-3957,3960-3961,5109-5118,5120
+  s_bbcc2e0b5a1509::t_bdeb7696348389 3958-3959,5119
+src/pipeline/pass_calls.c
+  s_bbcc2e0b5a1509::t_18f08f71b755c4 547-568
+internal/cbm/extract_unified.c
+  s_bbcc2e0b5a1509::t_2d4c7deed71f15 4,1096-1105
+src/pipeline/pipeline.h
+  s_bbcc2e0b5a1509::t_25f19f0bfaf247 230-231
+  s_bbcc2e0b5a1509::t_5453906ab241bb 23,229,232-236
+  s_bbcc2e0b5a1509::t_40e132043defcb 237
+src/pipeline/pass_parallel.c
+  s_bbcc2e0b5a1509::t_bb865937c8b155 1598-1601
+  s_bbcc2e0b5a1509::t_ae04375ee7297a 2997-3023
+  s_bbcc2e0b5a1509::t_b77d3a07f1e55b 515-520
+internal/cbm/callable_sig.c
+  s_bbcc2e0b5a1509::t_6c2ce54922c34f 739-743
+  s_bbcc2e0b5a1509::t_2d4c7deed71f15 35-38
+  s_bbcc2e0b5a1509::t_ab8d1d7236d84a 777-812
+tests/test_registry.c
+  s_bbcc2e0b5a1509::t_ee9e091a68b7c8 1174-1222,1258
+tests/test_pipeline.c
+  s_bbcc2e0b5a1509::t_70fa89854bc0e0 6891-6894,6904-6908,6926-6931,6959-6985,7001-7009
+  s_bbcc2e0b5a1509::t_8006ae417d0e83 6847-6890,6895-6903,6909-6925,6932-6958,7010-7020,15309
+  s_bbcc2e0b5a1509::t_9d8d46064480ce 6986-7000
+internal/cbm/cbm.h
+  s_bbcc2e0b5a1509::t_bdeb7696348389 245-247,304-305
+internal/cbm/extract_calls.c
+  s_bbcc2e0b5a1509::t_71b3390de32b1d 2064-2065,2090-2109,3856-3866
+src/pipeline/pass_definitions.c
+  s_bbcc2e0b5a1509::t_b77d3a07f1e55b 287-292
+  s_bbcc2e0b5a1509::t_bb865937c8b155 345-348
+src/pipeline/registry.c
+  s_bbcc2e0b5a1509::t_8240b542c3d1b8 968,1450-1543,1545-1547,1549-1554,1556-1568,1585-1599,1601-1607
+  s_bbcc2e0b5a1509::t_25f19f0bfaf247 1544,1548,1555,1600
+  s_bbcc2e0b5a1509::t_0de49676776982 1569-1584
+  s_bbcc2e0b5a1509::t_5453906ab241bb 89-93,105,851-856,864-867,943-967
+  s_bbcc2e0b5a1509::t_964985c919012b 969
+tests/test_callable_sig.c
+  s_bbcc2e0b5a1509::t_6c2ce54922c34f 259-262,266
+  s_bbcc2e0b5a1509::t_dc43c14b76b498 3,226-227,232-234,249-258,263-265,267-271,368-369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d8a845e0c5ef15e83bcd9ca15a0113cc495354f9",
+  "prompts": {},
+  "sessions": {
+    "s_bbcc2e0b5a1509": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a0dbab-1ce3-7d31-a82d-3bb82ef6222b",
+        "model": "gpt-6-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
