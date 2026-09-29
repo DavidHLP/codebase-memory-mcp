@@ -29,6 +29,7 @@ enum { REG_MAX_CANDIDATES = 256 };
 #include "foundation/compat.h" /* CBM_TLS */
 #include "foundation/hash_table.h"
 #include "foundation/dyn_array.h"
+#include "foundation/mem_core.h"
 #include "foundation/platform.h"
 #include "callable_sig.h" /* cbm_qn_callable_base_len_named: overloads share the name key */
 
@@ -1735,14 +1736,14 @@ int cbm_registry_find_ending_with(const cbm_registry_t *r, const char *suffix, c
 
     /* Build ".suffix" target */
     size_t slen = strlen(suffix);
-    char *target = malloc(slen + REG_SUFFIX_ALLOC);
+    char *target = cbm_alloc(CBM_MEM_CLASS_OTHER, slen + REG_SUFFIX_ALLOC);
     target[0] = '.';
     memcpy(target + SKIP_ONE, suffix, slen + SKIP_ONE);
 
     struct few_ctx ctx = {target, slen + SKIP_ONE, NULL, 0, 0};
     cbm_ht_foreach(r->exact, few_scan, &ctx);
 
-    free(target);
+    cbm_free(CBM_MEM_CLASS_OTHER, target);
     *out = ctx.results;
     return ctx.count;
 }
