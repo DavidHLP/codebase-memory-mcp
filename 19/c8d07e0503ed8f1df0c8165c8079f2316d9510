@@ -1,0 +1,18 @@
+src/pipeline/pass_calls.c
+  h_77173abe25c3ff 547-555,558-560,562,567-568,578-582
+src/pipeline/pass_parallel.c
+  h_77173abe25c3ff 3019-3022
+tests/test_pipeline.c
+  h_77173abe25c3ff 7097-7222,15513-15514
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "19c8d07e0503ed8f1df0c8165c8079f2316d9510",
+  "prompts": {},
+  "humans": {
+    "h_77173abe25c3ff": {
+      "author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
