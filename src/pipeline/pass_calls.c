@@ -544,19 +544,28 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call,
         }
     }
 
+    /* Swift label-compatible overload selection (#2061). count > 0: emit an
+     * edge to every compatible candidate and stop. count < 0: project symbols
+     * share this name but none matches the call's labels — a bare-name
+     * registry match would bind a WRONG overload, so resolution is skipped
+     * and the call falls through as unresolved; the empty-resolution service
+     * fallbacks below still run, mirroring the Swift block in pass_parallel.c
+     * (service edges survive overload suppression, per #523/#606/#856).
+     * count == 0: no overload metadata for this name — resolve normally. */
+    int swift_candidates = 0;
     if (lang == CBM_LANG_SWIFT) {
         const char *candidates[CBM_SZ_256];
-        int count = cbm_registry_swift_candidates(ctx->registry, call, module_qn, imp_vals,
-                                                  imp_count, candidates, CBM_SZ_256);
-        if (count != 0) {
+        swift_candidates = cbm_registry_swift_candidates(ctx->registry, call, module_qn, imp_vals,
+                                                         imp_count, candidates, CBM_SZ_256);
+        if (swift_candidates > 0) {
             int emitted = 0;
-            for (int i = 0; i < count; i++) {
+            for (int i = 0; i < swift_candidates; i++) {
                 const cbm_gbuf_node_t *target = cbm_gbuf_find_by_qn(ctx->gbuf, candidates[i]);
                 if (target && target->id != source_node->id) {
                     cbm_resolution_t selected = {.qualified_name = candidates[i],
                                                  .strategy = "swift_labels",
-                                                 .confidence = count == 1 ? 0.90 : 0.55,
-                                                 .candidate_count = count};
+                                                 .confidence = swift_candidates == 1 ? 0.90 : 0.55,
+                                                 .candidate_count = swift_candidates};
                     emit_classified_edge(ctx, call, source_node, target, &selected, module_qn,
                                          imp_keys, imp_vals, imp_count, false);
                     emitted++;
@@ -566,8 +575,11 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call,
         }
     }
 
-    cbm_resolution_t res = cbm_registry_resolve(ctx->registry, call->callee_name, module_qn,
-                                                imp_keys, imp_vals, imp_count);
+    cbm_resolution_t res = {0};
+    if (swift_candidates >= 0) {
+        res = cbm_registry_resolve(ctx->registry, call->callee_name, module_qn, imp_keys, imp_vals,
+                                   imp_count);
+    }
     if (!res.qualified_name || res.qualified_name[0] == '\0') {
         /* Resolution is empty when the callee belongs to an EXTERNAL client
          * library whose source is not in the indexed tree (e.g. `requests.get`,

@@ -7094,6 +7094,132 @@ TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
     PASS();
 }
 
+/* #2061: a Swift call matching NONE of a same-named project symbol's
+ * overloads must not bind to it (a bare-name match would bind a wrong
+ * overload), while the empty-resolution service fallbacks still apply —
+ * the contract both resolver paths share (Swift blocks in pass_calls.c
+ * and pass_parallel.c). Local `fetch(id:)` cannot take a one-argument
+ * unlabeled URL call, so the call stays unresolved and classifies as the
+ * global API (#856). */
+TEST(pipeline_swift_incompatible_overload_unresolved_issue2061) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_swiftincompat_XXXXXX");
+    if (!cbm_mkdtemp(tmp)) {
+        FAIL("tmpdir");
+    }
+
+    write_temp_file(tmp, "Sources/Api.swift",
+                    "func fetch(id: Int) -> Int {\n"
+                    "    return id\n"
+                    "}\n");
+    write_temp_file(tmp, "Sources/Caller.swift",
+                    "class Caller {\n"
+                    "    func run() -> Int {\n"
+                    "        return fetch(\"https://api.example.com/data\")\n"
+                    "    }\n"
+                    "}\n");
+
+    char db_path[512];
+    snprintf(db_path, sizeof(db_path), "%s/swiftincompat.db", tmp);
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(cbm_pipeline_run(p), 0);
+    const char *project = cbm_pipeline_project_name(p);
+
+    cbm_store_t *s = cbm_store_open_path(db_path);
+    ASSERT_NOT_NULL(s);
+
+    /* The incompatible local definition IS indexed (anti-vacuous guard) ... */
+    cbm_node_t *fetches = NULL;
+    int fetch_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "fetch", &fetches, &fetch_count),
+              CBM_STORE_OK);
+    ASSERT_EQ(fetch_count, 1);
+    cbm_node_t *runs = NULL;
+    int run_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "run", &runs, &run_count), CBM_STORE_OK);
+    ASSERT_EQ(run_count, 1);
+    /* ... but the call never binds to it ... */
+    ASSERT_EQ(pipeline_has_calls_edge(s, runs[0].id, fetches[0].id), 0);
+    cbm_store_free_nodes(fetches, fetch_count);
+    cbm_store_free_nodes(runs, run_count);
+
+    /* ... and the URL call still classifies as the global API. */
+    ASSERT_EQ(cbm_store_count_edges_by_type(s, project, "HTTP_CALLS"), 1);
+
+    cbm_store_close(s);
+    cbm_pipeline_free(p);
+    th_rmtree(tmp);
+    PASS();
+}
+
+/* The parallel resolver must reach the same verdict for the same fixture
+ * (>= 50 files routes calls through resolve_file_calls). */
+TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_swiftincompat_par_XXXXXX");
+    if (!cbm_mkdtemp(tmp)) {
+        FAIL("tmpdir");
+    }
+
+    write_temp_file(tmp, "Sources/Api.swift",
+                    "func fetch(id: Int) -> Int {\n"
+                    "    return id\n"
+                    "}\n");
+    write_temp_file(tmp, "Sources/Caller.swift",
+                    "class Caller {\n"
+                    "    func run() -> Int {\n"
+                    "        return fetch(\"https://api.example.com/data\")\n"
+                    "    }\n"
+                    "}\n");
+    for (int i = 0; i < 52; i++) {
+        char path[64], source[80];
+        snprintf(path, sizeof(path), "Sources/Filler%d.swift", i);
+        snprintf(source, sizeof(source), "func filler%d() {}\n", i);
+        write_temp_file(tmp, path, source);
+    }
+
+    char *previous_workers = getenv("CBM_WORKERS");
+    char *saved_workers = previous_workers ? strdup(previous_workers) : NULL;
+    cbm_setenv("CBM_WORKERS", "4", 1);
+    char db_path[512];
+    snprintf(db_path, sizeof(db_path), "%s/swiftincompat.db", tmp);
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    int run_result = p ? cbm_pipeline_run(p) : -1;
+    if (saved_workers) {
+        cbm_setenv("CBM_WORKERS", saved_workers, 1);
+    } else {
+        cbm_unsetenv("CBM_WORKERS");
+    }
+    free(saved_workers);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(run_result, 0);
+    const char *project = cbm_pipeline_project_name(p);
+
+    cbm_store_t *s = cbm_store_open_path(db_path);
+    ASSERT_NOT_NULL(s);
+
+    cbm_node_t *fetches = NULL;
+    int fetch_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "fetch", &fetches, &fetch_count),
+              CBM_STORE_OK);
+    ASSERT_EQ(fetch_count, 1);
+    cbm_node_t *runs = NULL;
+    int run_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "run", &runs, &run_count), CBM_STORE_OK);
+    ASSERT_EQ(run_count, 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, runs[0].id, fetches[0].id), 0);
+    cbm_store_free_nodes(fetches, fetch_count);
+    cbm_store_free_nodes(runs, run_count);
+
+    ASSERT_EQ(cbm_store_count_edges_by_type(s, project, "HTTP_CALLS"), 1);
+
+    cbm_store_close(s);
+    cbm_pipeline_free(p);
+    th_rmtree(tmp);
+    PASS();
+}
+
 /* Native `fetch()` (#856), parallel path (>= 50 files -> pass_parallel.c's
  * resolve_file_calls). Mirrors pipeline_native_fetch_classified_as_http_calls
  * but forces the parallel resolver, since the empty-resolution fallback is a
@@ -15384,6 +15510,8 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_http_call_makes_route_issue1892);
     RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
     RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
+    RUN_TEST(pipeline_swift_incompatible_overload_unresolved_issue2061);
+    RUN_TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061);
     RUN_TEST(pipeline_native_fetch_parallel_classified_as_http_calls);
     RUN_TEST(pipeline_local_fetch_shadow_not_classified_as_http);
     /* Git history pass */
