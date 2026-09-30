@@ -1557,8 +1557,8 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
     }
     /* Preserve the receiver when it names a class or namespace explicitly. */
     const char *chosen = NULL;
-    size_t callee_len = strlen(call->callee_name);
     if (strchr(call->callee_name, '.')) {
+        size_t callee_len = strlen(call->callee_name);
         for (int i = 0; i < matched; i++) {
             size_t base = cbm_qn_callable_base_len_named(matches[i], name);
             if (base >= callee_len &&
