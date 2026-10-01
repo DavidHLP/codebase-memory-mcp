@@ -325,6 +325,56 @@ TEST(resolve_qualified_ambiguous_tail_falls_through) {
     PASS();
 }
 
+/* cbm_registry_add used to discard its `name` argument and re-derive the
+ * lookup key from the QN's last dot segment. That made the QN's tail load
+ * bearing for the bare-name index every language shares: a Rust cfg twin,
+ * minted as "add#cfg(test)", was indexed under that literal string and no bare
+ * `add` callee could ever reach it. */
+TEST(registry_indexes_by_passed_name_not_qn_tail) {
+    cbm_registry_t *r = cbm_registry_new();
+    cbm_registry_add(r, "add", "proj.lib.add#cfg(test)", "Function");
+
+    cbm_resolution_t res = cbm_registry_resolve(r, "add", "proj.lib.caller", NULL, NULL, 0);
+    ASSERT_STR_EQ(res.qualified_name, "proj.lib.add#cfg(test)");
+
+    cbm_registry_free(r);
+    PASS();
+}
+
+/* The derived key stays unconditional, and this pins that.
+ *
+ * A name may carry segments the QN's tail drops, and then the tail is the key
+ * callers actually spell. An HCL block is named "resource.aws_instance.web" by
+ * find_hcl_block_name while its QN tail is bare "web", which is how an
+ * `aws_instance.web.id` reference reaches it. Re-keying the index on the passed
+ * name would lose that lookup outright, so the fence gate above leaves these
+ * shapes exactly as they were.
+ *
+ * The Module row registers a shape production cannot produce: every caller of
+ * cbm_registry_add gates on cbm_label_is_registry_symbol, which does not admit
+ * "Module". It is here because the registry's own contract is per-label-string,
+ * not per-caller, and a future label change should not silently drop the stem
+ * lookup a bare module reference needs. */
+TEST(registry_indexes_a_dotted_name_under_its_tail_too) {
+    cbm_registry_t *r = cbm_registry_new();
+    cbm_registry_add(r, "resource.aws_instance.web", "proj.main.resource.aws_instance.web",
+                     "Class");
+    cbm_registry_add(r, "helper.py", "proj.pkg.helper", "Module");
+
+    cbm_resolution_t tail = cbm_registry_resolve(r, "web", "proj.main", NULL, NULL, 0);
+    ASSERT_STR_EQ(tail.qualified_name, "proj.main.resource.aws_instance.web");
+
+    cbm_resolution_t whole =
+        cbm_registry_resolve(r, "resource.aws_instance.web", "proj.main", NULL, NULL, 0);
+    ASSERT_STR_EQ(whole.qualified_name, "proj.main.resource.aws_instance.web");
+
+    cbm_resolution_t stem = cbm_registry_resolve(r, "helper", "proj.pkg.caller", NULL, NULL, 0);
+    ASSERT_STR_EQ(stem.qualified_name, "proj.pkg.helper");
+
+    cbm_registry_free(r);
+    PASS();
+}
+
 TEST(resolve_import_map) {
     cbm_registry_t *r = cbm_registry_new();
     cbm_registry_add(r, "Process", "proj.pkg.worker.Process", "Function");
@@ -1181,16 +1231,35 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         "proj.Other.work(name:String)",
         "proj.Service.send(value:Int,completion:()=>Void)",
         "proj.Service.configure(a:Int,b:Int,c:Int)",
+        "proj.Service.consume(values:[()=>Void])",
+        "proj.Service.consume(completion:()=>Void)",
+        "proj.Service.accept(value:Pair<()=>Void,Int>)",
+        "proj.Service.perform(completion:(()=>Void)?)",
+        "proj.Service.perform(completion:((Int)=>Void))",
+        "proj.Service.perform(completion:(()=>Void,Int))",
+        "proj.Service.perform(completion:(()=>Result<Int,Error>)?)",
+        "proj.Service.collect(_:Int~)",
+        "proj.Service.named(name:Int~)",
+        "proj.Service.run(completion:()=>Void,flag:Bool)",
+        "proj.Service.batch(completions:(()=>Void)~)",
+        "proj.Service.sheet(onDismiss:(()=>Void)?,content:()=>Void)",
+        "proj.Service.combine(callbacks:(()=>Void)~,completion:()=>Void)",
     };
-    const char *names[] = {"work", "work", "work", "work", "send", "configure"};
-    const uint8_t counts[] = {1, 1, 1, 1, 2, 3};
-    for (int i = 0; i < 6; i++) {
+    const char *names[] = {"work", "work", "work", "work", "send", "configure",
+                           "consume", "consume", "accept", "perform", "perform",
+                           "perform", "perform", "collect", "named", "run", "batch",
+                           "sheet", "combine"};
+    const uint8_t counts[] = {1, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2};
+    for (int i = 0; i < 19; i++) {
         cbm_registry_add(r, names[i], qns[i], "Method");
-        cbm_registry_set_swift_signature(r, qns[i], i == 5 ? UINT64_C(1) << 1 : 0, counts[i]);
+        uint64_t defaults = (i == 5 || i == 15) ? UINT64_C(1) << 1
+                            : i == 17        ? UINT64_C(1)
+                                             : 0;
+        cbm_registry_set_swift_signature(r, qns[i], defaults, counts[i]);
     }
 
     const char *out[8] = {0};
-    CBMCallArg args[2] = {{.keyword = "name"}};
+    CBMCallArg args[3] = {{.keyword = "name"}};
     CBMCall call = {.callee_name = "Service.work", .args = args, .arg_count = 1};
     int n = cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8);
     ASSERT_EQ(n, 2); /* type is unknown: keep both compatible overloads */
@@ -1200,6 +1269,18 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     args[0].keyword = "flag";
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
     ASSERT_STR_EQ(out[0], qns[0]);
+
+    args[1].keyword = "unexpected";
+    call.arg_count = 2;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+    call.arg_count = 0;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+    call.arg_count = 1;
+    call.swift_trailing_closure = true;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+    call.swift_trailing_closure = false;
+
+    args[1].keyword = NULL;
     args[0].keyword = "missing";
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
 
@@ -1216,7 +1297,94 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     call.swift_trailing_closure = true;
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
     ASSERT_STR_EQ(out[0], qns[4]);
+    call.callee_name = "Service.consume";
+    call.arg_count = 0;
+    call.swift_trailing_closure = true;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[7]);
+    call.callee_name = "Service.accept";
+    call.arg_count = 1;
+    call.swift_trailing_closure = false;
+    args[0].keyword = "value";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[8]);
+    call.callee_name = "Service.perform";
+    call.arg_count = 0;
+    call.swift_trailing_closure = true;
+    n = cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8);
+    ASSERT_EQ(n, 3); /* wrappers transparent; tuple must not match */
+    bool has_optional = false, has_grouped = false, has_generic_result = false;
+    for (int i = 0; i < n; i++) {
+        has_optional |= strcmp(out[i], qns[9]) == 0;
+        has_grouped |= strcmp(out[i], qns[10]) == 0;
+        has_generic_result |= strcmp(out[i], qns[12]) == 0;
+    }
+    ASSERT_TRUE(has_optional && has_grouped && has_generic_result);
+
+    call.callee_name = "run";
+    call.arg_count = 0;
+    call.swift_trailing_closure = true;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[15]); /* trailing closure before defaulted parameter */
+    call.callee_name = "batch";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[16]); /* variadic closure accepts trailing closure */
+
+    call.callee_name = "sheet";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[17]); /* skip default closure for required trailing closure */
+    call.callee_name = "combine";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[18]); /* skip variadic closures for required trailing closure */
+    call.swift_trailing_closure = false;
+    args[1].keyword = NULL;
+    call.callee_name = "collect";
+    call.arg_count = 0;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    args[0].keyword = NULL;
+    call.arg_count = 2;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    call.arg_count = 3;
+    args[2].keyword = NULL;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    args[0].keyword = "name";
+    call.callee_name = "named";
+    call.arg_count = 1;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    args[1].keyword = NULL;
+    call.arg_count = 2;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    args[0].keyword = "other";
+    call.arg_count = 1;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+    args[0].keyword = "name";
+    args[1].keyword = "name";
+    call.arg_count = 2;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
     cbm_registry_free(r);
+    PASS();
+}
+
+TEST(swift_receiver_resolution_is_independent_of_registration_order) {
+    const char *alpha = "proj.alpha.Service.work(flag:Bool)";
+    const char *beta = "proj.beta.Service.work(flag:Bool)";
+    CBMCallArg arg = {.keyword = "flag"};
+    CBMCall call = {.callee_name = "Service.work", .args = &arg, .arg_count = 1};
+    for (int reverse = 0; reverse < 2; reverse++) {
+        cbm_registry_t *r = cbm_registry_new();
+        ASSERT_NOT_NULL(r);
+        const char *first = reverse ? beta : alpha;
+        const char *second = reverse ? alpha : beta;
+        cbm_registry_add(r, "work", first, "Method");
+        cbm_registry_add(r, "work", second, "Method");
+        cbm_registry_set_swift_signature(r, first, 0, 1);
+        cbm_registry_set_swift_signature(r, second, 0, 1);
+
+        const char *out[4] = {0};
+        ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.alpha.Caller", NULL, 0, out, 4), 1);
+        ASSERT_STR_EQ(out[0], alpha);
+        cbm_registry_free(r);
+    }
     PASS();
 }
 
@@ -1250,11 +1418,14 @@ SUITE(registry) {
     RUN_TEST(resolve_same_module);
     RUN_TEST(resolve_qualified_disambiguates_same_name);
     RUN_TEST(resolve_qualified_ambiguous_tail_falls_through);
+    RUN_TEST(registry_indexes_by_passed_name_not_qn_tail);
+    RUN_TEST(registry_indexes_a_dotted_name_under_its_tail_too);
     RUN_TEST(resolve_import_map);
     RUN_TEST(resolve_import_map_bare_function);
     RUN_TEST(resolve_import_map_bare_alias);
     RUN_TEST(resolve_import_map_aliased_from_import);
     RUN_TEST(resolve_import_map_alias_with_suffix_hits_method);
+    RUN_TEST(swift_receiver_resolution_is_independent_of_registration_order);
     RUN_TEST(swift_overload_labels_defaults_and_trailing_closure);
     RUN_TEST(resolve_unique_name);
     RUN_TEST(resolve_unresolved);

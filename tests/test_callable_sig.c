@@ -1,6 +1,5 @@
 /*
- * test_callable_sig.c — golden tables for the signature-qualified callable
- * identity builder and its inverse (#2061).
+ * test_callable_sig.c — golden tables for signature-qualified callable identity (#2061).
  */
 #include "test_framework.h"
 #include "callable_sig.h"
@@ -266,7 +265,6 @@ TEST(callable_sig_swift_default_parameters) {
     ts_parser_delete(parser);
     PASS();
 }
-
 /* The inverse is the identity on every historical QN shape. */
 TEST(callable_sig_base_len_unsuffixed_is_full) {
     static const char *const qns[] = {

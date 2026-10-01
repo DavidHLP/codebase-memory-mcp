@@ -876,6 +876,36 @@ void cbm_registry_free(cbm_registry_t *r) {
 
 /* ── Registration ────────────────────────────────────────────────── */
 
+/* Record `owned_qn` in the by-name bucket for `key`, keeping the bucket's
+ * is_test flags in step with its entries.
+ *
+ * No array dedup needed: cbm_registry_add's exact-map check guarantees the QN
+ * is new, and it calls this at most once per distinct key. */
+static void index_under_name(cbm_registry_t *r, const char *key, const char *owned_qn) {
+    qn_array_t *arr = cbm_ht_get(r->by_name, key);
+    if (!arr) {
+        arr = calloc(CBM_ALLOC_ONE, sizeof(qn_array_t));
+        cbm_ht_set(r->by_name, strdup(key), arr);
+    }
+    int before = arr->count;
+    cbm_da_push(arr, (char *)owned_qn);
+    if (arr->count == before) {
+        return; /* the name could not be recorded: no verdict to cache */
+    }
+    if (arr->count > arr->is_test_cap) {
+        int want = arr->cap > 0 ? arr->cap : arr->count;
+        uint8_t *grown =
+            cbm_realloc(CBM_MEM_CLASS_DYN_ARRAY, arr->is_test, (size_t)want * sizeof(uint8_t));
+        if (grown) {
+            arr->is_test = grown;
+            arr->is_test_cap = want;
+        }
+    }
+    if (arr->count <= arr->is_test_cap) {
+        arr->is_test[arr->count - SKIP_ONE] = is_test_qn(owned_qn) ? 1 : 0;
+    }
+}
+
 void cbm_registry_add(cbm_registry_t *r, const char *name, const char *qualified_name,
                       const char *label) {
     if (!r || !qualified_name || !label) {
@@ -910,34 +940,15 @@ void cbm_registry_add(cbm_registry_t *r, const char *name, const char *qualified
     cbm_ht_set(r->exact, strdup(qualified_name), (void *)interned);
     const char *owned_qn = cbm_ht_get_key(r->exact, qualified_name);
 
-    /* Index by simple name. A signature-qualified callable (#2061) is indexed
-     * by its bare `name`, so every overload shares one bucket; any other QN
-     * keeps its historical last-segment key.
-     * No array dedup needed: exact-map check above guarantees uniqueness. */
-    const char *simple = name && cbm_qn_callable_base_len_named(owned_qn, name) < strlen(owned_qn)
-                             ? name
-                             : simple_name(qualified_name);
-    qn_array_t *arr = cbm_ht_get(r->by_name, simple);
-    if (!arr) {
-        arr = calloc(CBM_ALLOC_ONE, sizeof(qn_array_t));
-        cbm_ht_set(r->by_name, strdup(simple), arr);
-    }
-    int before = arr->count;
-    cbm_da_push(arr, (char *)owned_qn);
-    if (arr->count == before) {
-        return; /* the name could not be recorded: no verdict to cache */
-    }
-    if (arr->count > arr->is_test_cap) {
-        int want = arr->cap > 0 ? arr->cap : arr->count;
-        uint8_t *grown =
-            cbm_realloc(CBM_MEM_CLASS_DYN_ARRAY, arr->is_test, (size_t)want * sizeof(uint8_t));
-        if (grown) {
-            arr->is_test = grown;
-            arr->is_test_cap = want;
-        }
-    }
-    if (arr->count <= arr->is_test_cap) {
-        arr->is_test[arr->count - SKIP_ONE] = is_test_qn(owned_qn) ? 1 : 0;
+    /* Signature-qualified Swift QNs share their bare-name bucket. Other
+     * symbols keep the historical leaf key; Rust cfg twins also index by the
+     * caller-visible name when a fenced leaf would otherwise be unreachable. */
+    const char *derived = simple_name(qualified_name);
+    const char *primary =
+        name && cbm_qn_callable_base_len_named(owned_qn, name) < strlen(owned_qn) ? name : derived;
+    index_under_name(r, primary, owned_qn);
+    if (name && name[0] && strchr(derived, '#') && strcmp(name, primary) != 0) {
+        index_under_name(r, name, owned_qn);
     }
 }
 
@@ -1451,6 +1462,64 @@ cbm_resolution_t cbm_registry_resolve(const cbm_registry_t *r, const char *calle
 /* Read labels from the signature-qualified QN. Types may contain commas in
  * tuples, generic arguments or function types, so only top-level commas split
  * parameters. The type text is used only to recognize a trailing closure. */
+static bool swift_type_is_closure(const char *start, const char *end) {
+    while (start < end) {
+        if (end[-1] == '?') {
+            end--;
+            continue;
+        }
+        if (*start != '(') {
+            break;
+        }
+        int depth = 0, brackets = 0, angles = 0;
+        bool wraps = false;
+        bool comma = false;
+        for (const char *p = start; p < end; p++) {
+            if (*p == '(') {
+                depth++;
+            } else if (*p == ')' && --depth == 0) {
+                wraps = p == end - 1;
+                break;
+            } else if (*p == '[') {
+                brackets++;
+            } else if (*p == ']' && brackets > 0) {
+                brackets--;
+            } else if (*p == '<') {
+                angles++;
+            } else if (*p == '>' && angles > 0 && p[-1] != '=') {
+                angles--;
+            } else if (*p == ',' && depth == 1 && brackets == 0 && angles == 0) {
+                comma = true;
+            }
+        }
+        if (!wraps || comma) {
+            break;
+        }
+        start++;
+        end--;
+    }
+    int parens = 0, brackets = 0, angles = 0;
+    for (const char *p = start; p + 1 < end; p++) {
+        if (*p == '=' && p[1] == '>' && parens == 0 && brackets == 0 && angles == 0) {
+            return true;
+        }
+        if (*p == '(') {
+            parens++;
+        } else if (*p == ')' && parens > 0) {
+            parens--;
+        } else if (*p == '[') {
+            brackets++;
+        } else if (*p == ']' && brackets > 0) {
+            brackets--;
+        } else if (*p == '<') {
+            angles++;
+        } else if (*p == '>' && angles > 0 && (p == start || p[-1] != '=')) {
+            angles--;
+        }
+    }
+    return false;
+}
+
 static bool swift_signature_matches(const char *qn, const char *name, const swift_signature_t *meta,
                                     const CBMCall *call) {
     if (!meta || meta->count == UINT8_MAX || call->swift_args_truncated) {
@@ -1465,6 +1534,7 @@ static bool swift_signature_matches(const char *qn, const char *name, const swif
     const char *labels[64];
     size_t label_lens[64];
     bool closures[64];
+    bool variadics[64];
     unsigned count = 0;
     const char *entry = sig + 1;
     const char *end = sig + n - 1;
@@ -1482,13 +1552,9 @@ static bool swift_signature_matches(const char *qn, const char *name, const swif
                 }
                 labels[count] = entry;
                 label_lens[count] = (size_t)(colon - entry);
-                closures[count] = false;
-                for (const char *t = colon + 1; t + 1 < p; t++) {
-                    if (t[0] == '=' && t[1] == '>') {
-                        closures[count] = true;
-                        break;
-                    }
-                }
+                variadics[count] = p > colon + 1 && p[-1] == '~';
+                const char *type_end = variadics[count] ? p - 1 : p;
+                closures[count] = swift_type_is_closure(colon + 1, type_end);
                 count++;
             }
             entry = p + 1;
@@ -1502,7 +1568,7 @@ static bool swift_signature_matches(const char *qn, const char *name, const swif
             brackets--;
         } else if (ch == '<') {
             angles++;
-        } else if (ch == '>' && angles > 0) {
+        } else if (ch == '>' && angles > 0 && (p == entry || p[-1] != '=')) {
             angles--;
         }
     }
@@ -1516,11 +1582,35 @@ static bool swift_signature_matches(const char *qn, const char *name, const swif
         if (!given) {
             given = "_";
         }
-        if (arg < call->arg_count && strlen(given) == label_lens[i] &&
-            memcmp(given, labels[i], label_lens[i]) == 0) {
+        bool label_matches = arg < call->arg_count && strlen(given) == label_lens[i] &&
+                             memcmp(given, labels[i], label_lens[i]) == 0;
+        bool later_required_closure = false;
+        if (call->swift_trailing_closure && closures[i]) {
+            for (unsigned j = i + 1; j < count; j++) {
+                if (closures[j] && !variadics[j] &&
+                    (meta->defaults & (UINT64_C(1) << j)) == 0) {
+                    later_required_closure = true;
+                    break;
+                }
+            }
+        }
+        if (variadics[i]) {
+            if (label_matches) {
+                arg++;
+                while (arg < call->arg_count && !call->args[arg].keyword) {
+                    arg++;
+                }
+            }
+            if (call->swift_trailing_closure && !used_closure && closures[i] &&
+                !later_required_closure) {
+                used_closure = true;
+            }
+            continue;
+        }
+        if (label_matches) {
             arg++;
         } else if (call->swift_trailing_closure && !used_closure && arg == call->arg_count &&
-                   i + 1 == count && closures[i]) {
+                   closures[i] && !later_required_closure) {
             used_closure = true;
         } else if ((meta->defaults & (UINT64_C(1) << i)) == 0) {
             return false;
@@ -1555,18 +1645,34 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
     if (matched == 0) {
         return has_swift ? -1 : 0;
     }
-    /* Preserve the receiver when it names a class or namespace explicitly. */
+    /* Preserve an explicit receiver, but resolve duplicate receiver tails by
+     * module/import evidence and the registry's deterministic tie-break. */
     const char *chosen = NULL;
     if (strchr(call->callee_name, '.')) {
         size_t callee_len = strlen(call->callee_name);
+        const char *receiver_matches[REG_MAX_CANDIDATES];
+        int receiver_count = 0;
         for (int i = 0; i < matched; i++) {
             size_t base = cbm_qn_callable_base_len_named(matches[i], name);
             if (base >= callee_len &&
                 memcmp(matches[i] + base - callee_len, call->callee_name, callee_len) == 0 &&
                 (base == callee_len || matches[i][base - callee_len - 1] == '.')) {
-                chosen = matches[i];
-                break;
+                receiver_matches[receiver_count++] = matches[i];
             }
+        }
+        if (receiver_count > 0) {
+            const char *reachable[REG_MAX_CANDIDATES];
+            int reachable_count = 0;
+            if (import_vals) {
+                for (int i = 0; i < receiver_count; i++) {
+                    if (is_import_reachable(receiver_matches[i], import_vals, import_count)) {
+                        reachable[reachable_count++] = receiver_matches[i];
+                    }
+                }
+            }
+            const char **preferred = reachable_count > 0 ? reachable : receiver_matches;
+            int preferred_count = reachable_count > 0 ? reachable_count : receiver_count;
+            chosen = best_by_import_distance(preferred, NULL, preferred_count, module_qn);
         }
     }
     if (!chosen) {

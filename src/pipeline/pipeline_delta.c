@@ -287,13 +287,24 @@ int64_t cbm_delta_preseed(cbm_store_t *store, const char *project, cbm_gbuf_t *g
      * UNIQUE violation the pre-remap patch would have raised. A resolver that
      * only LOOKS UP still needs its target resident, which is why the list
      * mirrors the registry's own membership rule instead of guessing. */
+    /* Preserve the resolver-visible HTTP and Swift signature properties on
+     * proxies; proxy nodes are never written back to the store. */
     sqlite3_stmt *stmt = NULL;
-    if (sqlite3_prepare_v2(db,
-                           "SELECT id, label, name, qualified_name, file_path FROM nodes"
-                           " WHERE project = ?1 AND label NOT IN"
-                           " ('Macro','Comment','Section','Branch','Commit','Tag')"
-                           " ORDER BY id",
-                           CBM_NOT_FOUND, &stmt, NULL) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(
+            db,
+            "SELECT id, label, name, qualified_name, file_path,"
+            " CASE WHEN label IN ('Module','Variable')"
+            " AND instr(properties, '\"http_client\"') > 0"
+            " THEN json_object('http_client', json_extract(properties, '$.http_client'),"
+            " 'http_base_url', json_extract(properties, '$.http_base_url'))"
+            " WHEN instr(properties, '\"swift_defaults\"') > 0"
+            " THEN json_object('swift_defaults', json_extract(properties, '$.swift_defaults'),"
+            " 'swift_params', json_extract(properties, '$.swift_params')) END"
+            " FROM nodes"
+            " WHERE project = ?1 AND label NOT IN"
+            " ('Macro','Comment','Section','Branch','Commit','Tag')"
+            " ORDER BY id",
+            CBM_NOT_FOUND, &stmt, NULL) != SQLITE_OK) {
         return -1;
     }
     sqlite3_bind_text(stmt, 1, project, CBM_NOT_FOUND, SQLITE_TRANSIENT);
@@ -305,9 +316,11 @@ int64_t cbm_delta_preseed(cbm_store_t *store, const char *project, cbm_gbuf_t *g
         const char *name = (const char *)sqlite3_column_text(stmt, 2);
         const char *qn = (const char *)sqlite3_column_text(stmt, 3);
         const char *fp = (const char *)sqlite3_column_text(stmt, 4);
+        const char *client_props = (const char *)sqlite3_column_text(stmt, 5);
         /* Pin the gbuf id to the database id: proxies ARE their rows. */
         cbm_gbuf_set_next_id(gbuf, id);
-        int64_t got = cbm_gbuf_upsert_node(gbuf, label, name, qn, fp ? fp : "", 0, 0, "{}");
+        int64_t got = cbm_gbuf_upsert_node(gbuf, label, name, qn, fp ? fp : "", 0, 0,
+                                           client_props ? client_props : "{}");
         if (got != id) {
             /* A QN collision inside the preseed set would silently split
              * identity between RAM and disk; the run cannot be trusted. */

@@ -36,6 +36,10 @@ CBMCallableIdentity cbm_callable_identity(CBMLanguage lang) {
     if (lang == CBM_LANG_SWIFT) {
         return CBM_CALLABLE_ID_LABELED_TYPED;
     }
+    /* Other languages keep their historical QN until their own enable changes
+     * land with an index-format bump. Planned modes: Java/Kotlin/C#/C++/CUDA/
+     * Scala TYPED, ObjC LABELED, dynamic tier-2 languages ARITY. */
+    (void)lang;
     return CBM_CALLABLE_ID_NONE;
 }
 
@@ -810,7 +814,6 @@ uint64_t cbm_swift_default_mask(TSNode node, const char *source, uint8_t *count)
     }
     return defaults;
 }
-
 /* ── Scala ─────────────────────────────────────────────────────── */
 
 static void sig_scala_params(sig_ctx_t *c, TSNode node) {
