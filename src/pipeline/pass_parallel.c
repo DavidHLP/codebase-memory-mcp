@@ -70,6 +70,7 @@ enum { PP_CSHARP_M_PREFIX_LEN = 2 };
 #define PP_RETAIN_PER_FILE_HARD_MAX_BYTES (32ULL * 1024 * 1024) /* 32 MiB per file */
 #include "pipeline/pipeline.h"
 #include "pipeline/pipeline_internal.h"
+#include "pipeline/doc_links.h" /* cbm_doclinks_resolve_file: MENTIONS beside CALLS */
 #include "result_spill.h"
 #include "foundation/platform.h"     /* cbm_resolve_cache_dir */
 #include "pipeline/pass_lsp_cross.h" /* cbm_pxc_* helpers for fused cross-file LSP */
@@ -2778,14 +2779,20 @@ static void file_node_cache_clear(void) {
     tl_file_node = NULL;
 }
 
+const cbm_gbuf_node_t *cbm_pipeline_file_node(const cbm_gbuf_t *gbuf, const char *project,
+                                              const char *rel) {
+    char *file_qn = cbm_pipeline_fqn_compute(project, rel, "__file__");
+    const cbm_gbuf_node_t *node = cbm_gbuf_find_by_qn(gbuf, file_qn);
+    free(file_qn);
+    return node;
+}
+
 static const cbm_gbuf_node_t *file_node_for(const cbm_gbuf_t *gbuf, const char *project,
                                             const char *rel) {
     if (tl_file_node_gbuf == gbuf && tl_file_node_rel == rel) {
         return tl_file_node;
     }
-    char *file_qn = cbm_pipeline_fqn_compute(project, rel, "__file__");
-    const cbm_gbuf_node_t *node = cbm_gbuf_find_by_qn(gbuf, file_qn);
-    free(file_qn);
+    const cbm_gbuf_node_t *node = cbm_pipeline_file_node(gbuf, project, rel);
     tl_file_node_gbuf = gbuf;
     tl_file_node_rel = rel;
     tl_file_node = node;
@@ -4231,6 +4238,12 @@ static void resolve_worker(int worker_id, void *ctx_ptr) {
         resolve_file_semantic(rc, ws, result, rel, lang, module_qn, imp_keys, imp_vals, imp_count);
         atomic_fetch_add_explicit(&rc->time_ns_semantic, extract_now_ns() - _ph_t0,
                                   memory_order_relaxed);
+
+        /* ── MENTIONS (doc-comment references) ─────────────────── */
+        if (rc->pctx && rc->pctx->doc_links) {
+            cbm_doclinks_resolve_file(rc->pctx->doc_links, file_idx, result, rc->main_gbuf,
+                                      ws->local_edge_buf);
+        }
 
     resolve_file_cleanup:
         cbm_registry_reach_cache_end();

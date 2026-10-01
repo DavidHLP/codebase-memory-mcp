@@ -606,6 +606,26 @@ typedef struct {
     int cap;
 } CBMFieldTypeArray;
 
+/* One reference found in a definition's complete doc comment, or in the file's
+ * own doc (doclink.h has the syntax table and the per-language parsers).
+ * Resolution happens later, per file, in the pipeline
+ * (src/pipeline/doc_links.c). */
+typedef struct {
+    const char *source_qn; // QN of the documented definition (the edge source);
+                           // for a file-level reference the file's module QN
+    const char *raw;       // the reference as written, markup entities decoded
+    uint32_t line;         // 1-based source line of the reference
+    uint32_t def_line;     // 1-based start line of the documented definition
+    uint16_t syntax;       // CBMDocLinkSyntax (doclink.h)
+    uint16_t flags;        // CBM_DOCLINK_FLAG_* (doclink.h); set by the driver
+} CBMDocLink;
+
+typedef struct {
+    CBMDocLink *items;
+    int count;
+    int cap;
+} CBMDocLinkArray;
+
 // Full extraction result for one file.
 typedef struct CBMFileResult {
     CBMArena arena; // owns local memory; composites may also retain child arenas below
@@ -718,6 +738,14 @@ typedef struct CBMFileResult {
     int test_owner_source_len;
     CBMLanguage test_owner_language;
     char test_owner_source_sha256[65]; /* exact raw source; identity, not authentication */
+
+    /* Doc-comment references of this file's definitions (doclink.h), and the
+     * file's doc-link scope: a language-tagged text blob with what OTHER
+     * files' doc-link resolution needs from this file (C#: namespaces,
+     * usings, type and member declarations). A pure function of the file's
+     * bytes; NULL for languages without a scope scanner. */
+    CBMDocLinkArray doc_links;
+    const char *doc_scope;
 } CBMFileResult;
 
 // --- Enclosing function cache ---
@@ -814,6 +842,18 @@ typedef struct {
     struct CBMTestDefinitionMatch *test_definition_matches; /* traversal scratch */
     int test_definition_match_count;
     int test_definition_match_cap;
+    /* Start line of every doc text doc_run_text built, keyed by the returned
+     * pointer (doclink.c), so a definition's doc references get exact source
+     * lines. NULL until the first doc; allocated in `scratch`. */
+    void *doc_lines;
+    /* A per-file slot for the language's doc-link hooks (parse_doc and
+     * scan_scope, internal/cbm/doclink_<lang>.c): state that has to survive
+     * between the hook calls of ONE file, e.g. an index of the file's doc
+     * sections. NULL at the start of every file. What a hook stores here must
+     * be allocated in `scratch` (or `arena`), so that it ends with the file.
+     * The core never reads, interprets or frees it. It is the only place for
+     * such state: a static or thread-local cache is not. */
+    void *doclink_state;
 } CBMExtractCtx;
 
 /* Internal configured-definition seams. No declarations pointer enters a result. */

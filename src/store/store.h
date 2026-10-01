@@ -788,6 +788,99 @@ void cbm_store_coverage_shadow_project(char *dst, size_t dstsz, const char *proj
 
 void cbm_store_free_coverage(cbm_coverage_row_t *rows, int count);
 
+/* ── Doc-link unresolved references ─────────────────────────────── */
+
+/* One doc-comment reference that did not become a MENTIONS edge, stored in
+ * doc_link_unresolved (project, rel_path, line, syntax, raw, reason). The
+ * table is created at publish when missing, so databases written by older
+ * builds stay readable without an index-format change. `reason` is one of
+ * missing, ambiguous, external, test_only_target, not_indexed, graph_gap,
+ * unparseable, below_bar_tier (it resolved, but its link family does not
+ * ship); a row with rel_path "" and reason "error" records that the
+ * doc-link layer itself failed for the generation. Rows returned by the
+ * getters own their strings; rows and strings are memory-core blocks of
+ * CBM_MEM_CLASS_STORE, released only by cbm_store_free_doc_links. */
+typedef struct {
+    const char *rel_path;
+    int line;
+    const char *syntax;
+    const char *raw;
+    const char *reason;
+} cbm_doc_link_row_t;
+
+/* Replace the project's rows in one transaction, creating the table first
+ * when it does not exist. */
+int cbm_store_doc_links_replace(cbm_store_t *s, const char *project, const cbm_doc_link_row_t *rows,
+                                int count);
+
+/* All rows of the project ordered by (rel_path, line, raw). *table_present
+ * (optional) is false — with zero rows and CBM_STORE_OK — for a database that
+ * has no doc_link_unresolved table yet. */
+int cbm_store_doc_links_get(cbm_store_t *s, const char *project, cbm_doc_link_row_t **out,
+                            int *count, bool *table_present);
+
+/* Row count per reason (ordered by reason; reasons owned by the result) and
+ * up to `sample_limit` rows ordered by (reason, rel_path, line). Same
+ * table_present contract as above. */
+typedef struct {
+    const char *reason;
+    int count;
+} cbm_doc_link_reason_count_t;
+int cbm_store_doc_links_summary(cbm_store_t *s, const char *project,
+                                cbm_doc_link_reason_count_t **reasons, int *reason_count,
+                                cbm_doc_link_row_t **samples, int *sample_count, int sample_limit,
+                                bool *table_present);
+
+/* Diagnostic display budgets; the query copies three extra bytes per field
+ * so a formatter can inspect a complete UTF-8 scalar at the display boundary. */
+enum {
+    CBM_DOC_LINK_PREVIEW_ROWS = 50,
+    CBM_DOC_LINK_PREVIEW_LONG_BYTES = 1024,
+    CBM_DOC_LINK_PREVIEW_SHORT_BYTES = 128,
+    CBM_DOC_LINK_PREVIEW_LOOKAHEAD = 3,
+};
+typedef struct {
+    const char *text;
+    size_t length; /* copied prefix bytes, excluding the added NUL */
+    uint64_t original_bytes;
+} cbm_doc_link_preview_text_t;
+typedef struct {
+    cbm_doc_link_preview_text_t rel_path;
+    int line;
+    cbm_doc_link_preview_text_t syntax;
+    cbm_doc_link_preview_text_t raw;
+    cbm_doc_link_preview_text_t reason;
+} cbm_doc_link_preview_row_t;
+/* Up to fifty rows ordered by original (reason, rel_path, line, raw), before
+ * empty-path marker filtering. Text is an explicit-length byte prefix and may
+ * contain NUL or invalid UTF-8. Missing-table semantics match the full getter.
+ * On failure, no rows are returned. All allocations belong to STORE. */
+int cbm_store_doc_links_preview(cbm_store_t *s, const char *project,
+                                cbm_doc_link_preview_row_t **out, int *count, bool *table_present);
+void cbm_store_free_doc_link_previews(cbm_doc_link_preview_row_t *rows, int count);
+
+#ifdef CBM_ENABLE_TEST_SEAMS
+/* Sample-field copies only: exclude full getters, row arrays and reason keys.
+ * Byte counts include the trailing NUL. Requests include failed allocations;
+ * field_copies/copied_bytes count only successful copies. Reset leaves fault
+ * controls and their consumed flag unchanged. */
+typedef struct {
+    uint64_t field_copies;
+    uint64_t copied_bytes;
+    uint64_t requested_bytes;
+    uint64_t max_request_bytes;
+} cbm_doc_links_sample_test_stats_t;
+void cbm_store_doc_links_test_sample_stats_reset(void);
+void cbm_store_doc_links_test_sample_stats(cbm_doc_links_sample_test_stats_t *out);
+/* One-shot field-copy allocation failure: 0 is next, 4 is fifth, -1 disables.
+ * Setting the control clears its consumed flag. */
+void cbm_store_doc_links_test_fail_sample_alloc_after(int successful_copies);
+bool cbm_store_doc_links_test_sample_alloc_failed(void);
+#endif
+
+void cbm_store_free_doc_links(cbm_doc_link_row_t *rows, int count);
+void cbm_store_free_doc_link_reasons(cbm_doc_link_reason_count_t *reasons, int count);
+
 /* ── Search ─────────────────────────────────────────────────────── */
 
 int cbm_store_search(cbm_store_t *s, const cbm_search_params_t *params, cbm_search_output_t *out);
