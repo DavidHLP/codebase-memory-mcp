@@ -55,11 +55,11 @@ with sqlite3.connect(uri, uri=True) as src:
 ```
 
 The backup is logically identical; its physical hash may differ. Capture both
-hashes. Do not rewrite project roots in it. The DB stores the original fixture
-root, and production MCP workspace validation uses that root. Set
-`CBM_ALLOWED_ROOT` and the server session context to the verified original
-fixture root, which remains read-only. The fixture copy provides independent
-byte preservation; it does not authorize changing the stored root.
+hashes. Do not rewrite project roots in it. Isolation comes from the independent
+`CBM_CACHE_DIR` and DB copy: embedded MCP `search_graph`/`trace_path` do not
+validate the stored root against `CBM_ALLOWED_ROOT`. The server session context
+may retain the verified original fixture root, which remains read-only; it is
+not a query-layer isolation check. The fixture copy preserves the source bytes.
 
 ### API and assertions
 

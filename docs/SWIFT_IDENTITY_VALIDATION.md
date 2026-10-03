@@ -194,3 +194,25 @@ This comparison does not turn the historical mixed failures into passes,
 establish full/TSan/lint/memory gates on the current PR candidate, or establish
 PR readiness. Remaining Swift acceptance work requires a separately approved
 plan and evidence tied to one exact final candidate.
+
+## MCP presentation attempt — FAIL, 2026-10-03
+
+Tested candidate: `0007c1d22858e1548ca392f382275595a0a2c691`; one exact-archive build/run, no reindexing.
+Build: **06:26:37.439977–06:35:25.810701 UTC**, exit **0**; run: **06:35:26.198188–06:35:26.380432 UTC**, exit **1**.
+Standard GCC/G++ 16.2.1 ASan+UBSan/test-seams flags and leak detection remained enabled.
+
+Requests 1–4 had OBS PASS: two work identities; target inbound depth3 JSON and default tree (only flag overload, hop1, total1/eq); caller outbound (only name overload, hop1, total1/eq).
+All five MCP status logs were `ok`, but stdout ends at `RAW 5 {`; request 5's complete response, OBS and final SUMMARY were not flushed and its semantics remain unverified.
+LeakSanitizer reported a **1024-byte direct leak**; the entire run failed, not five observations passed or a semantic RED.
+Key stack: [find_nodes_generic / Store](https://github.com/DavidHLP/codebase-memory-mcp/blob/0007c1d22858e1548ca392f382275595a0a2c691/src/store/store.c#L2779) → `cbm_store_find_nodes_by_name` → [handle_trace_call_path / MCP](https://github.com/DavidHLP/codebase-memory-mcp/blob/0007c1d22858e1548ca392f382275595a0a2c691/src/mcp/mcp.c#L9291).
+The complete MCP and Store source files are byte-identical to parent P `5538355530bb126c3041f7fcf8ef7a82b4bb3fec`, as confirmed by source comparison; this does not claim a new P runtime result.
+This inherited generic leak is **OUT OF SCOPE**: it is not included in the Swift fix or an additional Swift acceptance gate. No repair, suppression or rerun was performed.
+Original DB, backup copy, fixtures, archived source, binary and main checkout were **unchanged**; independent cache and DB copy provided isolation, not a query-layer stored-root check.
+Original graph-layer P RED/A GREEN remains unchanged; the **787 focused passes belong only to core `761ea8ca432ae0f58a6bb77c438ccedcb1ade3a1`**.
+
+Original seal: **2026-10-03T06:35:33.549096Z**; evidence-manifest SHA-256: `0ea8f6f2de4cc10cc9b93234f557ed2aca774abcdf859982aa972691cc4bfadb`.
+Raw evidence and the verbatim 69-line record are retained externally; that record's SHA-256 is `cb6278aa60003baeb4e0ccbf47ca39f72af546d389d29fa708e428b2eb7402de`. Existing evidence and seal were not overwritten.
+
+The [owner's issue decision](https://github.com/DeusData/codebase-memory-mcp/issues/2061#issuecomment-5836287644) requests Swift on parent PR2342, centered on helper/regression coverage: stable labels+types QNs with bare names, compatible label/default/trailing-closure selection, all compatible candidate edges with counts, and an index-format rebuild.
+The [owner's PR reply](https://github.com/DeusData/codebase-memory-mcp/pull/2436#issuecomment-5936875903) queues deeper review; it is neither approval nor a routine-rebase request.
+The [automated PR acknowledgement](https://github.com/DeusData/codebase-memory-mcp/pull/2436#issuecomment-5902448775) asks for CI green **or an explanation of believed pre-existing failures**; full/native macOS/strict-P matrices were contributor validation designs or commitments, not owner-specified Swift requirements.
