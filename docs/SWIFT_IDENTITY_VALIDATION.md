@@ -216,3 +216,55 @@ Raw evidence and the verbatim 69-line record are retained externally; that recor
 The [owner's issue decision](https://github.com/DeusData/codebase-memory-mcp/issues/2061#issuecomment-5836287644) requests Swift on parent PR2342, centered on helper/regression coverage: stable labels+types QNs with bare names, compatible label/default/trailing-closure selection, all compatible candidate edges with counts, and an index-format rebuild.
 The [owner's PR reply](https://github.com/DeusData/codebase-memory-mcp/pull/2436#issuecomment-5936875903) queues deeper review; it is neither approval nor a routine-rebase request.
 The [automated PR acknowledgement](https://github.com/DeusData/codebase-memory-mcp/pull/2436#issuecomment-5902448775) asks for CI green **or an explanation of believed pre-existing failures**; full/native macOS/strict-P matrices were contributor validation designs or commitments, not owner-specified Swift requirements.
+
+## Existing index_format suite — 2026-10-03
+
+One authorized invocation of the standard test entry point passed **3/3**,
+exit **0**, **08:48:58.454697–08:48:59.120654 UTC**. `make -q` returned **0**
+and the entry-point build reported the existing runner up to date: no rebuild.
+The archived source/core was `761ea8ca432ae0f58a6bb77c438ccedcb1ade3a1`;
+the then-public candidate was `34a370ce2debd9ce5721ad99d8c7be67ef3ffa2b`.
+All core-to-candidate changes were validation docs or standalone repro files,
+not runner inputs. Makefile, test entry point and test source matched candidate
+HEAD. Working-tree WIP was excluded. GCC/G++ **16.2.1 20260810**, Make **4.4.1**,
+default ASan+UBSan, and `sanitized=1 test_seams=1` build metadata were retained.
+
+Exact invocation, with private path bindings recorded in external evidence:
+
+```bash
+cd "$EXACT_SOURCE"
+TMPDIR="$EVIDENCE/tmp" scripts/test.sh --suites index_format \
+  BUILD_DIR="$EXISTING_BUILD" CC=gcc CXX=g++ TEST_SEAMS=1
+```
+
+`index_format_siblings_distinct_and_searchable`,
+`index_format_legacy_index_rebuilds_and_repairs`, and
+`index_format_version_one_rebuilds` passed. The last test writes format **1**,
+asserts full-rebuild routing and `format_migration:true`, verifies current
+format **2** and preserved file count, then checks no second rebuild on an
+unchanged run. This is narrow rebuild-boundary evidence, not a full-suite or
+native-macOS acceptance result; the earlier 787 result keeps its original SHA.
+
+Before/after archive, source manifest, runner, test source, entire old build
+and main checkout were unchanged. Complete stdout/stderr and real exit/UTC
+records are preserved in a new independent `/home` evidence directory; hardcoded
+test fixtures still used `/tmp`, whose available space was checked separately.
+No sanitizer diagnostic occurred and no other suite or lint was run.
+
+| SHA-256 artifact | Value |
+| --- | --- |
+| Archive, before/after | `d934685cc5e521060a8ddb29dcb65e5961c10d103763375e647a9e9da6a1617e` |
+| Source content manifest, before/after | `10011442026e4c5a4900c6b24ee19dda1ea3c1eda15e8bf88b0eec35b4ef77de` |
+| Existing runner, before/after | `ad35773a1bc097cf980e67a4215baaee1b26337560696db85a908ce3ec2df11c` |
+| tests/test_index_format.c, archive and checkout | `8599852fefeee42d879b38f22305cb4e3e309ead1b16bd7e6d8954a8358f43f4` |
+| New suite evidence manifest | `2ebd57e301f1e5ea3049fc5e9ed5014c0991222d57662642d6f9d778c93135a7` |
+| Later build-config metadata supplement manifest | `3ab556d8a8cbf66cf45c733624a6a460ed6b7de55c3ced539bcf4e6eebdf172c` |
+
+Allocator scope decision: retain the existing paired
+`cbm_alloc(CBM_MEM_CLASS_OTHER, ...)` / `cbm_free(CBM_MEM_CLASS_OTHER, ...)`
+suffix-scan scratch hunk in `cbm_registry_find_ending_with`, introduced by
+`bbd0957937ee01c483c04fe5d20f23f72bcd1fc5`. It is not Swift semantics, but
+reverting those two calls increases `src/pipeline/registry.c` raw sites from
+the checked-in ratchet **17** to **19**, failing lint-memory-core/lint-ci.
+The allocator pair and baseline counts were not changed; this scope rationale
+does not claim a fresh lint run or authorize other allocator work.

@@ -1,11 +1,18 @@
 # Original Swift issue #2061: standalone pipeline/store proof
 
-## Candidate MCP presentation check (not executed)
+## Candidate MCP presentation check (executed; FAILED)
 
 `mcp_driver.c` is a separate, thin main using the existing MCP server API.
-It is not registered in test suites or CI. Review this candidate and obtain
-fresh root authorization before any backup, link or execution. No new driver
-result exists for `4d99219e41c35a4dff2c1b0f211e423b913ac65f`.
+It is not registered in test suites or CI. Candidate
+`0007c1d22858e1548ca392f382275595a0a2c691` was run once: build exit 0,
+run exit 1 with a 1024-byte LeakSanitizer leak. Observations 1–4 passed;
+observation 5's response/OBS and final SUMMARY were not fully saved and remain
+unverified. The separate `4d99219e41c35a4dff2c1b0f211e423b913ac65f`
+checkpoint was not the executed candidate. See the
+[published failure record](https://github.com/DavidHLP/codebase-memory-mcp/blob/34a370ce2debd9ce5721ad99d8c7be67ef3ffa2b/docs/SWIFT_IDENTITY_VALIDATION.md#mcp-presentation-attempt--fail-2026-10-03).
+The inherited generic MCP/Store leak is **OUT OF SCOPE**; original graph-layer
+P RED/A GREEN is unchanged. Obtain fresh root authorization before any further
+backup, build or execution; the five-observation attempt did not pass.
 
 Inputs are the sealed, accepted A graph from candidate
 `cf67f49dc2d718709846adefff5bab6cf9b671d4` and its original three-file fixture,
