@@ -7628,6 +7628,8 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
                     "    func withDefault(message: String, flag: Bool = true) { sink.target() }\n"
                     "    func withCallback(completion: () -> Void) { sink.target() }\n"
                     "    func many(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int) {}\n"
+                    "    func handle(completion: () -> Void) { sink.target() }\n"
+                    "    func handle(completion: () -> Void, onError: () -> Void) { sink.target() }\n"
                     "}\n");
     write_temp_file(tmp, "Sources/Caller.swift",
                     "class Caller {\n"
@@ -7647,6 +7649,9 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
                     "        self.service.many(a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 // trailing comment\n"
                     "        )\n"
                     "    }\n"
+                    "    func callHandle() { self.service.handle { } onError: { } }\n"
+                    "    func callHandleWrongLabel() { self.service.handle { } bogus: { } }\n"
+                    "    func callHandleIncomplete() { self.service.handle { } onError: { recover( } }\n"
                     "}\n");
 
     char db_path[512];
@@ -7763,6 +7768,44 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     ASSERT_EQ(pipeline_has_calls_edge(s, record_caller.id, record.id), 1);
     ASSERT_EQ(pipeline_has_calls_edge(s, many_caller.id, many.id), 1);
     ASSERT_EQ(cbm_store_count_edges_by_type(s, project, "HTTP_CALLS"), 0);
+
+    /* #2061: two trailing closures select only the overload that can take
+     * them; a second closure whose label matches no parameter binds neither. */
+    char handle_one_qn[512], handle_two_qn[512], handle_caller_qn[512], handle_wrong_qn[512],
+        handle_incomplete_qn[512];
+    snprintf(handle_one_qn, sizeof(handle_one_qn),
+             "%s.Sources.Service.Service.handle(completion:()=>Void)", project);
+    snprintf(handle_two_qn, sizeof(handle_two_qn),
+             "%s.Sources.Service.Service.handle(completion:()=>Void,onError:()=>Void)", project);
+    snprintf(handle_caller_qn, sizeof(handle_caller_qn),
+             "%s.Sources.Caller.Caller.callHandle()", project);
+    snprintf(handle_wrong_qn, sizeof(handle_wrong_qn),
+             "%s.Sources.Caller.Caller.callHandleWrongLabel()", project);
+    snprintf(handle_incomplete_qn, sizeof(handle_incomplete_qn),
+             "%s.Sources.Caller.Caller.callHandleIncomplete()", project);
+    cbm_node_t handle_one = {0}, handle_two = {0}, handle_caller = {0};
+    cbm_node_t handle_wrong_caller = {0}, handle_incomplete_caller = {0};
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_one_qn, &handle_one), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_two_qn, &handle_two), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_caller_qn, &handle_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_wrong_qn, &handle_wrong_caller),
+              CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_incomplete_qn, &handle_incomplete_caller),
+              CBM_STORE_OK);
+    /* `handle { } onError: { }`: only the two-closure overload can take both. */
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_caller.id, handle_two.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_caller.id, handle_one.id), 0);
+    /* A second closure whose label matches no parameter binds neither. */
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_wrong_caller.id, handle_two.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_wrong_caller.id, handle_one.id), 0);
+    /* An incomplete second closure marks candidate input unknown; resolver must not emit a bare-name edge. */
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_incomplete_caller.id, handle_two.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_incomplete_caller.id, handle_one.id), 0);
+    cbm_node_free_fields(&handle_incomplete_caller);
+    cbm_node_free_fields(&handle_wrong_caller);
+    cbm_node_free_fields(&handle_one);
+    cbm_node_free_fields(&handle_two);
+    cbm_node_free_fields(&handle_caller);
     cbm_node_free_fields(&record);
     cbm_node_free_fields(&record_caller);
     cbm_node_free_fields(&many);
@@ -7795,6 +7838,8 @@ TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
                     "    func upload(_ data: Data, to url: URL) {}\n"
                     "    func upload(_ file: URL, to url: URL) {}\n"
                     "    func record(path: String, session: URLSession) {}\n"
+                    "    func handle(completion: () -> Void) {}\n"
+                    "    func handle(completion: () -> Void, onError: () -> Void) {}\n"
                     "}\n");
     write_temp_file(tmp, "Sources/Caller.swift",
                     "class Caller {\n"
@@ -7803,6 +7848,9 @@ TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
                     "        self.service.upload(Data(), to: URL(string: \"/x\")!)\n"
                     "        self.service.record(path: \"/audit\", session: URLSession.shared)\n"
                     "    }\n"
+                    "    func callHandle() { self.service.handle { } onError: { } }\n"
+                    "    func callHandleWrongLabel() { self.service.handle { } bogus: { } }\n"
+                    "    func callHandleIncomplete() { self.service.handle { } onError: { recover( } }\n"
                     "}\n");
     for (int i = 0; i < 50; i++) {
         char path[64], source[80];
@@ -7859,6 +7907,39 @@ TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
     }
     ASSERT_EQ(ambiguous, 2);
     cbm_store_free_edges(edges, edge_count);
+
+    /* #2061: the parallel resolver must reach the same trailing-closure
+     * verdicts as the serial one. */
+    char handle_one_qn[512], handle_two_qn[512], handle_qn[512], handle_wrong_qn[512],
+        handle_incomplete_qn[512];
+    snprintf(handle_one_qn, sizeof(handle_one_qn),
+             "%s.Sources.Service.Service.handle(completion:()=>Void)", project);
+    snprintf(handle_two_qn, sizeof(handle_two_qn),
+             "%s.Sources.Service.Service.handle(completion:()=>Void,onError:()=>Void)", project);
+    snprintf(handle_qn, sizeof(handle_qn), "%s.Sources.Caller.Caller.callHandle()", project);
+    snprintf(handle_wrong_qn, sizeof(handle_wrong_qn),
+             "%s.Sources.Caller.Caller.callHandleWrongLabel()", project);
+    snprintf(handle_incomplete_qn, sizeof(handle_incomplete_qn),
+             "%s.Sources.Caller.Caller.callHandleIncomplete()", project);
+    cbm_node_t handle_one = {0}, handle_two = {0}, handle = {0};
+    cbm_node_t handle_wrong = {0}, handle_incomplete = {0};
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_one_qn, &handle_one), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_two_qn, &handle_two), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_qn, &handle), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_wrong_qn, &handle_wrong), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_incomplete_qn, &handle_incomplete),
+              CBM_STORE_OK);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle.id, handle_two.id), 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle.id, handle_one.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_wrong.id, handle_two.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_wrong.id, handle_one.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_incomplete.id, handle_two.id), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, handle_incomplete.id, handle_one.id), 0);
+    cbm_node_free_fields(&handle_incomplete);
+    cbm_node_free_fields(&handle_wrong);
+    cbm_node_free_fields(&handle_one);
+    cbm_node_free_fields(&handle_two);
+    cbm_node_free_fields(&handle);
     cbm_node_free_fields(&caller);
     cbm_node_free_fields(&data);
     cbm_node_free_fields(&url);
@@ -16657,8 +16738,9 @@ TEST(pipeline_swift_incremental_restores_default_signature_issue2061) {
                     "    func good() { self.service.ping(a: 1) }\n"
                     "    func bad() { self.service.ping(x: 1) }\n"
                     "}\n");
-    char db_path[512], caller_path[512], project[512], service_path[512];
+    char db_path[512], closure_db_path[512], caller_path[512], project[512], service_path[512];
     snprintf(db_path, sizeof(db_path), "%s/swift-restore.db", tmp);
+    snprintf(closure_db_path, sizeof(closure_db_path), "%s/swift-closure.db", tmp);
     snprintf(caller_path, sizeof(caller_path), "%s/Sources/Caller.swift", tmp);
     snprintf(service_path, sizeof(service_path), "%s/Sources/Service.swift", tmp);
 
@@ -16691,17 +16773,23 @@ TEST(pipeline_swift_incremental_restores_default_signature_issue2061) {
     cbm_store_close(store);
     cbm_pipeline_free(legacy);
     cbm_pipeline_incremental_test_reset_faults();
+    /* The test-only legacy partial route predates persisted LSP surfaces.
+     * Seed a separate full generation for closure-repair assertions. */
+    cbm_pipeline_t *closure_seed = cbm_pipeline_new(tmp, closure_db_path, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(closure_seed);
+    ASSERT_EQ(cbm_pipeline_run(closure_seed), 0);
+    cbm_pipeline_free(closure_seed);
 
     caller = fopen(caller_path, "ab");
     ASSERT_NOT_NULL(caller);
     ASSERT_TRUE(fputs("// closure marker\n", caller) >= 0);
     ASSERT_EQ(fclose(caller), 0);
     ASSERT_EQ(pipeline_test_set_mtime(caller_path, 2000000001, 0), 0);
-    cbm_pipeline_t *closure = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    cbm_pipeline_t *closure = cbm_pipeline_new(tmp, closure_db_path, CBM_MODE_FULL);
     ASSERT_NOT_NULL(closure);
     ASSERT_EQ(cbm_pipeline_run(closure), 0);
     ASSERT_EQ(cbm_pipeline_incremental_test_last_route(), CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
-    store = cbm_store_open_path(db_path);
+    store = cbm_store_open_path(closure_db_path);
     ASSERT_NOT_NULL(store);
     ASSERT_TRUE(swift_default_restore_graph_is_valid(store, project, true));
     cbm_store_close(store);
@@ -16713,11 +16801,11 @@ TEST(pipeline_swift_incremental_restores_default_signature_issue2061) {
                     "    func other(a: Int, b: Int = 0) {}\n"
                     "}\n");
     ASSERT_EQ(pipeline_test_set_mtime(service_path, 2000000002, 0), 0);
-    cbm_pipeline_t *defaults_removed = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    cbm_pipeline_t *defaults_removed = cbm_pipeline_new(tmp, closure_db_path, CBM_MODE_FULL);
     ASSERT_NOT_NULL(defaults_removed);
     ASSERT_EQ(cbm_pipeline_run(defaults_removed), 0);
     ASSERT_EQ(cbm_pipeline_incremental_test_last_route(), CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
-    store = cbm_store_open_path(db_path);
+    store = cbm_store_open_path(closure_db_path);
     ASSERT_NOT_NULL(store);
     ASSERT_TRUE(swift_default_restore_graph_is_valid(store, project, false));
     cbm_store_close(store);

@@ -3343,6 +3343,74 @@ static TSNode swift_call_args(TSNode node) {
     return cbm_find_child_by_kind(suffix, "value_arguments");
 }
 
+/* Store one bounded trailing-closure label; closure zero is unlabelled. */
+static void swift_store_trailing_label(CBMExtractCtx *ctx, CBMCall *call, uint32_t index,
+                                       const char *label, bool has_label) {
+    if (index == 0) {
+        call->swift_trailing_closure = true;
+        return;
+    }
+    if (index >= CBM_MAX_TRAILING_CLOSURES) {
+        call->swift_trailing_truncated = true;
+        return;
+    }
+    if (!call->swift_trailing_labels) {
+        size_t bytes = CBM_MAX_TRAILING_CLOSURES * sizeof(char *);
+        call->swift_trailing_labels = cbm_arena_calloc(ctx->arena, bytes);
+    }
+    if (!call->swift_trailing_labels) {
+        call->swift_trailing_truncated = true;
+        return;
+    }
+    call->swift_trailing_labels[index] = label;
+    if (has_label && !label) {
+        call->swift_trailing_truncated = true;
+    }
+}
+
+/* Swift records trailing closures on the call_suffix: the hidden
+ * _fn_call_lambda_arguments rule inlines to
+ * `lambda_literal (simple_identifier ':')*`, so every closure literal, and the
+ * label that precedes all but the first, sit flat among the suffix's children
+ * (after an optional value_arguments). Each lambda_literal is a trailing
+ * closure; a simple_identifier directly before a closure is that closure's
+ * label. Closure 0 is always unlabelled. More closures than the bounded
+ * storage marks the call truncated so the overload matcher fails closed. */
+static void swift_capture_trailing_closures(CBMExtractCtx *ctx, TSNode call_node, TSNode suffix,
+                                            CBMCall *call) {
+    if (ts_node_has_error(call_node)) {
+        call->swift_trailing_truncated = true;
+    }
+    uint32_t children = ts_node_child_count(suffix);
+    uint32_t closures = 0;
+    const char *pending_label = NULL;
+    bool has_pending_label = false;
+    for (uint32_t i = 0; i < children; i++) {
+        TSNode child = ts_node_child(suffix, i);
+        const char *kind = ts_node_type(child);
+        if (ts_node_is_missing(child) || ts_node_has_error(child)) {
+            call->swift_trailing_truncated = true;
+        }
+        if (strcmp(kind, "lambda_literal") == 0) {
+            swift_store_trailing_label(ctx, call, closures, pending_label, has_pending_label);
+            closures++;
+            pending_label = NULL;
+            has_pending_label = false;
+        } else if (strcmp(kind, "simple_identifier") == 0) {
+            if (has_pending_label) {
+                call->swift_trailing_truncated = true;
+            }
+            pending_label = cbm_node_text(ctx->arena, child, ctx->source);
+            has_pending_label = true;
+        }
+    }
+    if (has_pending_label) {
+        call->swift_trailing_truncated = true;
+    }
+    call->swift_trailing_count =
+        (uint8_t)(closures > CBM_MAX_TRAILING_CLOSURES ? CBM_MAX_TRAILING_CLOSURES : closures);
+}
+
 static bool node_has_token(TSNode node, const char *token) {
     uint32_t count = ts_node_child_count(node);
     for (uint32_t i = 0; i < count; i++) {
@@ -3963,8 +4031,7 @@ CBMInvocationDescriptor handle_calls(CBMExtractCtx *ctx, TSNode node, const CBML
             if (ctx->language == CBM_LANG_SWIFT) {
                 TSNode suffix = cbm_find_child_by_kind(node, "call_suffix");
                 if (!ts_node_is_null(suffix)) {
-                    call.swift_trailing_closure =
-                        !ts_node_is_null(cbm_find_child_by_kind(suffix, "lambda_literal"));
+                    swift_capture_trailing_closures(ctx, node, suffix, &call);
                 }
                 uint32_t value_arg_count = 0;
                 if (!ts_node_is_null(args)) {
