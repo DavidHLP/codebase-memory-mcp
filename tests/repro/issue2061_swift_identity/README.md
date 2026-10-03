@@ -1,5 +1,144 @@
 # Original Swift issue #2061: standalone pipeline/store proof
 
+## Candidate MCP presentation check (not executed)
+
+`mcp_driver.c` is a separate, thin main using the existing MCP server API.
+It is not registered in test suites or CI. Review this candidate and obtain
+fresh root authorization before any backup, link or execution. No new driver
+result exists for `4d99219e41c35a4dff2c1b0f211e423b913ac65f`.
+
+Inputs are the sealed, accepted A graph from candidate
+`cf67f49dc2d718709846adefff5bab6cf9b671d4` and its original three-file fixture,
+produced by harness `69e58c0df998e350d14fd9db8e8d205f7bf6036a`.
+Their private locations are operator inputs, never committed artifacts.
+The accepted project is `issue2061-swift-identity`. The graph DB SHA-256 is
+`6e8389bdcacf62cf4956556329afc74f6312b6dbe69c3a12ffb1c0579587e4ce`;
+fixture hashes are in `docs/SWIFT_IDENTITY_VALIDATION.md`.
+
+Layout: a new ordinary evidence directory holds `source/`, `build/`, `tmp/`,
+`cache/issue2061-swift-identity.db`, logs and a fixture copy. Nothing belongs
+in Git. Never reuse, overwrite, delete or modify prior evidence. Record exact
+source/driver SHAs, UTC, toolchain, commands, actual exits, stdout/stderr and
+before/after hashes (including original DB/sidecars and fixtures). Log only
+an explicit non-secret environment allowlist; other variables are redacted.
+
+### Read-only consistent backup, after authorization
+
+The accepted DB is closed and sealed; read-only lstat/hash preflight found no
+`-wal`, `-shm` or `-journal`. Reconfirm those facts and absence of writers.
+Use SQLite's backup API, not a lone DB-file copy. For this sealed no-sidecar
+case, `mode=ro&immutable=1` prevents SQLite from writing the original or making
+sidecars. Immutable mode must NOT be used if writers or a WAL are present:
+stop and obtain a separately reviewed WAL-aware snapshot plan instead.
+
+This template is not part of driver execution. `accepted_db`,
+`accepted_fixture`, and `evidence` must be supplied privately; the destination
+cache must be newly created and empty. Preserve/hash the original files and
+copy the three fixture files separately without overwriting any destination.
+
+```python
+# Run only after root approval; no database access during syntax/preflight.
+import os, sqlite3
+from pathlib import Path
+source = Path(os.environ["accepted_db"]).resolve(strict=True)
+destination = Path(os.environ["evidence"]) / "cache/issue2061-swift-identity.db"
+assert not destination.exists()
+assert all(not os.path.lexists(str(source) + s)
+           for s in ("-wal", "-shm", "-journal"))
+# Operator also checks the accepted SHA-256 and that no writer is active.
+fd = os.open(destination, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+os.close(fd)  # Exclusive creation also refuses existing/broken symlinks.
+uri = source.as_uri() + "?mode=ro&immutable=1"
+with sqlite3.connect(uri, uri=True) as src:
+    with sqlite3.connect(str(destination)) as dst:
+        src.backup(dst)
+```
+
+The backup is logically identical; its physical hash may differ. Capture both
+hashes. Do not rewrite project roots in it. The DB stores the original fixture
+root, and production MCP workspace validation uses that root. Set
+`CBM_ALLOWED_ROOT` and the server session context to the verified original
+fixture root, which remains read-only. The fixture copy provides independent
+byte preservation; it does not authorize changing the stored root.
+
+### API and assertions
+
+The driver calls `cbm_mcp_server_new(NULL)`, disables background tasks, selects
+the analysis profile, sets explicit session/allowed roots, and submits
+`tools/call` JSON-RPC through `cbm_mcp_server_handle`. Production resolve-store
+opens the existing named DB in the independent `CBM_CACHE_DIR` query-only.
+There is no indexing, direct store access, graph traversal or result filtering.
+
+Five observations are collected:
+
+1. `search_graph(^work$, json)`: exactly two identities at Service lines 5-7
+   and 10-12, with labels/types in their QNs. The search matches the stored bare
+   name; grouped presentation's `name` cell is the signature-bearing QN suffix.
+2. `trace_path(target, inbound, depth=3, json)`: exactly flag overload at hop1,
+   total1/relation eq; neither name overload nor false caller can be present.
+3. The same target request with default tree output: exact singleton direct
+   table, total1/relation eq, full flag QN and hop1, no additional rows/cursor.
+   A presentation encoding change is a mismatch to inspect, not permission to
+   silently relax the assertion.
+4. `trace_path(onlyCallsOverloadB, outbound, depth=1, json)`: only name overload
+   at hop1, total1/relation eq.
+5. Name overload's exact QN, outbound depth1/json: zero callees, total0/eq.
+
+Each request prints the original request and raw response. Envelope checks
+require JSON-RPC 2.0, matching ID, no error, explicit isError=false and exactly
+one text item. JSON requires structuredContent to equal the parsed text object;
+tree requires structuredContent absent. All JSON rows are checked, along with
+columns, totals, exact relation, and absence of truncation/continuation.
+Expected summary: passed=5 failed=0 errors=0 exit=0. Exit1 means a response
+mismatch; exit2 means setup/envelope failure. Neither establishes a P RED.
+
+### Syntax/preflight now; build/run only after another review
+
+Use an exact unmodified production archive, not the dirty checkout Makefile.
+The existing `syntax.mk` supports this driver without modification:
+
+```bash
+make -f "$harness/syntax.mk" issue2061-syntax \
+  CC=gcc CXX=g++ TEST_SEAMS=1 BUILD_DIR="$evidence/build" \
+  ALL_TEST_SRCS="$harness/mcp_driver.c"
+make -n -f Makefile.cbm "$evidence/build/test-runner" \
+  CC=gcc CXX=g++ TEST_SEAMS=1 BUILD_DIR="$evidence/build" \
+  ALL_TEST_SRCS="$harness/mcp_driver.c"
+```
+
+Preflight must show only the external driver as the test/main input, standard
+production/grammar dependencies, no suite execution, and no flag changes.
+Syntax/preflight success is not runtime acceptance. After root reviews the
+pushed candidate, archive one approved full SHA into a fresh evidence directory;
+retain the same GCC/G++ 16.2.1, Make 4.4.1 and standard test flags:
+
+```bash
+export TMPDIR="$evidence/tmp"
+make -j8 -f Makefile.cbm "$evidence/build/test-runner" \
+  CC=gcc CXX=g++ TEST_SEAMS=1 BUILD_DIR="$evidence/build" \
+  ALL_TEST_SRCS="$harness/mcp_driver.c"
+export CBM_CACHE_DIR="$evidence/cache"
+export CBM_ALLOWED_ROOT="$accepted_fixture"
+if ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+timeout 180s "$evidence/build/test-runner" issue2061-swift-identity \
+  > "$evidence/run.stdout" 2> "$evidence/run.stderr"; then
+  run_exit=0
+else
+  run_exit=$?
+fi
+printf '%s\n' "$run_exit" > "$evidence/run.exit"
+# Preserve complete stderr; an info log is not a runner failure.
+```
+
+Stop on input/hash/SHA mismatch, unexpected sidecars/writers, nonempty existing
+destination, expanded dry-run, compiler failure, timeout/signal, sanitizer
+diagnostic, invalid/error response, missing rows or incomplete output. Normal
+info stderr is not fatal. Preserve the checkpoint/evidence and report; do not
+change production code, rerun P, or repair global baselines. This stage cannot
+establish incremental multi-trailing-closure, full-suite, CI, DCO or maintainer
+acceptance.
+
 This runner embeds only the three original Swift files from
 [issue #2061](https://github.com/DeusData/codebase-memory-mcp/issues/2061).
 It uses the real production pipeline in FAST mode and queries its persisted
