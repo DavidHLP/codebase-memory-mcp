@@ -1,0 +1,14 @@
+src/pipeline/registry.c
+  h_77173abe25c3ff 32,1739,1746
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bbd0957937ee01c483c04fe5d20f23f72bcd1fc5",
+  "prompts": {},
+  "humans": {
+    "h_77173abe25c3ff": {
+      "author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
