@@ -64,26 +64,35 @@
  *
  * The enum below and the family table (doclink.c) are both generated from this
  * list, so a value cannot exist without its name and its gate. */
-#define CBM_DOCLINK_FAMILY_LIST(X)                                                           \
-    /* csharp */                                                                             \
-    X(CBM_DOCLINK_CS_SEE, CBM_LANG_CSHARP, "see", false, true, "MENTIONS")                   \
-    X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true, "MENTIONS")           \
-    X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true, "MENTIONS")       \
-    X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true, "MENTIONS")     \
-    /* markdown (doclink_md.c): what a document's text names explicitly */                   \
-    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true, "MENTIONS")               \
-    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true, "MENTIONS")               \
-    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, true, "MENTIONS")     \
-    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")     \
-    /* an ADR's own "supersedes" / "replaces" statement (doc_adr.c): ADR -> ADR */           \
-    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, true, "SUPERSEDES") \
-    /* pdf (doc_pdf.c): structural mentions in a page's text; pdf_name (bare      */         \
-    /* names) only decides which line fragments a cross-line join replaces        */         \
-    X(CBM_DOCLINK_PDF_PATH, CBM_LANG_PDF, "pdf_path", false, true, "MENTIONS")               \
-    X(CBM_DOCLINK_PDF_FILE, CBM_LANG_PDF, "pdf_file", false, true, "MENTIONS")               \
-    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, true, "MENTIONS")                   \
-    X(CBM_DOCLINK_PDF_NAME, CBM_LANG_PDF, "pdf_name", false, false, "MENTIONS")              \
-    /* any language (CBM_LANG_COUNT): a URL is never an edge */                              \
+#define CBM_DOCLINK_FAMILY_LIST(X)                                                             \
+    /* csharp */                                                                               \
+    X(CBM_DOCLINK_CS_SEE, CBM_LANG_CSHARP, "see", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true, "MENTIONS")             \
+    X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true, "MENTIONS")         \
+    X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true, "MENTIONS")       \
+    /* markdown (doclink_md.c): what a document's text names explicitly */                     \
+    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, true, "MENTIONS")       \
+    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")       \
+    /* an ADR's own "supersedes" / "replaces" statement (doc_adr.c): ADR -> ADR */             \
+    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, true, "SUPERSEDES")   \
+    /* pdf (doc_pdf.c): structural mentions in a page's text; pdf_name (bare      */           \
+    /* names) only decides which line fragments a cross-line join replaces        */           \
+    X(CBM_DOCLINK_PDF_PATH, CBM_LANG_PDF, "pdf_path", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_PDF_FILE, CBM_LANG_PDF, "pdf_file", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_PDF_NAME, CBM_LANG_PDF, "pdf_name", false, false, "MENTIONS")                \
+    /* restructuredtext (doclink_rst.c): Sphinx domain markup, directives, inline literals */  \
+    X(CBM_DOCLINK_RST_ROLE, CBM_LANG_RST, "role", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_RST_OBJECT, CBM_LANG_RST, "object", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_RST_AUTODOC, CBM_LANG_RST, "autodoc", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_RST_INCLUDE, CBM_LANG_RST, "include", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_RST_LITERALINCLUDE, CBM_LANG_RST, "literalinclude", false, true, "MENTIONS") \
+    X(CBM_DOCLINK_RST_KERNEL_DOC, CBM_LANG_RST, "kernel_doc", false, true, "MENTIONS")         \
+    X(CBM_DOCLINK_RST_CODE_PATH, CBM_LANG_RST, "code_path", false, true, "MENTIONS")           \
+    X(CBM_DOCLINK_RST_CODE_NAME, CBM_LANG_RST, "code_name", false, true, "MENTIONS")           \
+    /* any language (CBM_LANG_COUNT): a URL is never an edge */                                \
     X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false, "MENTIONS")
 
 typedef enum {
@@ -304,6 +313,25 @@ void cbm_adr_extract(CBMExtractCtx *ctx);
 
 /* The qualified-name tail of an ADR node: "<module QN>" + this. */
 #define CBM_ADR_QN_NAME "__adr__"
+
+/* ── reStructuredText (doclink_rst.c) and Python's scope (doclink_py.c) ── */
+
+/* The scan_file hook of a reStructuredText document: a Section per title
+ * (the text up to the next title as its docstring) and its references to
+ * code -- Sphinx roles and object directives, autodoc, include /
+ * literalinclude / kernel-doc paths, inline literals naming a path or a
+ * qualified name -- each with the section it is written in as its source. */
+void cbm_doclink_rst_scan_file(CBMExtractCtx *ctx);
+
+/* The scope blob of a Python file, which the reST resolver reads: a package
+ * `__init__.py`'s top-level explicit `from x import y [as z]` (what the
+ * package re-exports), and a Sphinx `conf.py`'s primary domain, extlink roles
+ * to repository paths and intersphinx names (read as text, never run). NULL
+ * for every other file. */
+const char *cbm_doclink_py_scan_scope(CBMExtractCtx *ctx);
+
+/* The Python scope blob starts with this tag line. */
+#define CBM_DOCLINK_PY_SCOPE_TAG "py1"
 
 /* PDF documents (doc_pdf.c): a Section per page (name "page N", the page's
  * text as docstring, property page) and the pages' structural code mentions

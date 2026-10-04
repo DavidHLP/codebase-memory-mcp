@@ -169,6 +169,12 @@ static const doclink_lang_t DOCLINK_LANGS[] = {
      .scope_tag = CBM_DOCLINK_CS_SCOPE_TAG,
      .portable_scope = cbm_doclink_cs_portable_scope},
     {.lang = CBM_LANG_MARKDOWN, .scan_file = cbm_doclink_md_scan_file},
+    {.lang = CBM_LANG_RST, .scan_file = cbm_doclink_rst_scan_file},
+    /* Python: no doc references yet, only the scope the reST resolver reads
+     * (package re-exports, Sphinx conf.py settings) */
+    {.lang = CBM_LANG_PYTHON,
+     .scan_scope = cbm_doclink_py_scan_scope,
+     .scope_tag = CBM_DOCLINK_PY_SCOPE_TAG},
 };
 
 static const doclink_lang_t *doclink_lang(CBMLanguage lang) {
@@ -181,7 +187,8 @@ static const doclink_lang_t *doclink_lang(CBMLanguage lang) {
 }
 
 bool cbm_doclink_lang_supported(CBMLanguage lang) {
-    return doclink_lang(lang) != NULL;
+    const doclink_lang_t *L = doclink_lang(lang);
+    return L && (L->parse_doc || L->scan_file);
 }
 
 /* ── Doc-line side map ───────────────────────────────────────────── */
@@ -400,6 +407,10 @@ void cbm_doclinks_extract(CBMExtractCtx *ctx) {
     }
     if (L->scan_file) {
         L->scan_file(ctx);
+        return;
+    }
+    if (!L->parse_doc) { /* a scope, and no references (Python) */
+        ctx->result->doc_scope = L->scan_scope ? L->scan_scope(ctx) : NULL;
         return;
     }
     int twin_count = 0;

@@ -242,6 +242,18 @@ extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
 extern const cbm_doclink_resolver_t cbm_doclink_md_resolver;
 /* PDF documents (doc_links_pdf.c): via "pdf". */
 extern const cbm_doclink_resolver_t cbm_doclink_pdf_resolver;
+/* reStructuredText documents and the Python scope they read (doc_links_rst.c):
+ * via "rst". */
+extern const cbm_doclink_resolver_t cbm_doclink_rst_resolver;
+
+/* Over a Markdown resolver index (cbm_doclink_md_resolver.build), for the
+ * other document resolvers: the innermost code definition of `path` holding
+ * lines [first, last] (or the one named `member`), NULL for none; the Folder
+ * node at `path`; whether `path` is test code (a test directory or file). */
+const cbm_gbuf_node_t *cbm_doclink_md_segment(const void *md_index, const char *path,
+                                              uint32_t first, uint32_t last, const char *member);
+const cbm_gbuf_node_t *cbm_doclink_md_folder(const void *md_index, const char *path);
+bool cbm_doclink_md_test_path(const char *path);
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
 /* Test seam (doc_links_cs.c): the scope levels and overloads the C# resolver

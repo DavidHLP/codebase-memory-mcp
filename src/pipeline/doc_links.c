@@ -48,6 +48,7 @@ static const cbm_doclink_resolver_t *const DOCLINK_RESOLVERS[] = {
     &cbm_doclink_cs_resolver,
     &cbm_doclink_md_resolver,
     &cbm_doclink_pdf_resolver,
+    &cbm_doclink_rst_resolver,
 };
 
 enum { DOCLINK_RESOLVER_COUNT = sizeof(DOCLINK_RESOLVERS) / sizeof(DOCLINK_RESOLVERS[0]) };

@@ -1198,6 +1198,21 @@ static void mdr_resolve(const void *index, void *state, int run_file, const CBMD
     mdr_resolve_path(x, graph, doc, &r, out);
 }
 
+/* ── Shared with the other document resolvers (doc_links.h) ──────── */
+
+const cbm_gbuf_node_t *cbm_doclink_md_segment(const void *md_index, const char *path,
+                                              uint32_t first, uint32_t last, const char *member) {
+    return md_index ? mdr_segment((const mdr_index_t *)md_index, path, first, last, member) : NULL;
+}
+
+const cbm_gbuf_node_t *cbm_doclink_md_folder(const void *md_index, const char *path) {
+    return md_index && path ? mdr_folder((const mdr_index_t *)md_index, NULL, path) : NULL;
+}
+
+bool cbm_doclink_md_test_path(const char *path) {
+    return path && mdr_test_path(path);
+}
+
 const cbm_doclink_resolver_t cbm_doclink_md_resolver = {
     .langs = {CBM_LANG_MARKDOWN},
     .lang_count = 1,

@@ -1151,13 +1151,16 @@ static bool adr_ends_ci(const char *s, const char *suffix) {
     return n > k && adr_eq_ci(s + n - k, k, suffix);
 }
 
-static bool adr_markdown_path(const char *rel) {
-    return adr_ends_ci(rel, ".md") || adr_ends_ci(rel, ".mdx") || adr_ends_ci(rel, ".markdown");
+/* A Markdown or reStructuredText record (reST titles underlined with `=` or
+ * `-` read like setext headings). */
+static bool adr_document_path(const char *rel) {
+    return adr_ends_ci(rel, ".md") || adr_ends_ci(rel, ".mdx") || adr_ends_ci(rel, ".markdown") ||
+           adr_ends_ci(rel, ".rst");
 }
 
 void cbm_adr_extract(CBMExtractCtx *ctx) {
     if (!ctx || !ctx->result || !ctx->source || ctx->source_len <= 0 || !ctx->rel_path ||
-        !adr_markdown_path(ctx->rel_path)) {
+        !adr_document_path(ctx->rel_path)) {
         return;
     }
     const char *rel = ctx->rel_path;
