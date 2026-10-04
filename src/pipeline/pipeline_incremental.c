@@ -1592,6 +1592,30 @@ static void row_dep_visitor(const char *key, void *value, void *userdata) {
 
 /* Files whose unresolved doc-link rows mention a removed name as an
  * identifier token. Keys are borrowed from `rows`. */
+/* A byte of an identifier as the resolvers read one: a letter, a digit, '_',
+ * and every byte of a multi-byte character (doc_links_cs.c ident_ok). */
+static bool doc_row_ident_byte(unsigned char c) {
+    return isalnum(c) || c == '_' || c >= CBM_SZ_128;
+}
+
+/* True when the identifier raw[0, n) is one of the removed names -- of any
+ * length. When memory runs out the answer is yes: re-resolving a file that
+ * did not need it costs time, keeping a stale row costs correctness. */
+static bool doc_row_token_removed(const CBMHashTable *removed, const char *s, size_t n) {
+    char small[CBM_SZ_512];
+    char *tok = n < sizeof(small) ? small : (char *)cbm_alloc(CBM_MEM_CLASS_OTHER, n + SKIP_ONE);
+    if (!tok) {
+        return true;
+    }
+    memcpy(tok, s, n);
+    tok[n] = '\0';
+    bool hit = cbm_ht_get(removed, tok) != NULL;
+    if (tok != small) {
+        cbm_free(CBM_MEM_CLASS_OTHER, tok);
+    }
+    return hit;
+}
+
 static void doc_row_name_dependents(const cbm_doc_link_row_t *rows, int n,
                                     const CBMHashTable *removed, CBMHashTable *out_paths) {
     if (!removed || cbm_ht_count(removed) == 0) {
@@ -1604,22 +1628,17 @@ static void doc_row_name_dependents(const cbm_doc_link_row_t *rows, int n,
             continue;
         }
         for (const char *p = raw; *p;) {
-            while (*p && !(isalnum((unsigned char)*p) || *p == '_')) {
+            while (*p && !doc_row_ident_byte((unsigned char)*p)) {
                 p++;
             }
             const char *s = p;
-            while (*p && (isalnum((unsigned char)*p) || *p == '_')) {
+            while (*p && doc_row_ident_byte((unsigned char)*p)) {
                 p++;
             }
-            char tok[CBM_SZ_512];
             size_t tl = (size_t)(p - s);
-            if (tl > 0 && tl < sizeof(tok)) {
-                memcpy(tok, s, tl);
-                tok[tl] = '\0';
-                if (cbm_ht_get(removed, tok)) {
-                    cbm_ht_set(out_paths, rel, (void *)rel);
-                    break;
-                }
+            if (tl > 0 && doc_row_token_removed(removed, s, tl)) {
+                cbm_ht_set(out_paths, rel, (void *)rel);
+                break;
             }
         }
     }

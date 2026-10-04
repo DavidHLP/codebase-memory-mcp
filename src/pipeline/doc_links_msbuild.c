@@ -299,9 +299,12 @@ bool cbm_msb_add(cbm_msb_t *m, const char *rel_path, const char *scope) {
         }
         line = nl ? nl + SKIP_ONE : NULL;
     }
-    if (bad_group || import_group) {
+    if (bad_group || import_group || !f->readable) {
         /* A malformed group is unknown, never an empty closed scope. Keep
-         * this project conservative without rejecting other project files. */
+         * this project conservative without rejecting other project files.
+         * So is a file the scan did not read (malformed, or larger than a
+         * project file): what it holds is unknown, not absent -- the
+         * projects that evaluate it have an open scope. */
         f->readable = false;
         f->recs[0] = (msb_rec_t){.tag = 'Y'};
         f->nrecs = 1;
@@ -2495,8 +2498,8 @@ static bool st_enter(msb_eval_t *ev, int file, bool poison) {
     }
     ev->frames[ev->nframes - 1].owner = c;
     st_write(ev, (uint32_t)file + 1, domain, NULL);
-    if (!poison)
-        ev->unevaluable += !ev->m->files[file].readable;
+    /* a file that was not read is counted (and opens the scope) by its 'Y'
+     * record, as the walk reaches it */
     return !ev->oom;
 }
 static void st_finish(msb_eval_t *ev, st_component_t *c) {
@@ -2628,8 +2631,8 @@ static void msb_import(msb_eval_t *ev, int file, const msb_rec_t *r) {
     if (target >= 0 && !seen_has(ev, ev->m->files[target].rel_path) && msb_push(ev, target)) {
         msb_work(SKIP_ONE);
         cbm_ht_set(ev->seen, ev->m->files[target].rel_path, (void *)&MSB_SET_PRESENT);
-        /* a file that was not read (malformed, or too large) says nothing */
-        ev->unevaluable += !ev->m->files[target].readable;
+        /* a file that was not read (malformed, or too large) is counted and
+         * opens the scope by its 'Y' record (cbm_msb_add) */
     }
 }
 
@@ -2660,7 +2663,6 @@ static void msb_pass1(msb_eval_t *ev, int file) {
             return;
         msb_work(SKIP_ONE);
         cbm_ht_set(ev->seen, rel, (void *)&MSB_SET_PRESENT);
-        ev->unevaluable += !ev->m->files[file].readable;
     }
     while (ev->nframes > base && !ev->oom) {
         /* an import pushes a frame, which may move the array: the frame is

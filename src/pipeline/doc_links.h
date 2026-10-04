@@ -216,6 +216,9 @@ extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
  * without a clock. Test builds only. */
 void cbm_doclink_cs_test_work_reset(void);
 uint64_t cbm_doclink_cs_test_work(void);
+/* The buckets the index build walked to empty its per-file scratch table
+ * (reset with the work above). */
+uint64_t cbm_doclink_cs_test_scratch_work(void);
 #endif
 
 /* True when `rel_path` is a scope input of some language (scope_input). */

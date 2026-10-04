@@ -727,8 +727,8 @@ typedef struct {
     int end1; /* ... and where its first branch ended; valid once has_end1 */
     int n_end1;
     int first_open; /* first open-brace entry allocated in the current branch */
-    bool has_end1; /* an #else was seen */
-    int mark;      /* its entry in the brace list */
+    bool has_end1;  /* an #else was seen */
+    int mark;       /* its entry in the brace list */
 } cs_pp_t;
 
 enum {
@@ -2933,7 +2933,9 @@ char *cbm_doclink_cs_portable_scope(const char *scope) {
             while (fend < len && p[fend] != '\t') {
                 fend++;
             }
-            if (cs_line_field(tag, field)) {
+            /* a line number becomes 0; an empty field stays empty, so the
+             * copy is never longer than the scope it is made from */
+            if (cs_line_field(tag, field) && fend > i) {
                 out[w++] = '0';
             } else {
                 memcpy(out + w, p + i, fend - i);

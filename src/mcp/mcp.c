@@ -64,7 +64,8 @@ enum {
 #include "cypher/cypher.h"
 #include "discover/discover.h"
 #include "pipeline/pipeline.h"
-#include "callable_sig.h" /* cbm_qn_callable_base_len */
+#include "callable_sig.h"       /* cbm_qn_callable_base_len */
+#include "pipeline/doc_links.h" /* cbm_doclink_reason_name: the reasons the layer writes */
 #include "pipeline/pass_cross_repo.h"
 #include "git/git_context.h"
 #include "cli/cli.h"
@@ -6437,6 +6438,18 @@ static bool doc_link_preview_samples(yyjson_mut_doc *doc, const cbm_doc_link_pre
     return true;
 }
 
+/* True for a reason the doc-link layer writes. The table is read back from
+ * the database: any other text in it was not written by this layer, and
+ * never becomes a key of the report. */
+static bool doc_link_reason_known(const char *reason) {
+    for (int r = 0; r < CBM_DOCLINK_REASON_COUNT; r++) {
+        if (strcmp(reason, cbm_doclink_reason_name(r)) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 static bool add_doc_links_report(yyjson_mut_doc *doc, yyjson_mut_val *root, cbm_store_t *store,
                                  const char *project, bool with_samples) {
     int mentions = cbm_store_count_edges_by_type(store, project, "MENTIONS");
@@ -6463,6 +6476,7 @@ static bool add_doc_links_report(yyjson_mut_doc *doc, yyjson_mut_val *root, cbm_
     }
     bool error = rc != CBM_STORE_OK || mentions < 0 || !present || sample_failed;
     bool built = false;
+    int64_t unrecognized = 0;
     yyjson_mut_val *dl = yyjson_mut_obj(doc);
     yyjson_mut_val *unresolved = yyjson_mut_obj(doc);
     if (!dl || !unresolved) {
@@ -6473,11 +6487,21 @@ static bool add_doc_links_report(yyjson_mut_doc *doc, yyjson_mut_val *root, cbm_
             error = true;
             continue;
         }
+        if (!doc_link_reason_known(reasons[i].reason)) {
+            /* rows this layer did not write: counted under one fixed key */
+            unrecognized += reasons[i].count;
+            error = true;
+            continue;
+        }
         yyjson_mut_val *key = yyjson_mut_strcpy(doc, reasons[i].reason);
         yyjson_mut_val *number = yyjson_mut_int(doc, reasons[i].count);
         if (!key || !number || !yyjson_mut_obj_add(unresolved, key, number)) {
             goto cleanup;
         }
+    }
+    if (unrecognized > 0 &&
+        !yyjson_mut_obj_add_int(doc, unresolved, "unrecognized_reason", unrecognized)) {
+        goto cleanup;
     }
     if (!yyjson_mut_obj_add_int(doc, dl, "mentions", mentions < 0 ? 0 : mentions) ||
         !yyjson_mut_obj_add_val(doc, dl, "unresolved", unresolved) ||

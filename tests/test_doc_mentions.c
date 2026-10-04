@@ -4584,7 +4584,9 @@ static int dm_preview_bounds_checks(const char *db, const char *project) {
                 yyjson_val *sample = yyjson_arr_get(samples, 0);
                 yyjson_val *metadata = yyjson_obj_get(report, "samples_preview");
                 const char *note = yyjson_get_str(yyjson_obj_get(report, "samples_preview_note"));
-                bounded = dm_preview_status_is(env, "ok") && dm_preview_json_consistent(env) &&
+                /* the row's reason is no reason this layer writes: the
+                 * status is error (S12); its sample is still shown bounded */
+                bounded = dm_preview_status_is(env, "error") && dm_preview_json_consistent(env) &&
                           yyjson_arr_size(samples) == 1 && yyjson_obj_size(sample) == 5 &&
                           yyjson_arr_size(metadata) == 4 && note &&
                           strstr(note, "doc_link_unresolved") && bounded;
@@ -4606,7 +4608,7 @@ static int dm_preview_bounds_checks(const char *db, const char *project) {
                 const char *metadata = table ? strstr(table, "\n  samples_preview:") : NULL;
                 size_t bytes = table ? (metadata ? (size_t)(metadata - table) : strlen(table)) : 0;
                 bounded = table && metadata && bytes <= 5000 &&
-                          dm_preview_compact_status(env, "ok") &&
+                          dm_preview_compact_status(env, "error") &&
                           strstr(metadata, "\n  samples_preview_note:") &&
                           strstr(table, "(cols: rel_path line syntax raw reason)") && bounded;
                 for (int field = 0; field < 4; field++) {
@@ -6236,7 +6238,8 @@ TEST(doc_mentions_msbuild_gate) {
     ASSERT_EQ(steps, strlen("<Settings>"));
 
     /* a file that was not read is counted where it is evaluated, as the
-     * project file itself or as an import; it opens nobody's scope */
+     * project file itself or as an import; what it holds is unknown, so the
+     * scope of the project that evaluates it is open (S16) */
     const dm_project_file_t files[] = {
         {"eng/Huge.props", big},
         {"eng/Broken.props", "<Project><PropertyGroup>"},
@@ -6250,7 +6253,7 @@ TEST(doc_mentions_msbuild_gate) {
     ASSERT_TRUE(dm_msb_eval(files, 3, "App.csproj", &res));
     ASSERT_TRUE(dm_has_using(&res, 'n', "Still.Here"));
     ASSERT_EQ(res.unevaluable, 2);
-    ASSERT_FALSE(res.open);
+    ASSERT_TRUE(res.open);
     cbm_msb_result_free(&res);
     ASSERT_TRUE(dm_msb_eval(files, 2, "eng/Broken.props", &res));
     ASSERT_EQ(res.count, 0);
@@ -9102,6 +9105,331 @@ TEST(doc_mentions_cs_damaged_stored_scope) {
     PASS();
 }
 
+/* ── security review 2 ───────────────────────────────────────────── */
+
+/* The portable copy of a scope writes 0 for every line number and is never
+ * longer than the scope it is made from: an empty line field stays empty
+ * (writing a 0 for it made the copy one byte longer per such field, past the
+ * end of its buffer). */
+TEST(doc_mentions_cs_portable_scope_bound) {
+    static const char blob[] = "cs1\n"
+                               "R\t1\t0\t\t\tN\n"
+                               "T\t1\t\t\tc\t-\tC\t\t\n"
+                               "M\t\tc\t0\t0\tGo\t\t\n"
+                               "X\t\t\n"
+                               "X\t\t\n"
+                               "X\t\t\n";
+    char *portable = cbm_doclink_cs_portable_scope(blob);
+    ASSERT_NOT_NULL(portable);
+    size_t n = strlen(portable);
+    bool same = strcmp(portable, blob) == 0;
+    cbm_free(CBM_MEM_CLASS_OTHER, portable);
+    ASSERT_LTE(n, strlen(blob));
+    ASSERT_TRUE(same);
+    PASS();
+}
+
+/* A reference whose brackets do not pair, or that goes on after its
+ * parameter list, is unparseable: it is never resolved by the part that
+ * can be read (the segments before the open bracket, the parameters before
+ * it). Decoys: the same references written whole bind. */
+TEST(doc_mentions_cs_unbalanced_brackets) {
+    static const dm_source_t files[] = {
+        {"src/Outer.cs",
+         "namespace Acme\n"
+         "{\n"
+         "    public class Outer\n"
+         "    {\n"
+         "        public class Inner<T> { }\n"
+         "        public void M(int a) { }\n"
+         "        public void M(int a, System.Collections.Generic.List<string> b) { }\n"
+         "    }\n"
+         "\n"
+         "    /// <summary><see cref=\"Outer.Inner{T\"/> <see cref=\"Outer.Inner}\"/>\n"
+         "    /// <see cref=\"Outer.M(int\"/> <see cref=\"Outer.M(int, List{string)\"/>\n"
+         "    /// <see cref=\"Outer.M(int))\"/> <see cref=\"Outer.M(int)x\"/>\n"
+         "    /// <see cref=\"Outer.Inner{T}x\"/></summary>\n"
+         "    public class Broken { }\n"
+         "\n"
+         "    /// <summary><see cref=\"Outer.Inner{T}\"/> <see cref=\"Outer.M(int)\"/></summary>\n"
+         "    public class Whole { }\n"
+         "}\n"},
+    };
+    static const dm_want_t wants[] = {
+        {"src/Outer.cs", "Outer.Inner{T", "Outer.Broken", NULL, "unparseable", "Outer.Outer", NULL},
+        {"src/Outer.cs", "Outer.Inner}", "Outer.Broken", NULL, "unparseable", "Outer.Outer", NULL},
+        {"src/Outer.cs", "Outer.M(int", "Outer.Broken", NULL, "unparseable", "Outer.Outer.M", NULL},
+        {"src/Outer.cs", "Outer.M(int, List{string)", "Outer.Broken", NULL, "unparseable",
+         "Outer.Outer.M", NULL},
+        {"src/Outer.cs", "Outer.M(int))", "Outer.Broken", NULL, "unparseable", "Outer.Outer.M",
+         NULL},
+        {"src/Outer.cs", "Outer.M(int)x", "Outer.Broken", NULL, "unparseable", "Outer.Outer.M",
+         NULL},
+        {"src/Outer.cs", "Outer.Inner{T}x", "Outer.Broken", NULL, "unparseable",
+         "Outer.Outer.Inner", NULL},
+        {"src/Outer.cs", "Outer.Inner{T}", "Outer.Whole", "Outer.Outer.Inner", NULL, NULL, NULL},
+        {"src/Outer.cs", "Outer.M(int)", "Outer.Whole", "Outer.Outer.M", NULL, NULL, NULL},
+    };
+    ASSERT_EQ(dm_check_repo("brackets", files, DM_COUNT(files), wants, DM_COUNT(wants)), 0);
+    PASS();
+}
+
+enum { DM_DEEP_SEGMENTS = 70 }; /* past the scanner's 64 namespace segments */
+
+/* A scope read back from the store is held to the nesting its writer keeps:
+ * a region whose namespace has more segments than the scanner ever writes
+ * fails the build of the run (bad_scope, the error row), as any other stored
+ * scope this code did not write. The next run rebuilds everything. */
+TEST(doc_mentions_cs_stored_scope_nesting) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_deep_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[400];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    th_write_file(TH_PATH(repo, "src/A.cs"), "namespace N\n{\n    public class Target { }\n}\n");
+    th_write_file(TH_PATH(repo, "src/B.cs"), "namespace N\n"
+                                             "{\n"
+                                             "    /// <summary><see cref=\"Target\"/></summary>\n"
+                                             "    public class Uses { }\n"
+                                             "}\n");
+    char db[512];
+    snprintf(db, sizeof(db), "%s/deep.db", tmp);
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    char props[512];
+    int n = 0;
+    dm_edge(db, "B.Uses", "A.Target", props, sizeof(props), &n);
+    ASSERT_EQ(n, 1);
+    /* A's region record names a namespace DM_DEEP_SEGMENTS segments deep */
+    char sql[1024];
+    size_t w = (size_t)snprintf(sql, sizeof(sql),
+                                "UPDATE lsp_surface SET defs_json = replace(defs_json, "
+                                "'\\tN\\n', '\\tN");
+    for (int i = 1; i < DM_DEEP_SEGMENTS; i++) {
+        w += (size_t)snprintf(sql + w, sizeof(sql) - w, ".a");
+    }
+    snprintf(sql + w, sizeof(sql) - w,
+             "\\n') WHERE rel_path = 'src/A.cs' AND instr(defs_json, '\\tN\\n') > 0");
+    ASSERT_EQ(dm_exec(db, sql), 1);
+    th_write_file(TH_PATH(repo, "src/B.cs"),
+                  "namespace N\n"
+                  "{\n"
+                  "    /// <summary>Again <see cref=\"Target\"/></summary>\n"
+                  "    public class Uses { }\n"
+                  "}\n");
+    cbm_pipeline_incremental_test_reset_faults();
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    int errors = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'");
+    /* the next run rebuilds everything, and the edge is back */
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    cbm_incremental_route_t route = cbm_pipeline_incremental_test_last_route();
+    dm_edge(db, "B.Uses", "A.Target", props, sizeof(props), &n);
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    ASSERT_EQ(errors, 1);
+    ASSERT_EQ(route, CBM_INCREMENTAL_ROUTE_FORCED_FULL);
+    ASSERT_EQ(n, 1);
+    PASS();
+}
+
+/* One row whose reason this layer never writes, then index_status in both
+ * forms: no key carries that text, the row is counted under one fixed key,
+ * and the status is error. 0 when all of that holds. */
+static int dm_unknown_reason_checks(const char *db, const char *project) {
+    if (dm_exec(db, "INSERT INTO doc_link_unresolved(project, rel_path, line, syntax, raw, reason) "
+                    "SELECT project, 'src/Injected.cs', 1, 'see', 'X', 'injected_reason_text' "
+                    "FROM doc_link_unresolved LIMIT 1") != 1) {
+        return 1;
+    }
+    int bad = 0;
+    char *text = dm_index_status(project, false);
+    const char *block = text ? strstr(text, "doc_links:\n") : NULL;
+    if (!block || strstr(text, "injected_reason_text") ||
+        !strstr(block, "\n    unrecognized_reason: 1\n") || !strstr(block, "\n  status: error\n")) {
+        printf("  index_status text: %s\n", block ? block : "(no doc_links block)");
+        bad = 1;
+    }
+    free(text);
+    yyjson_doc *env = dm_preview_status(project, true);
+    yyjson_val *unresolved = yyjson_obj_get(dm_preview_report(env), "unresolved");
+    if (!unresolved || yyjson_obj_get(unresolved, "injected_reason_text") ||
+        yyjson_get_int(yyjson_obj_get(unresolved, "unrecognized_reason")) != 1 ||
+        !dm_preview_status_is(env, "error")) {
+        printf("  index_status json: unknown reason shown, or status not error\n");
+        bad = 1;
+    }
+    yyjson_doc_free(env);
+    return bad;
+}
+
+TEST(doc_mentions_index_status_unknown_reason) {
+    ASSERT_EQ(dm_preview_fixture(dm_unknown_reason_checks), 0);
+    PASS();
+}
+
+enum { DM_HUGE_PROJECT = 1100000 }; /* past CSX_MAX_PROJECT_BYTES */
+
+/* A project file the scan does not read -- larger than a project file is,
+ * as the project itself or as a file it imports -- holds what nobody knows,
+ * not nothing: a simple name found nowhere in such a project is external.
+ * Decoy: a project whose files were read keeps a closed scope (missing). */
+TEST(doc_mentions_msbuild_unread_project_opens) {
+    char *filler = malloc(DM_HUGE_PROJECT + 1);
+    ASSERT_NOT_NULL(filler);
+    memset(filler, 'x', DM_HUGE_PROJECT);
+    filler[DM_HUGE_PROJECT] = '\0';
+    char *huge_project =
+        dm_repeated("<Project Sdk=\"Microsoft.NET.Sdk\"><!-- ", filler, 1, " --></Project>\n");
+    char *huge_props = dm_repeated("<Project><!-- ", filler, 1, " --></Project>\n");
+    free(filler);
+    ASSERT_NOT_NULL(huge_project);
+    ASSERT_NOT_NULL(huge_props);
+    const dm_source_t files[] = {
+        {"a/A.csproj", huge_project},
+        {"a/UsesA.cs", "namespace App\n"
+                       "{\n"
+                       "    /// <summary><see cref=\"NowhereA\"/></summary>\n"
+                       "    public class UsesA { }\n"
+                       "}\n"},
+        {"b/Directory.Build.props", huge_props},
+        {"b/B.csproj", DM_EMPTY_PROJECT},
+        {"b/UsesB.cs", "namespace App\n"
+                       "{\n"
+                       "    /// <summary><see cref=\"NowhereB\"/></summary>\n"
+                       "    public class UsesB { }\n"
+                       "}\n"},
+        {"c/C.csproj", DM_EMPTY_PROJECT},
+        {"c/UsesC.cs", "namespace App\n"
+                       "{\n"
+                       "    /// <summary><see cref=\"NowhereC\"/></summary>\n"
+                       "    public class UsesC { }\n"
+                       "}\n"},
+    };
+    static const dm_want_t wants[] = {
+        {"a/UsesA.cs", "NowhereA", "UsesA.UsesA", NULL, "external", NULL, NULL},
+        {"b/UsesB.cs", "NowhereB", "UsesB.UsesB", NULL, "external", NULL, NULL},
+        {"c/UsesC.cs", "NowhereC", "UsesC.UsesC", NULL, "missing", NULL, NULL},
+    };
+    int bad = dm_check_repo("unread", files, DM_COUNT(files), wants, DM_COUNT(wants));
+    free(huge_project);
+    free(huge_props);
+    ASSERT_EQ(bad, 0);
+    PASS();
+}
+
+enum { DM_BIG_MEMBERS = 20000, DM_SMALL_FILES = 200 };
+
+/* What the resolver looks at to build its index over one file of
+ * DM_BIG_MEMBERS fields followed (in path order) by DM_SMALL_FILES files of
+ * one type and one field each. 0 when the repository cannot be indexed. */
+static uint64_t dm_scratch_work(void) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_scratch_XXXXXX");
+    if (!cbm_mkdtemp(tmp)) {
+        return 0;
+    }
+    size_t cap = (size_t)DM_BIG_MEMBERS * 32 + 64;
+    char *src = malloc(cap);
+    if (!src) {
+        th_rmtree(tmp);
+        return 0;
+    }
+    size_t w = (size_t)snprintf(src, cap, "namespace Big\n{\n    public class Wide\n    {\n");
+    for (int i = 0; i < DM_BIG_MEMBERS; i++) {
+        w += (size_t)snprintf(src + w, cap - w, "        public int f%d;\n", i);
+    }
+    snprintf(src + w, cap - w, "    }\n}\n");
+    th_write_file(TH_PATH(tmp, "a/Big.cs"), src);
+    free(src);
+    for (int i = 0; i < DM_SMALL_FILES; i++) {
+        char rel[64];
+        char text[256];
+        snprintf(rel, sizeof(rel), "b/S%03d.cs", i);
+        snprintf(text, sizeof(text),
+                 "namespace Small\n{\n%s    public class C%03d { public int x; }\n}\n",
+                 i == 0 ? "    /// <summary><see cref=\"Nowhere\"/></summary>\n" : "", i);
+        th_write_file(TH_PATH(tmp, rel), text);
+    }
+    char db[512];
+    snprintf(db, sizeof(db), "%s/scratch.db", tmp);
+    cbm_doclink_cs_test_work_reset();
+    uint64_t work = dm_index(tmp, db, NULL) == 0 ? cbm_doclink_cs_test_scratch_work() : 0;
+    int rows = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved");
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    return rows == 1 ? work : 0;
+}
+
+/* The per-file scratch table of the index build is not emptied at the size
+ * one large file grew it to: after a file of DM_BIG_MEMBERS names, every one
+ * of DM_SMALL_FILES small files costs about its own size. The work stays
+ * within a small multiple of all the names the files declare (emptying the
+ * large table for every small file cost DM_SMALL_FILES times its size). */
+TEST(doc_mentions_cs_scratch_table_work) {
+    uint64_t names = (uint64_t)DM_BIG_MEMBERS + (uint64_t)DM_SMALL_FILES * 2;
+    uint64_t work = dm_scratch_work();
+    printf("  scratch table: %llu steps for %llu names\n", (unsigned long long)work,
+           (unsigned long long)names);
+    ASSERT_TRUE(work > 0);
+    ASSERT_LTE(work, names * 4);
+    PASS();
+}
+
+/* An incremental repair finds the files whose unresolved rows name what a
+ * changed file no longer declares by the identifiers the resolver reads --
+ * a name with a non-ASCII letter included. The parts of `Hub` in two shared
+ * trees both declare the member `Grüße` (the reference is ambiguous); one of
+ * them stops declaring it, and the repaired index equals a full one (the
+ * reference binds). */
+TEST(doc_mentions_incremental_non_ascii_name) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_utf8name_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[400];
+    char db[512];
+    char full_db[512];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    snprintf(db, sizeof(db), "%s/inc.db", tmp);
+    snprintf(full_db, sizeof(full_db), "%s/full.db", tmp);
+    th_write_file(TH_PATH(repo, "t1/X.cs"),
+                  "namespace N\n{\n    public partial class Hub { public void Gr\xC3\xBC\xC3\x9F"
+                  "e() { } }\n}\n");
+    th_write_file(TH_PATH(repo, "t2/Y.cs"),
+                  "namespace N\n{\n    public partial class Hub { public void Gr\xC3\xBC\xC3\x9F"
+                  "e() { } public void Keep() { } }\n}\n");
+    th_write_file(TH_PATH(repo, "p/P.csproj"), DM_EMPTY_PROJECT);
+    th_write_file(TH_PATH(repo, "p/Uses.cs"),
+                  "namespace App\n"
+                  "{\n"
+                  "    /// <summary><see cref=\"N.Hub.Gr\xC3\xBC\xC3\x9F"
+                  "e\"/></summary>\n"
+                  "    public class Uses { }\n"
+                  "}\n");
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    char reason[64];
+    dm_row(db, "p/Uses.cs",
+           "N.Hub.Gr\xC3\xBC\xC3\x9F"
+           "e",
+           reason, sizeof(reason), NULL, 0);
+    bool ambiguous = strcmp(reason, "ambiguous") == 0;
+    th_write_file(TH_PATH(repo, "t2/Y.cs"),
+                  "namespace N\n{\n    public partial class Hub { public void Keep() { } }\n}\n");
+    int step = dm_step(repo, db, full_db, "a name with a non-ASCII letter removed",
+                       CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+    char props[512];
+    int n = 0;
+    dm_edge(db, "Uses.Uses",
+            "X.Hub.Gr\xC3\xBC\xC3\x9F"
+            "e",
+            props, sizeof(props), &n);
+    dm_unlink_db(db);
+    dm_unlink_db(full_db);
+    th_rmtree(tmp);
+    ASSERT_TRUE(ambiguous);
+    ASSERT_EQ(step, 0);
+    ASSERT_EQ(n, 1);
+    PASS();
+}
+
 SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_extract_cs_tokens);
     RUN_TEST(doc_mentions_cs_scope_blob);
@@ -9203,4 +9531,11 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_msbuild_many_project_files);
     RUN_TEST(doc_mentions_cs_scan_nesting_limits);
     RUN_TEST(doc_mentions_cs_damaged_stored_scope);
+    RUN_TEST(doc_mentions_cs_portable_scope_bound);
+    RUN_TEST(doc_mentions_cs_unbalanced_brackets);
+    RUN_TEST(doc_mentions_cs_stored_scope_nesting);
+    RUN_TEST(doc_mentions_index_status_unknown_reason);
+    RUN_TEST(doc_mentions_msbuild_unread_project_opens);
+    RUN_TEST(doc_mentions_cs_scratch_table_work);
+    RUN_TEST(doc_mentions_incremental_non_ascii_name);
 }

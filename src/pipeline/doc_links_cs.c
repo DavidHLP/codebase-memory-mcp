@@ -200,6 +200,7 @@ enum {
  * and every namespace above a declared one. */
 typedef struct {
     int parent;
+    int depth;        /* segments of its full name (the global namespace: 0) */
     const char *name; /* its own segment */
     bool declared;    /* a file declares it; else it is only above a declared one */
     bool prod;        /* product code declares it, or a namespace under it */
@@ -525,6 +526,8 @@ typedef struct {
 static _Atomic uint64_t cs_work_counter;
 /* New import index construction is measured separately from lookup work. */
 static _Atomic uint64_t cs_index_work_counter;
+/* Buckets of the node pass's scratch table walked when it is emptied. */
+static _Atomic uint64_t cs_scratch_work_counter;
 static _Atomic bool cs_fail_candidate_alloc;
 static _Atomic bool cs_candidate_alloc_failed;
 
@@ -540,6 +543,7 @@ bool cbm_doclink_cs_test_candidate_alloc_failed(void) {
 void cbm_doclink_cs_test_work_reset(void) {
     atomic_store(&cs_work_counter, 0);
     atomic_store(&cs_index_work_counter, 0);
+    atomic_store(&cs_scratch_work_counter, 0);
 }
 
 uint64_t cbm_doclink_cs_test_work(void) {
@@ -550,6 +554,10 @@ uint64_t cbm_doclink_cs_test_index_work(void) {
     return atomic_load(&cs_index_work_counter);
 }
 
+uint64_t cbm_doclink_cs_test_scratch_work(void) {
+    return atomic_load(&cs_scratch_work_counter);
+}
+
 static void cs_work(uint64_t n) {
     atomic_fetch_add_explicit(&cs_work_counter, n, memory_order_relaxed);
 }
@@ -557,12 +565,20 @@ static void cs_work(uint64_t n) {
 static void cs_index_work(uint64_t n) {
     atomic_fetch_add_explicit(&cs_index_work_counter, n, memory_order_relaxed);
 }
+
+static void cs_scratch_work(uint64_t n) {
+    atomic_fetch_add_explicit(&cs_scratch_work_counter, n, memory_order_relaxed);
+}
 #else
 static void cs_work(uint64_t n) {
     (void)n;
 }
 
 static void cs_index_work(uint64_t n) {
+    (void)n;
+}
+
+static void cs_scratch_work(uint64_t n) {
     (void)n;
 }
 #endif
@@ -750,16 +766,22 @@ static int ns_make(cs_index_t *ix, int parent, const char *seg, size_t len) {
         return CS_NONE;
     }
     int id = ix->nnss++;
-    ix->nss[id] = (cs_ns_t){.parent = parent, .name = name};
+    ix->nss[id] =
+        (cs_ns_t){.parent = parent, .depth = ix->nss[parent].depth + SKIP_ONE, .name = name};
     cbm_ht_set(ix->ns_by_key, k, (void *)(intptr_t)(id + SKIP_ONE));
     return id;
 }
 
 /* The namespace the dotted `path` names under `from`, every segment created
- * on the way; CS_NONE for a bad name or when memory ran out. */
+ * on the way; CS_NONE for a bad name, when memory ran out, and past the
+ * scanner's nesting limit: a scope read back from the store is held to the
+ * limit its writer keeps (every enclosing namespace is a lookup step). */
 static int ns_make_path(cs_index_t *ix, int from, const char *path) {
     int ns = from;
     for (const char *p = path; ns >= 0 && *p;) {
+        if (ix->nss[ns].depth >= CS_MAX_NEST) {
+            return CS_NONE;
+        }
         const char *dot = strchr(p, '.');
         size_t n = dot ? (size_t)(dot - p) : strlen(p);
         ns = ns_make(ix, ns, p, n);
@@ -2029,13 +2051,45 @@ static const cbm_gbuf_node_t *member_node_at(const cbm_gbuf_t *g, const cs_membe
     return (m->kind == 'c' ? label_is_callable(n->label) : label_is_value(n->label)) ? n : NULL;
 }
 
-/* Scratch tables of the node pass: cleared for every file. */
+/* Scratch tables of the node pass: emptied for every file. */
 typedef struct {
     CBMHashTable *names; /* "<gid>\x1f<name>" -> index + 1 */
+    uint32_t sized;      /* what the table is sized for: the most keys it held, or
+                          * its initial capacity -- what emptying it walks */
     CBMArena keys;
     int *last; /* per gid: the last type that has it */
     int cap_last;
 } cs_node_pass_t;
+
+enum { CS_SCRATCH_MIN = 64, CS_SCRATCH_SLACK = 4 };
+
+/* Empty the scratch table for a file that puts about `need` keys into it.
+ * Emptying a table walks every bucket it has, and a table never shrinks: one
+ * that a far larger file grew is made anew, so that one large file does not
+ * make every later file pay for its size. false when memory ran out. */
+static bool node_pass_reset(cs_index_t *ix, cs_node_pass_t *np, int need) {
+    uint32_t want = need > CS_SCRATCH_MIN ? (uint32_t)need : CS_SCRATCH_MIN;
+    if (np->sized > want * CS_SCRATCH_SLACK) {
+        cbm_ht_free(np->names);
+        np->names = cbm_ht_create(want);
+        np->sized = want;
+        if (!np->names) {
+            ix->oom = true;
+            return false;
+        }
+    } else {
+        cs_scratch_work(np->sized);
+        cbm_ht_clear(np->names);
+    }
+    cbm_arena_rewind(&np->keys); /* the emptied table held the only pointers into it */
+    return true;
+}
+
+/* Note how many keys the scratch table holds now. */
+static void node_pass_held(cs_node_pass_t *np) {
+    uint32_t held = cbm_ht_count(np->names);
+    np->sized = held > np->sized ? held : np->sized;
+}
 
 /* The path group of every type of the file (types with one path -- `Foo` and
  * `Foo<T>`, and what is nested in them under one name -- share the node
@@ -2050,8 +2104,9 @@ static bool assign_gids(cs_index_t *ix, cs_file_t *f, cs_node_pass_t *np) {
             return false;
         }
     }
-    cbm_ht_clear(np->names);
-    cbm_arena_rewind(&np->keys); /* the cleared table held the only pointers into it */
+    if (!node_pass_reset(ix, np, f->ntypes)) {
+        return false;
+    }
     int gids = 0;
     for (int t = 0; t < f->ntypes; t++) {
         cs_type_t *ty = &f->types[t];
@@ -2098,8 +2153,10 @@ static bool bind_nodes(cs_index_t *ix, cs_file_t *f, const cbm_gbuf_t *g, cs_nod
         }
     }
     /* which member is the last of its (path, name) */
-    cbm_ht_clear(np->names);
-    cbm_arena_rewind(&np->keys);
+    node_pass_held(np);
+    if (!node_pass_reset(ix, np, f->nmembers)) {
+        return false;
+    }
     for (int m = 0; m < f->nmembers; m++) {
         char key[(CS_NAME_BUF) + CBM_SZ_16];
         snprintf(key, sizeof(key), "%d\x1f%s", f->types[f->members[m].type].gid,
@@ -2114,6 +2171,7 @@ static bool bind_nodes(cs_index_t *ix, cs_file_t *f, const cbm_gbuf_t *g, cs_nod
         }
         cbm_ht_set(np->names, k, (void *)(intptr_t)(m + SKIP_ONE));
     }
+    node_pass_held(np);
     int cached = CS_NONE;
     bool fits = false;
     for (int m = 0; m < f->nmembers; m++) {
@@ -3274,6 +3332,9 @@ static bool parse_seg(const char *s, size_t n, cs_seg_t *out) {
         if (s[i] == '{' || s[i] == '<') {
             name_end = i;
             size_t e = group_end(s, n, i);
+            if (e < n) {
+                return false; /* text after the type arguments: no name */
+            }
             size_t inner = e > i + PAIR_LEN ? e - i - PAIR_LEN : 0;
             out->arity = count_top(s + i + SKIP_ONE, inner);
             out->targs = s + i + SKIP_ONE;
@@ -3295,6 +3356,8 @@ static bool parse_seg(const char *s, size_t n, cs_seg_t *out) {
 }
 
 /* Split a dotted path (dots inside type-argument groups do not split). */
+/* A path whose brackets do not pair is not read at all: its last segment
+ * would be dropped and the reference resolved by the segments before it. */
 static bool parse_path(const char *s, size_t n, cs_seg_t *segs, int *nsegs) {
     *nsegs = 0;
     size_t start = 0;
@@ -3304,7 +3367,9 @@ static bool parse_path(const char *s, size_t n, cs_seg_t *segs, int *nsegs) {
         if (is_open_bracket(c)) {
             depth++;
         } else if (is_close_bracket(c)) {
-            depth--;
+            if (--depth < 0) {
+                return false;
+            }
         } else if (c == '.' && depth == 0) {
             if (*nsegs >= CS_MAX_SEGS || !parse_seg(s + start, i - start, &segs[*nsegs])) {
                 return false;
@@ -3313,7 +3378,7 @@ static bool parse_path(const char *s, size_t n, cs_seg_t *segs, int *nsegs) {
             start = i + SKIP_ONE;
         }
     }
-    return *nsegs > 0;
+    return depth == 0 && *nsegs > 0;
 }
 
 static const char *const CS_KEYWORD_TYPES[][2] = {
@@ -3513,7 +3578,9 @@ static bool parse_params(cs_ref_t *r, const char *s, size_t from, size_t to) {
         if (is_open_bracket(c)) {
             depth++;
         } else if (is_close_bracket(c)) {
-            depth--;
+            if (--depth < 0) {
+                return false; /* a bracket that closes nothing */
+            }
         } else if (c == ',' && depth == 0) {
             if (r->nparams >= CS_MAX_PARAMS) {
                 return false;
@@ -3533,7 +3600,9 @@ static bool parse_params(cs_ref_t *r, const char *s, size_t from, size_t to) {
         }
     }
     r->sig[w] = '\0';
-    return true;
+    /* a bracket left open would have swallowed the last parameter: the
+     * reference would be matched without it */
+    return depth == 0;
 }
 
 /* A written reference into its parts. false for one this code does not
@@ -3611,7 +3680,12 @@ static bool parse_cref(const char *raw, cs_ref_t *r) {
         r->has_params = true;
         size_t close = group_end(s, n, paren);
         bool closed = close > paren && s[close - SKIP_ONE] == ')';
-        if (!parse_params(r, s, paren + SKIP_ONE, closed ? close - SKIP_ONE : n)) {
+        /* a parameter list that is not closed, or text after it, is not
+         * matched by what can be read of it */
+        for (size_t k = close; closed && k < n; k++) {
+            closed = isspace((unsigned char)s[k]) != 0;
+        }
+        if (!closed || !parse_params(r, s, paren + SKIP_ONE, close - SKIP_ONE)) {
             return false;
         }
     }
@@ -5664,7 +5738,7 @@ static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in)
 
 /* The graph node of every declaration. false when memory ran out. */
 static bool build_nodes(cs_index_t *ix, const cbm_gbuf_t *g) {
-    cs_node_pass_t np = {.names = cbm_ht_create(CBM_SZ_256)};
+    cs_node_pass_t np = {.names = cbm_ht_create(CBM_SZ_256), .sized = CBM_SZ_256};
     cbm_arena_init(&np.keys);
     bool ok = np.names != NULL;
     for (int i = 0; ok && i < ix->nfiles; i++) {
