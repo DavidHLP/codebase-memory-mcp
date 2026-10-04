@@ -47,6 +47,7 @@ const char *cbm_doclink_reason_name(int reason) {
 static const cbm_doclink_resolver_t *const DOCLINK_RESOLVERS[] = {
     &cbm_doclink_cs_resolver,
     &cbm_doclink_md_resolver,
+    &cbm_doclink_pdf_resolver,
 };
 
 enum { DOCLINK_RESOLVER_COUNT = sizeof(DOCLINK_RESOLVERS) / sizeof(DOCLINK_RESOLVERS[0]) };
@@ -462,7 +463,12 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
      * file-level doc resolves */
     const cbm_gbuf_node_t *file_node = NULL;
     bool file_node_looked_up = false;
-    void *state = (R && index && R->file_begin) ? R->file_begin(index, file_idx) : NULL;
+    void *state = NULL;
+    if (R && index && R->file_prepare) {
+        state = R->file_prepare(index, file_idx, result->doc_links.items, n, graph);
+    } else if (R && index && R->file_begin) {
+        state = R->file_begin(index, file_idx);
+    }
     for (int i = 0; i < n; i++) {
         const CBMDocLink *link = &result->doc_links.items[i];
         cbm_doclink_outcome_t out = {.kind = CBM_DOCLINK_UNRESOLVED,

@@ -2802,6 +2802,26 @@ static CBMFileResult *extract_file_ex_body(const char *source, int source_len, C
     cbm_test_fault_inject(rel_path);
 #endif
 
+    /* A PDF has no grammar: its text layer is read directly, a Section per
+     * page plus the pages' code mentions (doc_pdf.c). */
+    if (language == CBM_LANG_PDF) {
+        result->module_qn = cbm_fqn_module_source_lang(a, project, rel_path, language);
+        CBMExtractCtx pdf_ctx = {
+            .arena = a,
+            .scratch = scratch,
+            .result = result,
+            .source = source,
+            .source_len = source_len,
+            .language = language,
+            .project = project,
+            .rel_path = rel_path,
+            .module_qn = result->module_qn,
+        };
+        cbm_pdf_extract_document(&pdf_ctx);
+        cbm_index_mark_done(rel_path);
+        return result;
+    }
+
     // Get language spec
     const CBMLangSpec *spec = cbm_lang_spec(language);
     if (!spec) {

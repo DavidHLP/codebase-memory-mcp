@@ -77,6 +77,12 @@
     X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")     \
     /* an ADR's own "supersedes" / "replaces" statement (doc_adr.c): ADR -> ADR */           \
     X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, true, "SUPERSEDES") \
+    /* pdf (doc_pdf.c): structural mentions in a page's text; pdf_name (bare      */         \
+    /* names) only decides which line fragments a cross-line join replaces        */         \
+    X(CBM_DOCLINK_PDF_PATH, CBM_LANG_PDF, "pdf_path", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_PDF_FILE, CBM_LANG_PDF, "pdf_file", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, true, "MENTIONS")                   \
+    X(CBM_DOCLINK_PDF_NAME, CBM_LANG_PDF, "pdf_name", false, false, "MENTIONS")              \
     /* any language (CBM_LANG_COUNT): a URL is never an edge */                              \
     X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false, "MENTIONS")
 
@@ -98,6 +104,10 @@ enum {
      * file-level doc -- a parser never sets it. A scan_file hook sets it on a
      * reference written before the document's first section. */
     CBM_DOCLINK_FLAG_FILE = 1,
+    /* A PDF mention that runs across a line break, proposed as one reference.
+     * `raw` holds its forms (separated by 0x1F) and, after 0x1E, the indices
+     * of the line-local tokens it replaces when it resolves (doc_pdf.c). */
+    CBM_DOCLINK_FLAG_JOIN = 2,
 };
 
 /* One link family: a line of CBM_DOCLINK_FAMILY_LIST. */
@@ -294,5 +304,16 @@ void cbm_adr_extract(CBMExtractCtx *ctx);
 
 /* The qualified-name tail of an ADR node: "<module QN>" + this. */
 #define CBM_ADR_QN_NAME "__adr__"
+
+/* PDF documents (doc_pdf.c): a Section per page (name "page N", the page's
+ * text as docstring, property page) and the pages' structural code mentions
+ * as doc-link tokens. Runs instead of a grammar for CBM_LANG_PDF. */
+void cbm_pdf_extract_document(CBMExtractCtx *ctx);
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+/* Test seam: scan one page's text as cbm_pdf_extract_document does (tokens
+ * into ctx->result->doc_links), without a PDF around it. */
+void cbm_pdf_test_scan_page(CBMExtractCtx *ctx, const char *text, size_t len, uint32_t page,
+                            const char *page_qn);
+#endif
 
 #endif /* CBM_DOCLINK_H */

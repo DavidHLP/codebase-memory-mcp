@@ -198,6 +198,12 @@ typedef struct {
      * of the file, released after its last. A NULL state (no hook, or memory
      * ran out) changes the cost of resolving, never an outcome. */
     void *(*file_begin)(const void *index, int run_file);
+    /* Optional, instead of file_begin: the file's state built from ALL its
+     * references before any is resolved (a PDF's cross-line joins decide
+     * which line fragments stand). `links` stays valid until file_end, and
+     * resolve's `link` points into it. */
+    void *(*file_prepare)(const void *index, int run_file, const CBMDocLink *links, int n,
+                          const cbm_gbuf_t *graph);
     void (*file_end)(void *state);
     /* Resolve one reference of run file `run_file` (its own scope is in the
      * index). Thread-safe: the index is read-only after build; `state` is the
@@ -234,6 +240,8 @@ typedef struct {
 extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
 /* Markdown documents (doc_links_md.c): via "markdown". */
 extern const cbm_doclink_resolver_t cbm_doclink_md_resolver;
+/* PDF documents (doc_links_pdf.c): via "pdf". */
+extern const cbm_doclink_resolver_t cbm_doclink_pdf_resolver;
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
 /* Test seam (doc_links_cs.c): the scope levels and overloads the C# resolver
