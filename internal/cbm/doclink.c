@@ -69,7 +69,8 @@ void cbm_doclink_test_note_doc_work(uint64_t copied, uint64_t parse_input, uint6
  * doclink.h (language, name, external, and the ship gate). */
 
 static const CBMDocLinkFamily DOCLINK_FAMILIES[CBM_DOCLINK_SYNTAX_COUNT] = {
-#define DOCLINK_FAMILY_ROW(id, lang, name, external, ships) [id] = {lang, name, external, ships},
+#define DOCLINK_FAMILY_ROW(id, lang, name, external, ships, edge) \
+    [id] = {lang, name, external, ships, edge},
     CBM_DOCLINK_FAMILY_LIST(DOCLINK_FAMILY_ROW)
 #undef DOCLINK_FAMILY_ROW
 };
@@ -85,6 +86,11 @@ const CBMDocLinkFamily *cbm_doclink_family(int syntax) {
 const char *cbm_doclink_syntax_name(int syntax) {
     const CBMDocLinkFamily *f = cbm_doclink_family(syntax);
     return f ? f->name : "";
+}
+
+const char *cbm_doclink_syntax_edge(int syntax) {
+    const CBMDocLinkFamily *f = cbm_doclink_family(syntax);
+    return f && f->edge ? f->edge : "MENTIONS";
 }
 
 bool cbm_doclink_syntax_is_external(int syntax) {

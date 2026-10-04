@@ -410,10 +410,161 @@ TEST(doc_links_md_incremental) {
     PASS();
 }
 
+/* ── ADRs ────────────────────────────────────────────────────────── */
+
+static void md_write_adrs(const char *tmp, const char *first_status) {
+    char first[1024];
+    snprintf(first, sizeof(first),
+             "---\n"
+             "status: %s\n"
+             "date: 2024-03-05\n"
+             "deciders: Ana, Bo\n"
+             "---\n"
+             "# Use X for storage\n"
+             "\n"
+             "## Context and Problem Statement\n"
+             "\n"
+             "We need storage.\n"
+             "\n"
+             "## Decision Outcome\n"
+             "\n"
+             "We use X, see `app/routing.py`.\n"
+             "\n"
+             "Superseded by [ADR-0002](0002-use-y.md).\n",
+             first_status);
+    th_write_file(TH_PATH(tmp, "docs/adr/0001-use-x.md"), first);
+    th_write_file(TH_PATH(tmp, "docs/adr/0002-use-y.md"),
+                  "# 2. Use Y instead\n"
+                  "\n"
+                  "Date: 12 May 2024\n"
+                  "\n"
+                  "## Status\n"
+                  "\n"
+                  "Accepted\n"
+                  "\n"
+                  "Supersedes [ADR-0001](0001-use-x.md).\n"
+                  "\n"
+                  "## Context\n"
+                  "\n"
+                  "X was slow.\n"
+                  "\n"
+                  "## Decision\n"
+                  "\n"
+                  "We use Y.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0003-cache.md"),
+                  "# Cache reads\n"
+                  "\n"
+                  "## Status\n"
+                  "\n"
+                  "Proposed\n"
+                  "\n"
+                  "- Replaces ADR-2\n"
+                  "\n"
+                  "## Decision\n"
+                  "\n"
+                  "The cache replaces the reader described in [ADR-1](0001-use-x.md).\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/README.md"), "# Decisions\n\n## Status\n\nAccepted\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/template.md"),
+                  "# Title\n\n## Status\n\n{proposed | accepted}\n\n## Decision\n\nTBD\n");
+}
+
+/* Properties of the ADR node of `file`; "" when there is none. */
+static void md_adr_props(const char *db, const char *file, char *out, size_t cap) {
+    out[0] = '\0';
+    sqlite3 *h = NULL;
+    if (sqlite3_open_v2(db, &h, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK) {
+        sqlite3_stmt *st = NULL;
+        if (sqlite3_prepare_v2(h,
+                               "SELECT name || ' ' || properties FROM nodes WHERE label = 'ADR' "
+                               "AND file_path = ?1",
+                               -1, &st, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(st, 1, file, -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(st) == SQLITE_ROW) {
+                snprintf(out, cap, "%s", (const char *)sqlite3_column_text(st, 0));
+            }
+        }
+        sqlite3_finalize(st);
+    }
+    sqlite3_close(h);
+}
+
+TEST(doc_links_md_adr) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlmd_adr_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    md_write_fixture(tmp);
+    md_write_adrs(tmp, "superseded");
+    char db[512];
+    snprintf(db, sizeof(db), "%s/adr.db", tmp);
+    ASSERT_EQ(dm_index(tmp, db, NULL), 0);
+    char props[2048];
+
+    /* three records; README and template are none */
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM nodes WHERE label = 'ADR'"), 3);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes t ON t.id = e.target_id "
+                           "WHERE e.type = 'DEFINES' AND t.label = 'ADR'"),
+              3);
+    /* facts: front matter */
+    md_adr_props(db, "docs/adr/0001-use-x.md", props, sizeof(props));
+    ASSERT_TRUE(strncmp(props, "ADR-1 ", strlen("ADR-1 ")) == 0);
+    ASSERT_NOT_NULL(strstr(props, "\"status\":\"superseded\""));
+    ASSERT_NOT_NULL(strstr(props, "\"date\":\"2024-03-05\""));
+    ASSERT_NOT_NULL(strstr(props, "\"deciders\":\"Ana, Bo\""));
+    ASSERT_NOT_NULL(strstr(props, "\"title\":\"Use X for storage\""));
+    ASSERT_NOT_NULL(strstr(props, "\"superseded_by\":\"0002-use-y.md\""));
+    ASSERT_NOT_NULL(strstr(props, "We use X")); /* the decision, searchable */
+    /* facts: header field date, Status section */
+    md_adr_props(db, "docs/adr/0002-use-y.md", props, sizeof(props));
+    ASSERT_TRUE(strncmp(props, "ADR-2 ", strlen("ADR-2 ")) == 0);
+    ASSERT_NOT_NULL(strstr(props, "\"status\":\"accepted\""));
+    ASSERT_NOT_NULL(strstr(props, "\"date\":\"2024-05-12\""));
+    md_adr_props(db, "docs/adr/README.md", props, sizeof(props));
+    ASSERT_STR_EQ(props, "");
+
+    /* SUPERSEDES: by link, and by id at a line head; never from prose that
+     * uses "replaces" as a verb, never from the superseded record */
+    const char *sup = "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id = e.source_id "
+                      "JOIN nodes t ON t.id = e.target_id WHERE e.type = 'SUPERSEDES' "
+                      "AND s.file_path = '%s' AND t.file_path = '%s'";
+    char q[512];
+    snprintf(q, sizeof(q), sup, "docs/adr/0002-use-y.md", "docs/adr/0001-use-x.md");
+    ASSERT_EQ(dm_count(db, q), 1);
+    snprintf(q, sizeof(q), sup, "docs/adr/0003-cache.md", "docs/adr/0002-use-y.md");
+    ASSERT_EQ(dm_count(db, q), 1);
+    snprintf(q, sizeof(q), sup, "docs/adr/0003-cache.md", "docs/adr/0001-use-x.md");
+    ASSERT_EQ(dm_count(db, q), 0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges WHERE type = 'SUPERSEDES'"), 2);
+    /* the record's sections still link to code */
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id = e.source_id "
+                           "JOIN nodes t ON t.id = e.target_id WHERE e.type = 'MENTIONS' "
+                           "AND s.file_path = 'docs/adr/0001-use-x.md' "
+                           "AND t.file_path = 'app/routing.py'"),
+              1);
+
+    /* incremental == full: a status edit, then a new record that a statement
+     * names by id */
+    char full_db[512];
+    snprintf(full_db, sizeof(full_db), "%s/adr-full.db", tmp);
+    md_write_adrs(tmp, "deprecated");
+    ASSERT_EQ(dm_step(tmp, db, full_db, "ADR status edit", CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR),
+              0);
+    md_adr_props(db, "docs/adr/0001-use-x.md", props, sizeof(props));
+    ASSERT_NOT_NULL(strstr(props, "\"status\":\"deprecated\""));
+    th_write_file(TH_PATH(tmp, "docs/adr/0004-later.md"), "# Later\n\n## Status\n\nAccepted\n\n"
+                                                          "Supersedes ADR-3.\n\n## Decision\n\n"
+                                                          "Later.\n");
+    ASSERT_EQ(dm_step(tmp, db, full_db, "ADR added", CBM_INCREMENTAL_ROUTE_FORCED_FULL), 0);
+    snprintf(q, sizeof(q), sup, "docs/adr/0004-later.md", "docs/adr/0003-cache.md");
+    ASSERT_EQ(dm_count(db, q), 1);
+    th_cleanup(tmp);
+    PASS();
+}
+
 SUITE(doc_links_md) {
     RUN_TEST(doc_links_md_extract_tokens);
     RUN_TEST(doc_links_md_repeated_headings);
     RUN_TEST(doc_links_md_classify_span);
     RUN_TEST(doc_links_md_resolve);
     RUN_TEST(doc_links_md_incremental);
+    RUN_TEST(doc_links_md_adr);
 }

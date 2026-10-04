@@ -43,9 +43,9 @@
 /* Every link family, across languages: one line per (language, reference
  * form), and the ONE place a language leg adds its families --
  *
- *   X(enum value, language, name, external, ships)
+ *   X(enum value, language, name, external, ships, edge)
  *
- *   name      the "syntax" MENTIONS-edge property and doc_link_unresolved
+ *   name      the "syntax" edge property and doc_link_unresolved
  *             column, so it is public surface; with the language it is the
  *             tier a release audit judges. Names repeat across languages
  *             (`see` is C#'s, Java's, Kotlin's ...): the value, not the name,
@@ -56,26 +56,33 @@
  *             still resolve, but a resolved one stays a doc_link_unresolved
  *             row with reason below_bar_tier (an unresolved one keeps its own
  *             reason). Nothing else about the family changes.
+ *   edge      the type of the edge a resolved reference becomes: MENTIONS
+ *             (documentation names code), SUPERSEDES (an ADR states that it
+ *             supersedes another). The edge's source is always the
+ *             definition the reference is written in, so a file owns the
+ *             edges its text produces, whatever their type.
  *
  * The enum below and the family table (doclink.c) are both generated from this
  * list, so a value cannot exist without its name and its gate. */
-#define CBM_DOCLINK_FAMILY_LIST(X)                                           \
-    /* csharp */                                                             \
-    X(CBM_DOCLINK_CS_SEE, CBM_LANG_CSHARP, "see", false, true)               \
-    X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true)       \
-    X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true)   \
-    X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true) \
-    /* markdown (doclink_md.c): what a document's text names explicitly */   \
-    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true)           \
-    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true)           \
-    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, true) \
-    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true) \
-    /* any language (CBM_LANG_COUNT): a URL is never an edge */              \
-    X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false)
+#define CBM_DOCLINK_FAMILY_LIST(X)                                                           \
+    /* csharp */                                                                             \
+    X(CBM_DOCLINK_CS_SEE, CBM_LANG_CSHARP, "see", false, true, "MENTIONS")                   \
+    X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true, "MENTIONS")           \
+    X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true, "MENTIONS")       \
+    X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true, "MENTIONS")     \
+    /* markdown (doclink_md.c): what a document's text names explicitly */                   \
+    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, true, "MENTIONS")     \
+    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")     \
+    /* an ADR's own "supersedes" / "replaces" statement (doc_adr.c): ADR -> ADR */           \
+    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, true, "SUPERSEDES") \
+    /* any language (CBM_LANG_COUNT): a URL is never an edge */                              \
+    X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false, "MENTIONS")
 
 typedef enum {
     CBM_DOCLINK_NONE = 0,
-#define CBM_DOCLINK_FAMILY_VALUE(id, lang, name, external, ships) id,
+#define CBM_DOCLINK_FAMILY_VALUE(id, lang, name, external, ships, edge) id,
     CBM_DOCLINK_FAMILY_LIST(CBM_DOCLINK_FAMILY_VALUE)
 #undef CBM_DOCLINK_FAMILY_VALUE
         CBM_DOCLINK_SYNTAX_COUNT
@@ -99,7 +106,11 @@ typedef struct {
     const char *name;
     bool external;
     bool ships;
+    const char *edge; /* the type of the edge a resolved reference becomes */
 } CBMDocLinkFamily;
+
+/* "MENTIONS" or "SUPERSEDES"; "MENTIONS" for an unknown value. */
+const char *cbm_doclink_syntax_edge(int syntax);
 
 /* The family of a syntax value; NULL for a value that names none. */
 const CBMDocLinkFamily *cbm_doclink_family(int syntax);
@@ -271,5 +282,17 @@ bool cbm_doclink_md_classify_span(const char *text, size_t len, char *buf, size_
 /* Parse a `#L3`, `#L3-L9` or `#L3C2-L9C5` fragment (without the `#`): true
  * and the lines, or false. */
 bool cbm_doclink_md_line_fragment(const char *frag, uint32_t *first, uint32_t *last);
+
+/* ── ADRs (doc_adr.c) ──────────────────────────────────────────────── */
+
+/* When the Markdown file being extracted is an architecture decision record:
+ * push its ADR definition (name its canonical id, qualified name
+ * "<module>.__adr__", facts as extra properties) and a `supersedes` token for
+ * each of its own supersedes / replaces statements. Called by the Markdown
+ * scan, after the Section definitions exist. */
+void cbm_adr_extract(CBMExtractCtx *ctx);
+
+/* The qualified-name tail of an ADR node: "<module QN>" + this. */
+#define CBM_ADR_QN_NAME "__adr__"
 
 #endif /* CBM_DOCLINK_H */

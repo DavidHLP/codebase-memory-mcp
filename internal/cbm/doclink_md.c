@@ -61,6 +61,7 @@ enum {
     MD_NUM_DIGITS = 9,      /* a line number has at most this many digits */
     MD_PAIR = 2,            /* ints per pair entry */
     MD_URL_SCHEMES = 3,     /* http, https, ftp */
+    MD_BOM_LEN = 3,         /* EF BB BF */
 };
 
 /* UTF-8 well-formedness (RFC 3629, table 3-7 of the Unicode standard). */
@@ -1764,6 +1765,9 @@ void cbm_doclink_md_scan_file(CBMExtractCtx *ctx) {
     const char *src = ctx->source;
     int n = ctx->source_len;
     int pos = 0;
+    if (n >= MD_BOM_LEN && memcmp(src, "\xEF\xBB\xBF", MD_BOM_LEN) == 0) {
+        pos = MD_BOM_LEN; /* a byte-order mark is no part of the first line */
+    }
     while (pos < n && !s.failed) {
         const char *nl = memchr(src + pos, '\n', (size_t)(n - pos));
         int end = nl ? (int)(nl - src) : n;
@@ -1785,4 +1789,6 @@ void cbm_doclink_md_scan_file(CBMExtractCtx *ctx) {
     md_list_free(&s.bal);
     md_list_free(&s.gts);
     md_list_free(&s.blanks);
+    /* an architecture decision record: its node, facts and supersedes */
+    cbm_adr_extract(ctx);
 }

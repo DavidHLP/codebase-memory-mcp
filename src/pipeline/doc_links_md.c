@@ -39,6 +39,7 @@
 #include "graph_buffer/graph_buffer.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -47,7 +48,8 @@ enum {
     MDR_TRIES = 2,            /* relative to the document, relative to the root */
     MDR_BASENAME_INIT = 1024, /* first capacity of the file-name table */
     MDR_HEX_BASE = 16,
-    MDR_PCT_LEN = 3, /* `%XX` */
+    MDR_PCT_LEN = 3,    /* `%XX` */
+    MDR_ADR_DIGITS = 5, /* an ADR number has at most this many digits */
 };
 
 /* Labels whose nodes are code a range or a member can name. */
@@ -94,7 +96,8 @@ typedef struct {
     CBMArena arena;     /* the strings and records of pkgs and top */
     mdr_def_t *defs;    /* every code definition, sorted by (file, start line, id) */
     int ndefs;
-    CBMHashTable *folders; /* directory path -> its Folder node */
+    CBMHashTable *adr_by_file; /* file path -> its ADR node (doc_adr.c) */
+    CBMHashTable *folders;     /* directory path -> its Folder node */
 } mdr_index_t;
 
 static const char *mdr_base(const char *path) {
@@ -213,6 +216,15 @@ static bool mdr_build_defs(mdr_index_t *x, const cbm_gbuf_t *graph) {
         }
     }
     qsort(x->defs, (size_t)x->ndefs, sizeof(*x->defs), mdr_def_cmp);
+    const cbm_gbuf_node_t **adrs = NULL;
+    int nadr = 0;
+    if (cbm_gbuf_find_by_label(graph, "ADR", &adrs, &nadr) == 0) {
+        for (int i = 0; i < nadr; i++) {
+            if (adrs[i]->file_path && adrs[i]->file_path[0]) {
+                cbm_ht_set(x->adr_by_file, adrs[i]->file_path, (void *)adrs[i]);
+            }
+        }
+    }
     return true;
 }
 
@@ -276,9 +288,10 @@ static void *mdr_build(const cbm_doclink_build_in_t *in) {
     x->basenames = cbm_ht_create_in(CBM_MEM_CLASS_HASH_TABLE, MDR_BASENAME_INIT);
     x->pkgs = cbm_ht_create_in(CBM_MEM_CLASS_HASH_TABLE, MDR_BASENAME_INIT);
     x->top = cbm_ht_create_in(CBM_MEM_CLASS_HASH_TABLE, MDR_BASENAME_INIT);
+    x->adr_by_file = cbm_ht_create_in(CBM_MEM_CLASS_HASH_TABLE, MDR_BASENAME_INIT);
     x->folders = cbm_ht_create_in(CBM_MEM_CLASS_HASH_TABLE, MDR_BASENAME_INIT);
     if ((in->run_file_count > 0 && !x->run_paths) || !x->basenames || !x->pkgs || !x->top ||
-        !x->folders || !x->project || !mdr_build_pkgs(x, in->graph) ||
+        !x->adr_by_file || !x->folders || !x->project || !mdr_build_pkgs(x, in->graph) ||
         !mdr_build_defs(x, in->graph)) {
         mdr_destroy(x);
         return NULL;
@@ -322,6 +335,7 @@ static void mdr_destroy(void *index) {
     cbm_ht_free(x->basenames);
     cbm_ht_free(x->pkgs);
     cbm_ht_free(x->top);
+    cbm_ht_free(x->adr_by_file);
     cbm_ht_free(x->folders);
     cbm_arena_destroy(&x->arena);
     cbm_free(CBM_MEM_CLASS_OTHER, x->defs);
@@ -1042,6 +1056,76 @@ static bool mdr_link_path(const char *raw, char *buf, size_t cap, mdr_ref_t *r) 
     return buf[0] != '\0';
 }
 
+/* `ADR-12`, `ADR 012`, `adr_7` (the whole text): the canonical node name. */
+static bool mdr_adr_id(const char *raw, char *name, size_t cap) {
+    size_t n = strlen(raw);
+    if (n < PAIR_LEN * PAIR_LEN || mdr_norm_c((unsigned char)raw[0]) != 'a' ||
+        mdr_norm_c((unsigned char)raw[SKIP_ONE]) != 'd' ||
+        mdr_norm_c((unsigned char)raw[PAIR_LEN]) != 'r' ||
+        (raw[PAIR_LEN + SKIP_ONE] != '-' && raw[PAIR_LEN + SKIP_ONE] != '_' &&
+         raw[PAIR_LEN + SKIP_ONE] != ' ')) {
+        return false;
+    }
+    unsigned v = 0;
+    size_t digits = 0;
+    for (size_t i = PAIR_LEN * PAIR_LEN; i < n; i++) {
+        if (raw[i] < '0' || raw[i] > '9' || digits >= MDR_ADR_DIGITS) {
+            return false;
+        }
+        v = (v * CBM_DECIMAL_BASE) + (unsigned)(raw[i] - '0');
+        digits++;
+    }
+    return digits > 0 && snprintf(name, cap, "ADR-%u", v) > 0;
+}
+
+/* An ADR's own "supersedes X": X by its id, or the file a link names, to its
+ * ADR node. */
+static void mdr_resolve_adr(const mdr_index_t *x, const cbm_gbuf_t *graph, const char *doc,
+                            const char *raw, cbm_doclink_outcome_t *out) {
+    char name[MDR_PATH_CAP];
+    out->kind = CBM_DOCLINK_UNRESOLVED;
+    out->reason = CBM_DOCLINK_REASON_MISSING;
+    if (mdr_adr_id(raw, name, sizeof(name))) {
+        const cbm_gbuf_node_t **nodes = NULL;
+        int count = 0;
+        const cbm_gbuf_node_t *hit = NULL;
+        int hits = 0;
+        if (cbm_gbuf_find_by_name(graph, name, &nodes, &count) == 0) {
+            for (int i = 0; i < count; i++) {
+                if (nodes[i]->label && strcmp(nodes[i]->label, "ADR") == 0) {
+                    hit = nodes[i];
+                    hits++;
+                }
+            }
+        }
+        if (hits == SKIP_ONE) {
+            mdr_edge(out, hit, 0, 0);
+        } else if (hits > SKIP_ONE) {
+            out->reason = CBM_DOCLINK_REASON_AMBIGUOUS; /* two ADR logs number alike */
+        }
+        return;
+    }
+    char buf[MDR_PATH_CAP];
+    mdr_ref_t r = {.link = true};
+    if (!mdr_link_path(raw, buf, sizeof(buf), &r)) {
+        return;
+    }
+    mdr_resolve_path(x, graph, doc, &r, out);
+    if (out->kind != CBM_DOCLINK_EDGE) {
+        return; /* missing, ambiguous, or no file of this repository */
+    }
+    const cbm_gbuf_node_t *adr =
+        out->target->file_path
+            ? (const cbm_gbuf_node_t *)cbm_ht_get(x->adr_by_file, out->target->file_path)
+            : NULL;
+    if (!adr) {
+        out->kind = CBM_DOCLINK_UNRESOLVED; /* the file is there, but it is no record */
+        out->reason = CBM_DOCLINK_REASON_MISSING;
+        return;
+    }
+    mdr_edge(out, adr, 0, 0);
+}
+
 static void mdr_resolve(const void *index, void *state, int run_file, const CBMDocLink *link,
                         const cbm_gbuf_t *graph, cbm_doclink_outcome_t *out) {
     (void)state;
@@ -1055,6 +1139,9 @@ static void mdr_resolve(const void *index, void *state, int run_file, const CBMD
     char buf[MDR_PATH_CAP];
     mdr_ref_t r = {0};
     switch (link->syntax) {
+    case CBM_DOCLINK_MD_SUPERSEDES:
+        mdr_resolve_adr(x, graph, doc, link->raw, out);
+        return;
     case CBM_DOCLINK_MD_LINK:
         r.link = true;
         if (!mdr_link_path(link->raw, buf, sizeof(buf), &r)) {
