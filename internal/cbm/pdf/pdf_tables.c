@@ -4,8 +4,13 @@
  * Glyph names (the Adobe Glyph List subset every standard Latin encoding
  * uses, common TeX and symbol names, and the accented Latin letters),
  * the base encodings of ISO 32000-1 Annex D as code -> UTF-8, and
- * approximate standard-14 widths. Generated from the field-tested tables;
- * do not edit by hand.
+ * approximate standard-14 widths. Generated once from the field-tested
+ * prototype's tables; maintained data from here on (edit by hand, keep the
+ * sources). Sources and notices (THIRD_PARTY.md): the Adobe Glyph List,
+ * Copyright 2002-2019 Adobe, BSD-3-Clause; the printable-ASCII advance
+ * widths of Helvetica and Times-Roman from Adobe's core-14 font metrics,
+ * Copyright (c) 1985, 1987, 1989, 1990, 1997 Adobe Systems Incorporated;
+ * ISO 32000-1 Annex D for the encodings.
  */
 #include "pdf_internal.h"
 
