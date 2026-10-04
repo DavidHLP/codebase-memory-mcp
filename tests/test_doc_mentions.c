@@ -9652,6 +9652,8 @@ static int dm_alloc_failure_errors(int point) {
     if (!cbm_mkdtemp(tmp)) {
         return -1;
     }
+    th_write_file(TH_PATH(tmp, "src/App.csproj"),
+                  "<Project Sdk=\"Microsoft.NET.Sdk\"></Project>\n");
     th_write_file(TH_PATH(tmp, "src/A.cs"), "namespace N\n{\n    public class Target { }\n}\n");
     th_write_file(TH_PATH(tmp, "src/B.cs"), "namespace N\n"
                                             "{\n"
@@ -9895,7 +9897,8 @@ TEST(doc_mentions_alloc_failure_status) {
     } points[] = {
         {CBM_DOCLINK_ALLOC_SPAN, "doc span"},    {CBM_DOCLINK_ALLOC_TEXT, "doc text"},
         {CBM_DOCLINK_ALLOC_VALUE, "value"},      {CBM_DOCLINK_ALLOC_TOKENS, "token"},
-        {CBM_DOCLINK_ALLOC_SCOPE, "scope scan"}, {DM_FAIL_EDGE, "MENTIONS edge"},
+        {CBM_DOCLINK_ALLOC_SCOPE, "scope scan"}, {CBM_DOCLINK_ALLOC_PROJECT, "project scan"},
+        {DM_FAIL_EDGE, "MENTIONS edge"},
     };
     int baseline = dm_alloc_failure_errors(-1);
     bool ok = baseline == 0;

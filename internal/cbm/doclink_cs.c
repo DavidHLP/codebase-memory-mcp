@@ -3756,6 +3756,11 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
     } else if (!is_project) {
         return NULL;
     }
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    if (cbm_doclink_test_fail_alloc(CBM_DOCLINK_ALLOC_PROJECT)) {
+        p.out.failed = true;
+    }
+#endif
     if (p.out.failed || p.value.failed || !p.out.buf) {
         if (ctx->result) {
             ctx->result->doc_links.failed = true; /* memory ran out, see above */
