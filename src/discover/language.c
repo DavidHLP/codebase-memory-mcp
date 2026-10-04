@@ -619,6 +619,9 @@ static const ext_entry_t EXT_TABLE[] = {
     {".clib", CBM_LANG_CHIALISP},
     {".clinc", CBM_LANG_CHIALISP},
     {".pdf", CBM_LANG_PDF},
+    /* AsciiDoc; `.asc` is left out: it is as often an ASCII-armored signature */
+    {".adoc", CBM_LANG_ASCIIDOC},
+    {".asciidoc", CBM_LANG_ASCIIDOC},
 
     /* Slang */
     {".slang", CBM_LANG_SLANG},
@@ -831,6 +834,7 @@ static const char *LANG_NAMES[CBM_LANG_COUNT] = {
     [CBM_LANG_SCHEME] = "Scheme",
     [CBM_LANG_CHIALISP] = "Chialisp",
     [CBM_LANG_PDF] = "PDF",
+    [CBM_LANG_ASCIIDOC] = "AsciiDoc",
     [CBM_LANG_FENNEL] = "Fennel",
     [CBM_LANG_FISH] = "Fish",
     [CBM_LANG_AWK] = "AWK",

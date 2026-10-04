@@ -2718,6 +2718,9 @@ static const CBMLangSpec lang_specs[CBM_LANG_COUNT] = {
     // looked up, so this language never reaches cbm_lang_spec()/cbm_ts_language().
     // Left as a zero spec.
 
+    // CBM_LANG_ASCIIDOC — AsciiDoc documents. No grammar row, as PDF: extraction
+    // reads the file itself (cbm_adoc_extract_document, doc_adoc.c). Zero spec.
+
     // CBM_LANG_OBJECTSCRIPT_EXPORT — Studio Export XML. No grammar row: the
     // pipeline transcodes Export XML to UDL (iris_export_xml.c) and re-extracts
     // each class as CBM_LANG_OBJECTSCRIPT_UDL, so this language never reaches

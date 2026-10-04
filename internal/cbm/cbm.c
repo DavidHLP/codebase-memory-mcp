@@ -2821,6 +2821,25 @@ static CBMFileResult *extract_file_ex_body(const char *source, int source_len, C
         cbm_index_mark_done(rel_path);
         return result;
     }
+    /* AsciiDoc has no grammar either: its headings, includes, attribute
+     * references and monospace spans are read from the text (doc_adoc.c). */
+    if (language == CBM_LANG_ASCIIDOC) {
+        result->module_qn = cbm_fqn_module_source_lang(a, project, rel_path, language);
+        CBMExtractCtx adoc_ctx = {
+            .arena = a,
+            .scratch = scratch,
+            .result = result,
+            .source = source,
+            .source_len = source_len,
+            .language = language,
+            .project = project,
+            .rel_path = rel_path,
+            .module_qn = result->module_qn,
+        };
+        cbm_adoc_extract_document(&adoc_ctx);
+        cbm_index_mark_done(rel_path);
+        return result;
+    }
 
     // Get language spec
     const CBMLangSpec *spec = cbm_lang_spec(language);

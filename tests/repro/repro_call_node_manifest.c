@@ -549,9 +549,10 @@ TEST(repro_call_node_manifest_live_specs_contain_only_expected_primary_entries) 
 
         /* The registry reproduction owns Nim's stale enum and the
          * intentionally grammar-free classifications: Studio Export's
-         * transform-only one and PDF's DOCUMENT one (doc_pdf.c). */
+         * transform-only one and the DOCUMENT ones of PDF and AsciiDoc
+         * (doc_pdf.c, doc_adoc.c). */
         if (language == CBM_LANG_NIM || language == CBM_LANG_OBJECTSCRIPT_EXPORT ||
-            language == CBM_LANG_PDF) {
+            language == CBM_LANG_PDF || language == CBM_LANG_ASCIIDOC) {
             continue;
         }
         if (!spec || spec->language != language) {

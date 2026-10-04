@@ -218,6 +218,7 @@ static const LanguageCapabilityEntry LANGUAGE_CAPABILITIES[CBM_LANG_COUNT] = {
     CALL_WITHOUT_REFERENCE_VOCAB(PLSQL),
     CALL_WITHOUT_REFERENCE_VOCAB(CHIALISP),
     DOCUMENT(PDF),
+    DOCUMENT(ASCIIDOC),
 };
 
 #undef CALL_WITH_REFERENCE_VOCAB
@@ -311,7 +312,7 @@ TEST(repro_language_capability_ledger_covers_every_enum) {
     if (counts[CAP_CALL_WITH_REFERENCE_VOCAB] != 88 ||
         counts[CAP_CALL_WITHOUT_REFERENCE_VOCAB] != 27 || counts[CAP_NO_CALL] != 49 ||
         counts[CAP_TRANSFORM_ONLY] != 1 || counts[CAP_UNSUPPORTED] != 1 ||
-        counts[CAP_DOCUMENT] != 1) {
+        counts[CAP_DOCUMENT] != 2) {
         fprintf(stderr,
                 "  [language-registry] invariant=capability_partition call_ref_vocab=%d ref_gap=%d "
                 "no_call=%d transform_only=%d unsupported=%d document=%d\n",
@@ -330,7 +331,8 @@ TEST(repro_call_argument_matrices_equal_call_capability_ledger) {
         EXPECTED_MATRIX_A_ROWS = 68,
         EXPECTED_MATRIX_B_ROWS = 49,
         EXPECTED_CALL_CAPABLE_LANGUAGES = 115,
-        EXPECTED_NON_CALL_LANGUAGES = 52, /* 49 no-call + transform-only + unsupported + PDF */
+        EXPECTED_NON_CALL_LANGUAGES =
+            53, /* 49 no-call + transform-only + unsupported + PDF, AsciiDoc */
         EXPECTED_NON_CALL_DOMAIN_CONTROLS = 2,
     };
     CBMLanguage matrix_a_ids[CBM_LANG_COUNT];

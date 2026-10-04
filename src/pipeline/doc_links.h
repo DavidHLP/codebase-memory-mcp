@@ -245,6 +245,9 @@ extern const cbm_doclink_resolver_t cbm_doclink_pdf_resolver;
 /* reStructuredText documents and the Python scope they read (doc_links_rst.c):
  * via "rst". */
 extern const cbm_doclink_resolver_t cbm_doclink_rst_resolver;
+/* AsciiDoc documents and the Antora YAML scope they read (doc_links_adoc.c):
+ * via "asciidoc". */
+extern const cbm_doclink_resolver_t cbm_doclink_adoc_resolver;
 
 /* Over a Markdown resolver index (cbm_doclink_md_resolver.build), for the
  * other document resolvers: the innermost code definition of `path` holding
@@ -253,6 +256,15 @@ extern const cbm_doclink_resolver_t cbm_doclink_rst_resolver;
 const cbm_gbuf_node_t *cbm_doclink_md_segment(const void *md_index, const char *path,
                                               uint32_t first, uint32_t last, const char *member);
 const cbm_gbuf_node_t *cbm_doclink_md_folder(const void *md_index, const char *path);
+/* The definition a region [first, last] of `path` (its text in `text`) binds,
+ * by the field test's rule (H8 bind_range): edge blank and comment lines
+ * trimmed; the innermost enclosing definition, unless it is a type (or there
+ * is none) and the definitions inside cover every other line of the region
+ * (an annotation right above one counts) -- then that one definition (the
+ * type for several). NULL: the file. */
+const cbm_gbuf_node_t *cbm_doclink_md_region(const void *md_index, const char *path,
+                                             const char *text, size_t text_len, uint32_t first,
+                                             uint32_t last);
 bool cbm_doclink_md_test_path(const char *path);
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
@@ -278,7 +290,8 @@ void cbm_doclink_cs_test_unit_memo(bool on);
 #endif
 
 /* True for a document language whose references may bind the LINES of a file
- * (Markdown `file#L3-L9`, reST :lines:): a body edit of that file keeps its
+ * (Markdown `file#L3-L9`, reST :lines:, AsciiDoc tags and lines=): a body
+ * edit of that file keeps its
  * names but can move what those lines hold, so an incremental run
  * re-resolves such documents with the edited file. */
 bool cbm_doclinks_binds_lines(CBMLanguage lang);

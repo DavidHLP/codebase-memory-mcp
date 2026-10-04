@@ -175,6 +175,11 @@ static const doclink_lang_t DOCLINK_LANGS[] = {
     {.lang = CBM_LANG_PYTHON,
      .scan_scope = cbm_doclink_py_scan_scope,
      .scope_tag = CBM_DOCLINK_PY_SCOPE_TAG},
+    /* YAML: the Antora component and playbook settings the AsciiDoc resolver
+     * reads */
+    {.lang = CBM_LANG_YAML,
+     .scan_scope = cbm_doclink_antora_scan_scope,
+     .scope_tag = CBM_DOCLINK_ADOC_SCOPE_TAG},
 };
 
 static const doclink_lang_t *doclink_lang(CBMLanguage lang) {

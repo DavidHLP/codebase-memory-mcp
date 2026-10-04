@@ -45,10 +45,8 @@ const char *cbm_doclink_reason_name(int reason) {
 /* One pointer per language with a resolver: the one line a language leg adds
  * to this file. */
 static const cbm_doclink_resolver_t *const DOCLINK_RESOLVERS[] = {
-    &cbm_doclink_cs_resolver,
-    &cbm_doclink_md_resolver,
-    &cbm_doclink_pdf_resolver,
-    &cbm_doclink_rst_resolver,
+    &cbm_doclink_cs_resolver,  &cbm_doclink_md_resolver,   &cbm_doclink_pdf_resolver,
+    &cbm_doclink_rst_resolver, &cbm_doclink_adoc_resolver,
 };
 
 enum { DOCLINK_RESOLVER_COUNT = sizeof(DOCLINK_RESOLVERS) / sizeof(DOCLINK_RESOLVERS[0]) };
@@ -93,7 +91,7 @@ static const cbm_doclink_resolver_t *resolver_of_scope(const char *scope) {
 /* ── Incremental scope rules ─────────────────────────────────────── */
 
 bool cbm_doclinks_binds_lines(CBMLanguage lang) {
-    return lang == CBM_LANG_MARKDOWN || lang == CBM_LANG_RST;
+    return lang == CBM_LANG_MARKDOWN || lang == CBM_LANG_RST || lang == CBM_LANG_ASCIIDOC;
 }
 
 bool cbm_doclinks_is_scope_input(const char *rel_path) {

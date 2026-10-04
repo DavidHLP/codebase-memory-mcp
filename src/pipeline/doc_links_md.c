@@ -50,6 +50,8 @@ enum {
     MDR_HEX_BASE = 16,
     MDR_PCT_LEN = 3,    /* `%XX` */
     MDR_ADR_DIGITS = 5, /* an ADR number has at most this many digits */
+    MDR_PRIO_FIELD = 3, /* H8's label priorities: types 0, Type 1, callables 2 */
+    MDR_PRIO_OTHER = 4,
 };
 
 /* Labels whose nodes are code a range or a member can name. */
@@ -108,8 +110,8 @@ static const char *mdr_base(const char *path) {
 static bool mdr_code_file(const char *path) {
     CBMLanguage lang = cbm_language_for_filename(mdr_base(path));
     return lang != CBM_LANG_COUNT && lang != CBM_LANG_MARKDOWN && lang != CBM_LANG_RST &&
-           lang != CBM_LANG_HTML && lang != CBM_LANG_CSS && lang != CBM_LANG_SCSS &&
-           !cbm_has_config_extension(path);
+           lang != CBM_LANG_ASCIIDOC && lang != CBM_LANG_PDF && lang != CBM_LANG_HTML &&
+           lang != CBM_LANG_CSS && lang != CBM_LANG_SCSS && !cbm_has_config_extension(path);
 }
 
 /* The stems of a package directory's index file. */
@@ -1203,6 +1205,228 @@ static void mdr_resolve(const void *index, void *state, int run_file, const CBMD
 const cbm_gbuf_node_t *cbm_doclink_md_segment(const void *md_index, const char *path,
                                               uint32_t first, uint32_t last, const char *member) {
     return md_index ? mdr_segment((const mdr_index_t *)md_index, path, first, last, member) : NULL;
+}
+
+/* ── A region of a file's text (the field test's H8 bind_range) ─────── */
+
+/* A blank or comment-only line (H8 _skippable). */
+static bool mdr_skippable(const char *s, size_t n) {
+    size_t i = 0;
+    while (i < n && (s[i] == ' ' || s[i] == '\t' || s[i] == '\r')) {
+        i++;
+    }
+    if (i == n) {
+        return true;
+    }
+    const char *t = s + i;
+    size_t r = n - i;
+    if ((r >= PAIR_LEN && t[0] == '/' && (t[1] == '/' || t[1] == '*')) || t[0] == '*' ||
+        t[0] == ';' || t[0] == '%' || (r >= PAIR_LEN && t[0] == '\'' && t[1] == ' ') ||
+        (r >= PAIR_LEN && t[0] == '-' && t[1] == '-' && r > PAIR_LEN &&
+         (t[PAIR_LEN] == ' ' || t[PAIR_LEN] == '\t')) ||
+        (r >= strlen("<!--") && memcmp(t, "<!--", strlen("<!--")) == 0)) {
+        return true;
+    }
+    return t[0] == '#' && !(r >= PAIR_LEN && (t[1] == '[' || t[1] == '!'));
+}
+
+static bool mdr_annotation(const char *s, size_t n) {
+    size_t i = 0;
+    while (i < n && (s[i] == ' ' || s[i] == '\t')) {
+        i++;
+    }
+    return i < n && (s[i] == '@' || (i + SKIP_ONE < n && s[i] == '#' && s[i + SKIP_ONE] == '['));
+}
+
+static bool mdr_container(const char *label) {
+    static const char *const labels[] = {"Function", "Method", "Class", "Struct", "Interface",
+                                         "Enum",     "Type",   "Trait", "Record", NULL};
+    for (int i = 0; label && labels[i]; i++) {
+        if (strcmp(label, labels[i]) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static int mdr_label_prio(const char *label) {
+    if (!label) {
+        return MDR_PRIO_OTHER;
+    }
+    if (mdr_classlike(label) && strcmp(label, "Type") != 0) {
+        return 0;
+    }
+    if (strcmp(label, "Type") == 0) {
+        return SKIP_ONE;
+    }
+    if (strcmp(label, "Function") == 0 || strcmp(label, "Method") == 0) {
+        return PAIR_LEN;
+    }
+    return strcmp(label, "Field") == 0 ? MDR_PRIO_FIELD : MDR_PRIO_OTHER;
+}
+
+/* (s, -e, label priority, id): the order H8 picks maximal nodes in. */
+static int mdr_region_cmp(const void *a, const void *b) {
+    const cbm_gbuf_node_t *x = *(const cbm_gbuf_node_t *const *)a;
+    const cbm_gbuf_node_t *y = *(const cbm_gbuf_node_t *const *)b;
+    if (x->start_line != y->start_line) {
+        return x->start_line < y->start_line ? -1 : 1;
+    }
+    if (x->end_line != y->end_line) {
+        return x->end_line > y->end_line ? -1 : 1;
+    }
+    int px = mdr_label_prio(x->label);
+    int py = mdr_label_prio(y->label);
+    if (px != py) {
+        return px < py ? -1 : 1;
+    }
+    return (x->id > y->id) - (x->id < y->id);
+}
+
+/* Do the maximal nodes cover every line of [a, b] that is not blank or a
+ * comment (an annotation line counts when it sits right above a covered
+ * node, H8's exact-cover)? */
+static bool mdr_exact_cover(const cbm_gbuf_node_t *const *max, int nmax, const size_t *starts,
+                            const char *text, size_t text_len, uint32_t a, uint32_t b) {
+    for (uint32_t ln = a; ln <= b; ln++) {
+        bool covered = false;
+        for (int k = 0; k < nmax && !covered; k++) {
+            covered = (uint32_t)max[k]->start_line <= ln && (uint32_t)max[k]->end_line >= ln;
+        }
+        size_t s0 = starts[ln - SKIP_ONE];
+        size_t s1 = starts[ln] > s0 ? starts[ln] - SKIP_ONE : s0;
+        if (covered || s0 >= text_len || mdr_skippable(text + s0, s1 - s0)) {
+            continue;
+        }
+        if (!mdr_annotation(text + s0, s1 - s0)) {
+            return false;
+        }
+        /* annotations, blanks and comments down to a covered node's first line */
+        uint32_t nxt = ln + SKIP_ONE;
+        while (nxt <= b) {
+            size_t t0 = starts[nxt - SKIP_ONE];
+            size_t t1 = starts[nxt] > t0 ? starts[nxt] - SKIP_ONE : t0;
+            if (!mdr_skippable(text + t0, t1 - t0) && !mdr_annotation(text + t0, t1 - t0)) {
+                break;
+            }
+            nxt++;
+        }
+        bool starts_node = false;
+        for (int k = 0; k < nmax && !starts_node; k++) {
+            starts_node = (uint32_t)max[k]->start_line <= nxt && (uint32_t)max[k]->end_line >= nxt;
+        }
+        if (!starts_node) {
+            return false;
+        }
+    }
+    return true;
+}
+
+const cbm_gbuf_node_t *cbm_doclink_md_region(const void *md_index, const char *path,
+                                             const char *text, size_t text_len, uint32_t first,
+                                             uint32_t last) {
+    const mdr_index_t *x = (const mdr_index_t *)md_index;
+    if (!x || !text || first == 0 || last < first) {
+        return NULL;
+    }
+    /* line starts: starts[k] is the offset of line k + 1; one past the end */
+    uint32_t nlines = SKIP_ONE;
+    for (size_t i = 0; i < text_len; i++) {
+        nlines += text[i] == '\n';
+    }
+    if (last > nlines) {
+        last = nlines;
+    }
+    if (first > last) {
+        return NULL;
+    }
+    size_t *starts =
+        (size_t *)cbm_alloc(CBM_MEM_CLASS_OTHER, ((size_t)nlines + SKIP_ONE) * sizeof(size_t));
+    if (!starts) {
+        return NULL;
+    }
+    uint32_t k = 0;
+    starts[k++] = 0;
+    for (size_t i = 0; i < text_len; i++) {
+        if (text[i] == '\n') {
+            starts[k++] = i + SKIP_ONE;
+        }
+    }
+    starts[k] = text_len + SKIP_ONE;
+    /* edge blank and comment lines trimmed */
+    uint32_t a = first;
+    uint32_t b = last;
+    while (a <= b && mdr_skippable(text + starts[a - SKIP_ONE],
+                                   starts[a] - SKIP_ONE - starts[a - SKIP_ONE])) {
+        a++;
+    }
+    while (b >= a && mdr_skippable(text + starts[b - SKIP_ONE],
+                                   starts[b] - SKIP_ONE - starts[b - SKIP_ONE])) {
+        b--;
+    }
+    if (a > b) {
+        a = first;
+        b = last;
+    }
+    int lo = 0;
+    int hi = 0;
+    mdr_file_defs(x, path, &lo, &hi);
+    const cbm_gbuf_node_t *enc = NULL;
+    for (int i = lo; i < hi; i++) {
+        const cbm_gbuf_node_t *n = x->defs[i].node;
+        if (!mdr_container(n->label) || n->start_line <= 0 || (uint32_t)n->start_line > a ||
+            (uint32_t)n->end_line < b) {
+            continue;
+        }
+        int span = n->end_line - n->start_line;
+        int best = enc ? enc->end_line - enc->start_line : 0;
+        if (!enc || span < best ||
+            (span == best && (n->start_line > enc->start_line ||
+                              (n->start_line == enc->start_line &&
+                               mdr_label_prio(n->label) < mdr_label_prio(enc->label))))) {
+            enc = n;
+        }
+    }
+    const cbm_gbuf_node_t **inside = (const cbm_gbuf_node_t **)cbm_alloc(
+        CBM_MEM_CLASS_OTHER, (size_t)(hi - lo + SKIP_ONE) * sizeof(*inside));
+    const cbm_gbuf_node_t *pick = NULL;
+    if (inside) {
+        int ni = 0;
+        for (int i = lo; i < hi; i++) {
+            const cbm_gbuf_node_t *n = x->defs[i].node;
+            if (n == enc || n->start_line <= 0 || (uint32_t)n->start_line < a ||
+                (uint32_t)n->end_line > b ||
+                (enc && (n->start_line < enc->start_line || n->end_line > enc->end_line))) {
+                continue;
+            }
+            inside[ni++] = n;
+        }
+        qsort(inside, (size_t)ni, sizeof(*inside), mdr_region_cmp);
+        int nmax = 0; /* maximal ones, compacted in place */
+        for (int i = 0; i < ni; i++) {
+            bool nested = false;
+            for (int m = 0; m < nmax && !nested; m++) {
+                nested = inside[m]->start_line <= inside[i]->start_line &&
+                         inside[i]->end_line <= inside[m]->end_line;
+            }
+            if (!nested) {
+                inside[nmax++] = inside[i];
+            }
+        }
+        bool type_enc = !enc || (mdr_classlike(enc->label));
+        bool exact =
+            nmax > 0 && type_enc && mdr_exact_cover(inside, nmax, starts, text, text_len, a, b);
+        if (exact && enc) {
+            pick = nmax == SKIP_ONE ? inside[0] : enc; /* several: the type holding them */
+        } else if (enc) {
+            pick = enc;
+        } else if (nmax == SKIP_ONE) {
+            pick = inside[0];
+        }
+        cbm_free(CBM_MEM_CLASS_OTHER, (void *)inside);
+    }
+    cbm_free(CBM_MEM_CLASS_OTHER, starts);
+    return pick;
 }
 
 const cbm_gbuf_node_t *cbm_doclink_md_folder(const void *md_index, const char *path) {

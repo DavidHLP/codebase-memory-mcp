@@ -92,6 +92,11 @@
     X(CBM_DOCLINK_RST_KERNEL_DOC, CBM_LANG_RST, "kernel_doc", false, true, "MENTIONS")         \
     X(CBM_DOCLINK_RST_CODE_PATH, CBM_LANG_RST, "code_path", false, true, "MENTIONS")           \
     X(CBM_DOCLINK_RST_CODE_NAME, CBM_LANG_RST, "code_name", false, true, "MENTIONS")           \
+    /* asciidoc (doc_adoc.c): includes, Antora API attributes, monospace spans */              \
+    X(CBM_DOCLINK_ADOC_INCLUDE, CBM_LANG_ASCIIDOC, "include", false, true, "MENTIONS")         \
+    X(CBM_DOCLINK_ADOC_ATTRIBUTE, CBM_LANG_ASCIIDOC, "attribute", false, true, "MENTIONS")     \
+    X(CBM_DOCLINK_ADOC_CODE_PATH, CBM_LANG_ASCIIDOC, "code_path", false, true, "MENTIONS")     \
+    X(CBM_DOCLINK_ADOC_CODE_NAME, CBM_LANG_ASCIIDOC, "code_name", false, true, "MENTIONS")     \
     /* any language (CBM_LANG_COUNT): a URL is never an edge */                                \
     X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false, "MENTIONS")
 
@@ -332,6 +337,22 @@ const char *cbm_doclink_py_scan_scope(CBMExtractCtx *ctx);
 
 /* The Python scope blob starts with this tag line. */
 #define CBM_DOCLINK_PY_SCOPE_TAG "py1"
+
+/* ── AsciiDoc (doc_adoc.c) ─────────────────────────────────────────── */
+
+/* AsciiDoc documents: a Section per heading and the references to code
+ * (include::, Antora API attributes, monospace spans) as doc-link tokens.
+ * Runs instead of a grammar for CBM_LANG_ASCIIDOC. */
+void cbm_adoc_extract_document(CBMExtractCtx *ctx);
+
+/* The scope blob of a YAML file, which the AsciiDoc resolver reads: an
+ * antora.yml's component name, asciidoc attributes and collector scans, an
+ * antora-playbook*.yml's attributes (read as text). NULL for every other
+ * file. */
+const char *cbm_doclink_antora_scan_scope(CBMExtractCtx *ctx);
+
+/* The Antora scope blob starts with this tag line. */
+#define CBM_DOCLINK_ADOC_SCOPE_TAG "ad1"
 
 /* PDF documents (doc_pdf.c): a Section per page (name "page N", the page's
  * text as docstring, property page) and the pages' structural code mentions
