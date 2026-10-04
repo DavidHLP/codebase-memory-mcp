@@ -4664,11 +4664,11 @@ struct cs_memo {
 
 enum { CS_MEMO_KEY = CS_NAME_BUF + CBM_SZ_128 };
 
+/* Holds no memory until the first step is remembered: most files ask few
+ * using steps, and a memo is made for every file that has references. */
 static void memo_init(cs_memo_t *m) {
     memset(m, 0, sizeof(*m));
-    cbm_arena_init(&m->arena);
-    m->steps = cbm_ht_create(CBM_SZ_256);
-    m->off = m->steps == NULL;
+    cbm_arena_init_lazy(&m->arena, CBM_ARENA_APPEND_BLOCK);
 }
 
 static void memo_destroy(cs_memo_t *m) {
@@ -4688,7 +4688,7 @@ static bool memo_key(char *buf, size_t cap, const cs_ctx_t *c, int region, int u
 
 static bool memo_get(const cs_memo_t *m, const char *key, cs_found_t *out) {
     cs_work(SKIP_ONE);
-    const cs_found_t *hit = (const cs_found_t *)cbm_ht_get(m->steps, key);
+    const cs_found_t *hit = m->steps ? (const cs_found_t *)cbm_ht_get(m->steps, key) : NULL;
     if (hit) {
         *out = *hit;
     }
@@ -4696,6 +4696,13 @@ static bool memo_get(const cs_memo_t *m, const char *key, cs_found_t *out) {
 }
 
 static void memo_put(cs_memo_t *m, const char *key, const cs_found_t *step) {
+    if (!m->steps) {
+        m->steps = cbm_ht_create(CBM_SZ_16);
+        if (!m->steps) {
+            m->off = true;
+            return;
+        }
+    }
     char *k = cbm_arena_strdup(&m->arena, key);
     cs_found_t *v = (cs_found_t *)cbm_arena_alloc(&m->arena, sizeof(*v));
     if (!k || !v) {
