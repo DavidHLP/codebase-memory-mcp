@@ -6317,7 +6317,11 @@ static size_t doc_link_scalar(const unsigned char *text, size_t length, uint32_t
     return width;
 }
 
-static bool doc_link_visible_escape(uint32_t scalar) {
+/* `unsigned long` (at least 32 bits by the standard), not uint32_t: the
+ * vendored yyjson.h has a fallback typedef chain for uint32_t, and an
+ * analysis that cannot evaluate it takes uint32_t for a 16-bit type and the
+ * tag block's bounds for out of range. */
+static bool doc_link_visible_escape(unsigned long scalar) {
     return scalar < 0x20 || scalar == 0x7F || (scalar >= 0x200B && scalar <= 0x200F) ||
            (scalar >= 0x202A && scalar <= 0x202E) || (scalar >= 0x2066 && scalar <= 0x2069) ||
            (scalar >= 0xE0000 && scalar <= 0xE007F);

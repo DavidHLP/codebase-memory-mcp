@@ -497,12 +497,6 @@ static void msb_work(uint64_t n) {
     (void)n;
 }
 static void msb_record(void) {}
-static bool msb_fail_value_alloc(void) {
-    return false;
-}
-static bool msb_fail_prop_insert(void) {
-    return false;
-}
 static bool msb_fail_item_operation(cbm_msb_item_fail_operation_t operation) {
     (void)operation;
     return false;
@@ -710,7 +704,11 @@ static char *scratch_strndup(msb_eval_t *ev, const char *s, size_t n) {
  * old buffers simultaneously until copying has finished and the old one is
  * released; neither a replacement nor an unknown value retains history. */
 static char *value_alloc(msb_eval_t *ev, size_t n) {
-    if (n > SIZE_MAX - ev->value_bytes || msb_fail_value_alloc()) {
+    bool fail = n > SIZE_MAX - ev->value_bytes;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    fail = fail || msb_fail_value_alloc();
+#endif
+    if (fail) {
         ev->oom = true;
         return NULL;
     }
@@ -786,7 +784,10 @@ static void msb_set(msb_eval_t *ev, const char *name, const char *value) {
         if (!k) {
             return;
         }
-        if (!msb_fail_prop_insert()) {
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+        if (!msb_fail_prop_insert())
+#endif
+        {
             msb_work(SKIP_ONE);
             cbm_ht_set(ev->props, k, p);
         }
@@ -1354,9 +1355,13 @@ static st_value_t *st_make_value(msb_eval_t *ev, const char *text) {
     if (!text)
         return NULL;
     size_t bytes = strlen(text) + 1;
-    st_value_t *v = msb_fail_value_alloc()
-                        ? NULL
-                        : (st_value_t *)cbm_alloc(CBM_MEM_CLASS_OTHER, sizeof(*v) + bytes);
+    st_value_t *v = NULL;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    if (!msb_fail_value_alloc())
+#endif
+    {
+        v = (st_value_t *)cbm_alloc(CBM_MEM_CLASS_OTHER, sizeof(*v) + bytes);
+    }
     if (!v) {
         ev->oom = true;
         return NULL;
@@ -1419,11 +1424,13 @@ static void st_write(msb_eval_t *ev, uint32_t key, int domain, const char *text)
         ev->reuse_nodes = ev->view.root[domain];
         effect = st_union(ev, leaf, ev->builder->writes.root[domain], false, domain, phase);
         ev->reuse_nodes = saved_reuse;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
         bool is_new = !st_get(ev->builder->writes.root[domain], key);
         if (domain == ST_PROPS && is_new && msb_fail_prop_insert()) {
             st_drop(ev->state, effect);
             effect = st_hold(ev->builder->writes.root[domain]);
         }
+#endif
         if (!st_get(effect, key))
             ev->oom = true;
     }
@@ -1431,10 +1438,12 @@ static void st_write(msb_eval_t *ev, uint32_t key, int domain, const char *text)
     st_node_t *view =
         !ev->oom ? st_union(ev, leaf, ev->view.root[domain], false, domain, phase) : NULL;
     ev->reuse_nodes = saved_reuse;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
     if (!ev->builder && domain == ST_PROPS && !old && msb_fail_prop_insert()) {
         st_drop(ev->state, view);
         view = st_hold(ev->view.root[domain]);
     }
+#endif
     if (!st_get(view, key))
         ev->oom = true;
     if (!ev->oom) {
