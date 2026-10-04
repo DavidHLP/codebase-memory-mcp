@@ -24,34 +24,34 @@
 /* ── the fixture ─────────────────────────────────────────────────── */
 
 /* docs/guide.md, line by line (the line numbers are asserted below). */
-static const char
-    MD_GUIDE[] = "Intro names `pkg/config.go` before any heading.\n"      /* 1 */
-                 "\n"                                                     /* 2 */
-                 "# Guide\n"                                              /* 3 */
-                 "\n"                                                     /* 4 */
-                 "See [the config](../pkg/config.go) and [routing][r].\n" /* 5 */
-                 "\n"                                                     /* 6 */
-                 "[r]: ../app/routing.py\n"                               /* 7 */
-                 "\n"                                                     /* 8 */
-                 "## Paths\n"                                             /* 9 */
-                 "\n"                                                     /* 10 */
-                 "Range `app/routing.py#L4-L5`, span `app/routing.py:1-9`, bare "
-                 "app/applications.py.\n" /* 11 */
-                 "Dir `app/middleware/`, route `/docs`, ![x](img/a.png) and "
-                 "https://example.org/a/b.py.\n" /* 12 */
-                 "\n"                            /* 13 */
-                 "## Names\n"                    /* 14 */
-                 "\n"                            /* 15 */
-                 "Use `app.routing.APIRouter.add`, `app.middleware`, `pkg.Config.Name`, "
-                 "`self.Name`.\n" /* 16 */
-                 "Also `os.path.join`, `app.Nope`, `test_routing.only_in_tests`, `main.py`, "
-                 "`../app/gone.py`.\n"                                                  /* 17 */
-                 "\n"                                                                   /* 18 */
-                 "```\n"                                                                /* 19 */
-                 "`app/fenced.py` inside a fence\n"                                     /* 20 */
-                 "```\n"                                                                /* 21 */
-                 "<!-- `app/commented.py` in a comment -->\n"                           /* 22 */
-                 "<code>app/html.py</code> in HTML, `cfg.Name` through an instance.\n"; /* 23 */
+static const char MD_GUIDE[] =
+    "Intro names `pkg/config.go` before any heading.\n"      /* 1 */
+    "\n"                                                     /* 2 */
+    "# Guide\n"                                              /* 3 */
+    "\n"                                                     /* 4 */
+    "See [the config](../pkg/config.go) and [routing][r].\n" /* 5 */
+    "\n"                                                     /* 6 */
+    "[r]: ../app/routing.py\n"                               /* 7 */
+    "\n"                                                     /* 8 */
+    "## Paths\n"                                             /* 9 */
+    "\n"                                                     /* 10 */
+    "Range `app/routing.py#L4-L5`, span `app/routing.py:1-9`, bare "
+    "app/applications.py.\n" /* 11 */
+    "Dir `app/middleware/`, route `/docs`, ![x](img/a.png) and "
+    "https://example.org/a/b.py.\n" /* 12 */
+    "\n"                            /* 13 */
+    "## Names\n"                    /* 14 */
+    "\n"                            /* 15 */
+    "Use `app.routing.APIRouter.add`, `app.middleware`, `pkg.Config.Name`, "
+    "`self.Name`.\n" /* 16 */
+    "Also `os.path.join`, `app.Nope`, `test_routing.only_in_tests`, `main.py`, "
+    "`../app/gone.py`.\n"                                                  /* 17 */
+    "\n"                                                                   /* 18 */
+    "```\n"                                                                /* 19 */
+    "`app/fenced.py` inside a fence\n"                                     /* 20 */
+    "```\n"                                                                /* 21 */
+    "<!-- `app/commented.py` in a comment -->\n"                           /* 22 */
+    "<code>app/html.py</code> in HTML, `cfg.Name` through an instance.\n"; /* 23 */
 
 static void md_write_fixture(const char *tmp) {
     th_write_file(TH_PATH(tmp, "docs/guide.md"), MD_GUIDE);
@@ -400,6 +400,20 @@ TEST(doc_links_md_incremental) {
     snprintf(guide, sizeof(guide), "%s\nSee also [helpers](../app/routing.py#L8-L9).\n", MD_GUIDE);
     th_write_file(TH_PATH(repo, "docs/guide.md"), guide);
     ASSERT_EQ(dm_step(repo, db, full_db, "document edit", CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR), 0);
+    /* a body edit that moves lines: the document bound by lines (#L8-L9, the
+     * helper until now) re-resolves, though no name changed */
+    th_write_file(TH_PATH(repo, "app/routing.py"), "# moved\n"
+                                                   "# down\n"
+                                                   "class APIRouter:\n"
+                                                   "    prefix = ''\n"
+                                                   "\n"
+                                                   "    def add(self, p):\n"
+                                                   "        return p + p\n"
+                                                   "\n"
+                                                   "\n"
+                                                   "def helper():\n"
+                                                   "    return 2\n");
+    ASSERT_EQ(dm_step(repo, db, full_db, "lines moved", CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR), 0);
     /* the name a row calls missing is added: the run goes FULL and the row
      * becomes an edge, exactly as a full index has it */
     th_write_file(TH_PATH(repo, "app/nope.py"), "def Nope():\n"
@@ -433,24 +447,23 @@ static void md_write_adrs(const char *tmp, const char *first_status) {
              "Superseded by [ADR-0002](0002-use-y.md).\n",
              first_status);
     th_write_file(TH_PATH(tmp, "docs/adr/0001-use-x.md"), first);
-    th_write_file(TH_PATH(tmp, "docs/adr/0002-use-y.md"),
-                  "# 2. Use Y instead\n"
-                  "\n"
-                  "Date: 12 May 2024\n"
-                  "\n"
-                  "## Status\n"
-                  "\n"
-                  "Accepted\n"
-                  "\n"
-                  "Supersedes [ADR-0001](0001-use-x.md).\n"
-                  "\n"
-                  "## Context\n"
-                  "\n"
-                  "X was slow.\n"
-                  "\n"
-                  "## Decision\n"
-                  "\n"
-                  "We use Y.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0002-use-y.md"), "# 2. Use Y instead\n"
+                                                          "\n"
+                                                          "Date: 12 May 2024\n"
+                                                          "\n"
+                                                          "## Status\n"
+                                                          "\n"
+                                                          "Accepted\n"
+                                                          "\n"
+                                                          "Supersedes [ADR-0001](0001-use-x.md).\n"
+                                                          "\n"
+                                                          "## Context\n"
+                                                          "\n"
+                                                          "X was slow.\n"
+                                                          "\n"
+                                                          "## Decision\n"
+                                                          "\n"
+                                                          "We use Y.\n");
     th_write_file(TH_PATH(tmp, "docs/adr/0003-cache.md"),
                   "# Cache reads\n"
                   "\n"

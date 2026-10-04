@@ -413,6 +413,20 @@ TEST(rst_links_incremental) {
     snprintf(full_db, sizeof(full_db), "%s/full.db", tmp);
     rst_write_repo(repo, INIT_PY);
     ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    ASSERT_TRUE(rst_edge(db, "docs.api.Code", "pkg.base.Model.save", "\"target_lines\":[2,3]"));
+    /* a body edit moves the lines a literalinclude names: the document
+     * re-resolves with the code file (its names did not change) */
+    th_write_file(TH_PATH(repo, "pkg/base.py"), "# moved\n"
+                                                "# down\n"
+                                                "class Model:\n"
+                                                "    def save(self):\n"
+                                                "        return None\n"
+                                                "\n"
+                                                "\n"
+                                                "def top():\n"
+                                                "    return 1\n");
+    ASSERT_EQ(dm_step(repo, db, full_db, "lines moved", CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR), 0);
+    ASSERT_FALSE(rst_edge(db, "docs.api.Code", "pkg.base.Model.save", "\"target_lines\":[2,3]"));
     /* the document changes alone: it re-resolves through the stored re-exports */
     th_write_file(TH_PATH(repo, "docs/api.rst"), "Models\n"
                                                  "======\n"

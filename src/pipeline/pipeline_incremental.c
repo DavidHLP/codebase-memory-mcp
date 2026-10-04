@@ -2363,6 +2363,12 @@ static int closure_try_plan(cbm_pipeline_t *p, cbm_store_t *store, const char *p
     char **changed_paths = NULL;
     char **dependents = NULL;
     int dependent_count = 0;
+    /* body-edited files (surface unchanged) and the documents bound to their
+     * lines, which re-resolve with them */
+    const char **body_targets = NULL;
+    int body_target_count = 0;
+    char **line_docs = NULL;
+    int line_doc_count = 0;
     cbm_lsp_surface_row_t *probe_rows = NULL;
     int probe_count = 0;
     cbm_file_info_t *probe_files = NULL;
@@ -2529,13 +2535,15 @@ static int closure_try_plan(cbm_pipeline_t *p, cbm_store_t *store, const char *p
     /* Early cutoff per changed file; surface-changed files seed the
      * dependent query. Deleted files always seed it. */
     int n_surface_changed = 0;
+    /* dep_targets, then the body-edited files (body_targets) in the same block */
     const char **dep_targets =
-        (const char **)calloc((size_t)(n_changed + n_deleted), sizeof(char *));
+        (const char **)calloc((size_t)(n_changed + n_deleted + n_changed), sizeof(char *));
     if (!dep_targets) {
         cbm_ht_free(rows_by_path);
         decline = "alloc";
         goto done;
     }
+    body_targets = dep_targets + n_changed + n_deleted;
     int dep_target_count = 0;
     for (int i = 0; i < n_changed; i++) {
         const cbm_lsp_surface_row_t *stored_row = cbm_ht_get(rows_by_path, changed_paths[i]);
@@ -2553,7 +2561,10 @@ static int closure_try_plan(cbm_pipeline_t *p, cbm_store_t *store, const char *p
             goto done;
         }
         if (strcmp(stored_row->surface_sha, fresh_row->surface_sha) == 0) {
-            continue; /* body edit: the file re-resolves, nobody else does */
+            /* body edit: the file re-resolves, and of the others only the
+             * documents bound to its lines (below) */
+            body_targets[body_target_count++] = changed_paths[i];
+            continue;
         }
         bool added = false;
         const char *why = NULL;
@@ -2583,14 +2594,23 @@ static int closure_try_plan(cbm_pipeline_t *p, cbm_store_t *store, const char *p
     }
     cbm_ht_free(rows_by_path);
 
-    if (dep_target_count > 0 &&
-        cbm_store_get_dependent_files(store, project, dep_targets, dep_target_count, &dependents,
-                                      &dependent_count) != CBM_STORE_OK) {
-        free(dep_targets);
+    /* A body edit keeps a file's names but moves its lines: a document that
+     * bound a reference by lines (`file#L3-L9`, :lines:) would keep a stale
+     * target, so the documents with edges into a body-edited file re-resolve
+     * too (added to the closure below). */
+    bool dep_failed =
+        (dep_target_count > 0 &&
+         cbm_store_get_dependent_files(store, project, dep_targets, dep_target_count, &dependents,
+                                       &dependent_count) != CBM_STORE_OK) ||
+        (body_target_count > 0 &&
+         cbm_store_get_dependent_files(store, project, body_targets, body_target_count, &line_docs,
+                                       &line_doc_count) != CBM_STORE_OK);
+    free(dep_targets); /* body_targets with it */
+    body_targets = NULL;
+    if (dep_failed) {
         decline = "dependent_query_failed";
         goto done;
     }
-    free(dep_targets);
     if (gone_scope_changed) {
         decline = "doc_scope_changed";
         goto done;
@@ -2617,6 +2637,16 @@ static int closure_try_plan(cbm_pipeline_t *p, cbm_store_t *store, const char *p
                                      n_changed + n_deleted, n_changed, dependents, dependent_count);
     if (decline) {
         goto done;
+    }
+    /* the documents bound to a body-edited file's lines; code files stay out:
+     * their references bind names, which a body edit keeps */
+    for (int i = 0; i < line_doc_count; i++) {
+        const cbm_file_info_t *info = cbm_ht_get(files_by_path, line_docs[i]);
+        if (info && cbm_doclinks_binds_lines(info->language) &&
+            !cbm_ht_get(closure_set, line_docs[i])) {
+            cbm_ht_set(closure_set, line_docs[i], line_docs[i]);
+            n_row_dependents++;
+        }
     }
     /* Files whose unresolved doc-link references name something a changed or
      * deleted file no longer declares re-resolve too. */
@@ -2665,6 +2695,7 @@ done:
     free(probe_files);
     cbm_store_free_lsp_surfaces(probe_rows, probe_count);
     cbm_store_free_dependent_files(dependents, dependent_count);
+    cbm_store_free_dependent_files(line_docs, line_doc_count);
     free(changed_paths);
     cbm_ht_free(fresh_by_path);
     cbm_ht_free(files_by_path);

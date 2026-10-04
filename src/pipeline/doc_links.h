@@ -277,6 +277,12 @@ bool cbm_doclink_cs_test_scope_parses(const char *scope);
 void cbm_doclink_cs_test_unit_memo(bool on);
 #endif
 
+/* True for a document language whose references may bind the LINES of a file
+ * (Markdown `file#L3-L9`, reST :lines:): a body edit of that file keeps its
+ * names but can move what those lines hold, so an incremental run
+ * re-resolves such documents with the edited file. */
+bool cbm_doclinks_binds_lines(CBMLanguage lang);
+
 /* True when `rel_path` is a scope input of some language (scope_input). */
 bool cbm_doclinks_is_scope_input(const char *rel_path);
 

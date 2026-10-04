@@ -92,6 +92,10 @@ static const cbm_doclink_resolver_t *resolver_of_scope(const char *scope) {
 
 /* ── Incremental scope rules ─────────────────────────────────────── */
 
+bool cbm_doclinks_binds_lines(CBMLanguage lang) {
+    return lang == CBM_LANG_MARKDOWN || lang == CBM_LANG_RST;
+}
+
 bool cbm_doclinks_is_scope_input(const char *rel_path) {
     for (int i = 0; rel_path && i < DOCLINK_RESOLVER_COUNT; i++) {
         if (DOCLINK_RESOLVERS[i]->scope_input && DOCLINK_RESOLVERS[i]->scope_input(rel_path)) {
