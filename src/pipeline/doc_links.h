@@ -67,6 +67,10 @@ typedef struct {
     const cbm_gbuf_node_t *target;
     bool exact; /* tier: "exact" (qualified/doc ID/alias) vs "unique" (scope lookup) */
     int reason;
+    /* Lines of the target that the reference names (a document's `file#L3-L9`):
+     * the edge's "target_lines". 0 and 0: the reference names no lines. */
+    uint32_t target_first;
+    uint32_t target_last;
 } cbm_doclink_outcome_t;
 
 /* A file's stored doc-link scope (incremental runs: files not re-extracted). */
@@ -222,9 +226,14 @@ typedef struct {
      * the run. */
     int (*scope_accepted)(const char *scope);
     char *(*rejected_scope)(const char *scope);
+    /* The `via` of its MENTIONS edges: what kind of text the reference is
+     * written in. NULL: "doc_comment". */
+    const char *via;
 } cbm_doclink_resolver_t;
 
 extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
+/* Markdown documents (doc_links_md.c): via "markdown". */
+extern const cbm_doclink_resolver_t cbm_doclink_md_resolver;
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
 /* Test seam (doc_links_cs.c): the scope levels and overloads the C# resolver

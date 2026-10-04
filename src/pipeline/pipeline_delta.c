@@ -300,7 +300,8 @@ int64_t cbm_delta_preseed(cbm_store_t *store, const char *project, cbm_gbuf_t *g
             " CASE WHEN label IN ('Module','Variable')"
             " AND instr(properties, '\"http_client\"') > 0"
             " THEN json_object('http_client', json_extract(properties, '$.http_client'),"
-            " 'http_base_url', json_extract(properties, '$.http_base_url')) END"
+            " 'http_base_url', json_extract(properties, '$.http_base_url')) END,"
+            " start_line, end_line"
             " FROM nodes"
             " WHERE project = ?1 AND label NOT IN"
             " ('Macro','Comment','Section','Branch','Commit','Tag')"
@@ -318,10 +319,15 @@ int64_t cbm_delta_preseed(cbm_store_t *store, const char *project, cbm_gbuf_t *g
         const char *qn = (const char *)sqlite3_column_text(stmt, 3);
         const char *fp = (const char *)sqlite3_column_text(stmt, 4);
         const char *client_props = (const char *)sqlite3_column_text(stmt, 5);
+        /* Lines too: a document reference that names a line range binds the
+         * definition holding it (doc_links_md.c), in a re-resolved document as
+         * in a full build. */
+        int start_line = sqlite3_column_int(stmt, 6);
+        int end_line = sqlite3_column_int(stmt, 7);
         /* Pin the gbuf id to the database id: proxies ARE their rows. */
         cbm_gbuf_set_next_id(gbuf, id);
-        int64_t got = cbm_gbuf_upsert_node(gbuf, label, name, qn, fp ? fp : "", 0, 0,
-                                           client_props ? client_props : "{}");
+        int64_t got = cbm_gbuf_upsert_node(gbuf, label, name, qn, fp ? fp : "", start_line,
+                                           end_line, client_props ? client_props : "{}");
         if (got != id) {
             /* A QN collision inside the preseed set would silently split
              * identity between RAM and disk; the run cannot be trusted. */

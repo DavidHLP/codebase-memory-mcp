@@ -46,6 +46,7 @@ const char *cbm_doclink_reason_name(int reason) {
  * to this file. */
 static const cbm_doclink_resolver_t *const DOCLINK_RESOLVERS[] = {
     &cbm_doclink_cs_resolver,
+    &cbm_doclink_md_resolver,
 };
 
 enum { DOCLINK_RESOLVER_COUNT = sizeof(DOCLINK_RESOLVERS) / sizeof(DOCLINK_RESOLVERS[0]) };
@@ -328,6 +329,9 @@ typedef struct {
     int64_t src;
     int64_t tgt;
     uint32_t line;
+    uint32_t target_first; /* the target lines the reference names; 0: none */
+    uint32_t target_last;
+    const char *via;
     uint16_t syntax;
     bool exact;
 } doclink_mention_t;
@@ -398,11 +402,16 @@ static void emit_mentions(cbm_doclinks_t *dl, const char *rel, doclink_mention_t
             j++;
         }
         char props[CBM_SZ_256];
+        char lines[CBM_SZ_64] = "";
+        if (m[i].target_first > 0) {
+            snprintf(lines, sizeof(lines), ",\"target_lines\":[%u,%u]", m[i].target_first,
+                     m[i].target_last);
+        }
         snprintf(props, sizeof(props),
-                 "{\"via\":\"doc_comment\",\"syntax\":\"%s\",\"tier\":\"%s\",\"line\":%u,"
-                 "\"count\":%d}",
-                 cbm_doclink_syntax_name(m[i].syntax), exact ? "exact" : "unique", m[i].line,
-                 j - i);
+                 "{\"via\":\"%s\",\"syntax\":\"%s\",\"tier\":\"%s\",\"line\":%u,"
+                 "\"count\":%d%s}",
+                 m[i].via, cbm_doclink_syntax_name(m[i].syntax), exact ? "exact" : "unique",
+                 m[i].line, j - i, lines);
         if (doclinks_insert_edge(edge_out, m[i].src, m[i].tgt, props) == 0) {
             mark_failed(dl, rel, "alloc"); /* an edge that is not there is not counted */
         } else {
@@ -488,6 +497,9 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
                 mentions[nm++] = (doclink_mention_t){.src = src->id,
                                                      .tgt = out.target->id,
                                                      .line = link->line,
+                                                     .target_first = out.target_first,
+                                                     .target_last = out.target_last,
+                                                     .via = R->via ? R->via : "doc_comment",
                                                      .syntax = link->syntax,
                                                      .exact = out.exact};
                 continue;

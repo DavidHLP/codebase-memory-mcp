@@ -22,6 +22,10 @@
  *                       identical on full and incremental runs. Optional.
  *       scope_tag,      the blob's tag line and its persisted form (line
  *       portable_scope  numbers dropped). Optional.
+ *       scan_file       instead of parse_doc, for a DOCUMENT language whose
+ *                       text is the documentation (Markdown): one pass over
+ *                       the file's bytes pushes every reference, with the
+ *                       section it is written in as its source. Optional.
  *     State a language's hooks need between their calls for one file lives in
  *     ctx->doclink_state (cbm.h), never in a static or thread-local.
  * A language without a row produces no tokens and no scope. The resolving
@@ -61,6 +65,11 @@
     X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true)       \
     X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true)   \
     X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true) \
+    /* markdown (doclink_md.c): what a document's text names explicitly */   \
+    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true)           \
+    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true)           \
+    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, true) \
+    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true) \
     /* any language (CBM_LANG_COUNT): a URL is never an edge */              \
     X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false)
 
@@ -79,7 +88,8 @@ enum {
      * edge source is the file's File node, which the resolving half looks up
      * from the file it is resolving; `source_qn` is not the source then. Set
      * by the driver (cbm_doclinks_extract) on what a parser pushes for the
-     * file-level doc -- a parser never sets it. */
+     * file-level doc -- a parser never sets it. A scan_file hook sets it on a
+     * reference written before the document's first section. */
     CBM_DOCLINK_FLAG_FILE = 1,
 };
 
@@ -220,5 +230,46 @@ size_t cbm_doclink_cs_norm_type(const char *in, size_t len, char *out, size_t ca
 
 /* The C# scope blob starts with this tag line. */
 #define CBM_DOCLINK_CS_SCOPE_TAG "cs1"
+
+/* ── Markdown (doclink_md.c) ───────────────────────────────────────── */
+
+/* The scan_file hook: every explicit reference of a Markdown or MDX file (a
+ * link destination, a bare path, a path or a qualified name in a code span),
+ * each with the Section definition it is written under as its source. */
+void cbm_doclink_md_scan_file(CBMExtractCtx *ctx);
+
+/* What a code span's text names. */
+typedef enum {
+    CBM_DOCLINK_MD_NONE = 0,  /* nothing linkable (a bare name, a command, a snippet, ...) */
+    CBM_DOCLINK_MD_FILE,      /* a path with a directory part, or a dot file */
+    CBM_DOCLINK_MD_FILENAME,  /* a file name alone: it names a file of the document's
+                               * own directory, never one found elsewhere */
+    CBM_DOCLINK_MD_DIR,       /* a directory */
+    CBM_DOCLINK_MD_QUALIFIED, /* a qualified name of two or more identifiers
+                               * (`a.b`, `a::b`, `A#b`, `A\B`, `mod:attr`) */
+} CBMDocLinkMdShape;
+
+typedef struct {
+    CBMDocLinkMdShape shape;
+    const char *path;    /* NUL-terminated, in the caller's buffer; for QUALIFIED the
+                          * identifiers joined by '.' */
+    const char *member;  /* the text after a `path::`, NUL-terminated in the same
+                          * buffer: the member the path's file declares; NULL: none */
+    uint32_t first_line; /* a line range written with the path (`#L3-L9`, `:3-9`, `:3`); */
+    uint32_t last_line;  /* 0 and 0 when there is none */
+    bool instance;       /* QUALIFIED: written through an instance (`self.x`, `this.x`):
+                          * the qualifier is no type, so it never names a field */
+    bool colon;          /* QUALIFIED: written `module:attr` (Python's entry-point form) */
+} CBMDocLinkMdPath;
+
+/* Classify the text of a code span. Returns false, with shape NONE, when it
+ * names no path and no qualified name, or when `buf` (cap bytes) cannot hold
+ * it: a name is never cut. Pure: the same text always gives the same answer. */
+bool cbm_doclink_md_classify_span(const char *text, size_t len, char *buf, size_t cap,
+                                  CBMDocLinkMdPath *out);
+
+/* Parse a `#L3`, `#L3-L9` or `#L3C2-L9C5` fragment (without the `#`): true
+ * and the lines, or false. */
+bool cbm_doclink_md_line_fragment(const char *frag, uint32_t *first, uint32_t *last);
 
 #endif /* CBM_DOCLINK_H */

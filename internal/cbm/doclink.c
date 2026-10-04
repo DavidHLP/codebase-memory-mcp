@@ -143,6 +143,9 @@ typedef struct {
      * the same doc): only the first label carries the doc's references. */
     const char *twin_label;
     const char *twin_of;
+    /* A document language: the whole file is the documentation, so one scan
+     * of its bytes replaces parse_doc, the file-level doc and the scope. */
+    void (*scan_file)(CBMExtractCtx *ctx);
 } doclink_lang_t;
 
 static const doclink_lang_t DOCLINK_LANGS[] = {
@@ -159,6 +162,7 @@ static const doclink_lang_t DOCLINK_LANGS[] = {
      .scan_scope = cbm_doclink_cs_project_scan_scope,
      .scope_tag = CBM_DOCLINK_CS_SCOPE_TAG,
      .portable_scope = cbm_doclink_cs_portable_scope},
+    {.lang = CBM_LANG_MARKDOWN, .scan_file = cbm_doclink_md_scan_file},
 };
 
 static const doclink_lang_t *doclink_lang(CBMLanguage lang) {
@@ -386,6 +390,10 @@ void cbm_doclinks_extract(CBMExtractCtx *ctx) {
     }
     const doclink_lang_t *L = doclink_lang(ctx->language);
     if (!L) {
+        return;
+    }
+    if (L->scan_file) {
+        L->scan_file(ctx);
         return;
     }
     int twin_count = 0;
