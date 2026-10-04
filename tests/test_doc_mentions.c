@@ -814,10 +814,16 @@ TEST(doc_mentions_cs_control_publication) {
     PASS();
 }
 
-/* Temporary observation: extract real source bytes, then exercise the public
- * surface codec with complete definitions and with each input isolated. */
+/* S10: extract real source bytes, then run the surface writer of the run
+ * with the file's complete definitions, without its scope, and with only
+ * its scope. Every run must succeed, twice alike, and the stored `dl` must
+ * be the portable scope. `expect`: 1 the inserted bytes stay in the scope
+ * (well-formed UTF-8), 0 they do not (malformed), -1 not asked (an entity). */
+static bool dm_scope_utf8_ok(const char *scope);
+
 static bool dm_utf8_probe_surface(CBMFileResult *bad, CBMFileResult *healthy, CBMLanguage language,
-                                  const char *path, const char *label, const char *bytes) {
+                                  const char *path, const char *label, const char *bytes,
+                                  int expect) {
     CBMFileResult *cache[] = {bad, healthy};
     cbm_file_info_t files[] = {{.rel_path = (char *)path, .language = language},
                                {.rel_path = "Healthy.cs", .language = CBM_LANG_CSHARP}};
@@ -865,20 +871,33 @@ static bool dm_utf8_probe_surface(CBMFileResult *bad, CBMFileResult *healthy, CB
     int scope_rc =
         cbm_lsp_surface_build_rows(NULL, "p", cache, files, 2, NULL, NULL, &rows, &count);
     bool retained = saved_scope && strstr(saved_scope, bytes) != NULL;
-    printf("doc_utf8_probe case=%s scope=%d retained=%d defs=%d full_rc=%d full_count=%d "
-           "nodl_rc=%d nodl_count=%d scope_rc=%d scope_count=%d repeat=%d dl_equal=%d\n",
-           label, saved_scope != NULL, retained, def_count, full_rc, full_count, nodl_rc,
-           nodl_count, scope_rc, count, repeat, dl_equal);
+    bool written = full_rc == 0 && full_count == 2 && again_rc == 0 && dl_equal && nodl_rc == 0 &&
+                   nodl_count == 2 && scope_rc == 0 && count == 2;
+    bool kept = expect < 0 || retained == (expect == 1);
+    bool utf8 = saved_scope && dm_scope_utf8_ok(saved_scope);
+    bool correct = saved_scope != NULL && def_count > 0 && repeat && written && kept && utf8;
+    if (!correct) {
+        printf("doc_utf8_probe case=%s scope=%d retained=%d utf8=%d defs=%d full_rc=%d "
+               "full_count=%d nodl_rc=%d nodl_count=%d scope_rc=%d scope_count=%d repeat=%d "
+               "dl_equal=%d\n",
+               label, saved_scope != NULL, retained, utf8, def_count, full_rc, full_count, nodl_rc,
+               nodl_count, scope_rc, count, repeat, dl_equal);
+    }
     cbm_store_free_lsp_surfaces(rows, count);
     cbm_free(CBM_MEM_CLASS_OTHER, portable);
     free(defs);
     free(modules[0]);
     free(modules[1]);
     cbm_arena_destroy(&arena);
-    return saved_scope != NULL && def_count > 0 && repeat;
+    return correct;
 }
 
-TEST(doc_mentions_cs_utf8_observation) {
+/* S10: a malformed byte sequence in any place a scope keeps text -- a name
+ * or a text of a C# source, an element, a value or an attribute of a project
+ * file, a numeric reference to a surrogate -- leaves a well-formed scope, and
+ * the surface writer of the run succeeds. Well-formed sequences stay as they
+ * are; malformed ones do not reach the scope. */
+TEST(doc_mentions_cs_utf8_surfaces) {
     static const struct {
         const char *label, *bytes;
     } sequences[] = {
@@ -927,7 +946,6 @@ TEST(doc_mentions_cs_utf8_observation) {
     int healthy_count = 0;
     int healthy_rc = cbm_lsp_surface_build_rows(NULL, "p", &healthy, &healthy_file, 1, NULL, NULL,
                                                 &healthy_rows, &healthy_count);
-    printf("doc_utf8_probe_healthy rc=%d count=%d\n", healthy_rc, healthy_count);
     correct = correct && healthy_rc == 0 && healthy_count == 1;
     cbm_store_free_lsp_surfaces(healthy_rows, healthy_count);
     for (size_t p = 0; p < sizeof(positions) / sizeof(positions[0]); p++) {
@@ -947,8 +965,9 @@ TEST(doc_mentions_cs_utf8_observation) {
             CBMFileResult *bad = cbm_extract_file(source, (int)(a + b + c + d),
                                                   positions[p].language, "p", path, 0, NULL, NULL);
             snprintf(label, sizeof(label), "%s/%s", positions[p].label, sequences[s].label);
+            bool well_formed = s < 4; /* ascii, valid2, valid3, valid4 */
             bool setup = bad && dm_utf8_probe_surface(bad, healthy, positions[p].language, path,
-                                                      label, sequences[s].bytes);
+                                                      label, sequences[s].bytes, well_formed);
             correct = setup && correct;
             cbm_free_result(bad);
         }
@@ -968,7 +987,7 @@ TEST(doc_mentions_cs_utf8_observation) {
             snprintf(label, sizeof(label), "entity_%s/%zu", position == 0 ? "property" : "using",
                      e);
             bool setup = bad && dm_utf8_probe_surface(bad, healthy, CBM_LANG_XML, "App.csproj",
-                                                      label, entities[e]);
+                                                      label, entities[e], -1);
             correct = setup && correct;
             cbm_free_result(bad);
         }
@@ -9527,6 +9546,214 @@ static int dm_alloc_failure_errors(int point) {
     return errors;
 }
 
+/* True when s[0, n) is well-formed UTF-8 (no surrogate, nothing past
+ * U+10FFFF, no overlong form, nothing cut short). */
+static bool dm_utf8_ok(const char *s, size_t n) {
+    const unsigned char *u = (const unsigned char *)s;
+    for (size_t i = 0; i < n;) {
+        unsigned char c = u[i];
+        size_t len = c < 0x80                   ? 1
+                     : (c >= 0xC2 && c <= 0xDF) ? 2
+                     : (c >= 0xE0 && c <= 0xEF) ? 3
+                     : (c >= 0xF0 && c <= 0xF4) ? 4
+                                                : 0;
+        if (len == 0 || i + len > n) {
+            return false;
+        }
+        if (len > 1) {
+            unsigned char c1 = u[i + 1];
+            if ((c == 0xE0 && c1 < 0xA0) || (c == 0xED && c1 > 0x9F) || (c == 0xF0 && c1 < 0x90) ||
+                (c == 0xF4 && c1 > 0x8F)) {
+                return false;
+            }
+            for (size_t k = 1; k < len; k++) {
+                if ((u[i + k] & 0xC0) != 0x80) {
+                    return false;
+                }
+            }
+        }
+        i += len;
+    }
+    return true;
+}
+
+static bool dm_scope_utf8_ok(const char *scope) {
+    return dm_utf8_ok(scope, strlen(scope));
+}
+
+/* S8, S9, S10: every scope blob the scanners write passes the reader's own
+ * record checks, is a C string of the length that was built, and is
+ * well-formed UTF-8 -- for namespace names with empty segments, and for
+ * control bytes and malformed UTF-8 in every place a C# scope keeps text.
+ * A project file's blob is well-formed UTF-8 for malformed bytes and for
+ * numeric references to surrogates. */
+TEST(doc_mentions_cs_scanner_output_reads_back) {
+    static const struct {
+        const char *label, *bytes;
+        size_t n;
+    } bytes[] = {
+        {"nul", "\x00", 1},
+        {"soh", "\x01", 1},
+        {"us", "\x1F", 1},
+        {"del", "\x7F", 1},
+        {"continuation", "\x80", 1},
+        {"overlong", "\xC0\xAF", 2},
+        {"surrogate", "\xED\xA0\x80", 3},
+        {"above", "\xF4\x90\x80\x80", 4},
+        {"truncated", "\xE2\x82", 2},
+        {"valid", "\xC3\xA9", 2},
+    };
+    static const struct {
+        const char *label, *before, *after;
+    } places[] = {
+        {"using_target", "using Acme.", "Name;\nclass Local {}\n"},
+        {"alias_target", "using Alias = Acme.", "Name;\nclass Local {}\n"},
+        {"namespace_name", "namespace N", "Name { class Local {} }\n"},
+        {"type_name", "class N", "Name {}\n"},
+        {"method_name", "class Local { void N", "Name() {} }\n"},
+        {"parameter_type", "class Local { void M(N", "Name arg) {} }\n"},
+        {"type_parameter", "class Local<N", "Name> {}\n"},
+        {"method_type_parameter", "class Local { void M<N", "Name>() {} }\n"},
+        {"field_name", "class Local { int N", "Name; }\n"},
+        {"base_type", "class Local : Acme.N", "Name {}\n"},
+        {"broken_file", "class Local { void M( { N", "Name } }\n"},
+    };
+    bool ok = true;
+    for (size_t p = 0; p < sizeof(places) / sizeof(places[0]); p++) {
+        for (size_t b = 0; b < sizeof(bytes) / sizeof(bytes[0]); b++) {
+            char source[512];
+            size_t a = strlen(places[p].before);
+            size_t c = strlen(places[p].after);
+            memcpy(source, places[p].before, a);
+            memcpy(source + a, bytes[b].bytes, bytes[b].n);
+            memcpy(source + a + bytes[b].n, places[p].after, c);
+            size_t len = a + bytes[b].n + c;
+            source[len] = '\0';
+            cbm_doclink_cs_test_cost_reset();
+            CBMFileResult *r =
+                cbm_extract_file(source, (int)len, CBM_LANG_CSHARP, "p", "Bad.cs", 0, NULL, NULL);
+            const char *scope = r ? r->doc_scope : NULL;
+            size_t built = (size_t)cbm_doclink_cs_test_scope_bytes();
+            bool good = scope && strlen(scope) == built && dm_utf8_ok(scope, strlen(scope)) &&
+                        cbm_doclink_cs_test_scope_parses(scope);
+            if (!good) {
+                printf("  %s/%s: scope=%d length=%zu built=%zu utf8=%d reads=%d\n", places[p].label,
+                       bytes[b].label, scope != NULL, scope ? strlen(scope) : (size_t)0, built,
+                       scope ? dm_utf8_ok(scope, strlen(scope)) : 0,
+                       scope ? cbm_doclink_cs_test_scope_parses(scope) : 0);
+                ok = false;
+            }
+            cbm_free_result(r);
+        }
+    }
+    for (size_t i = 0; i < sizeof(dm_namespace_cases) / sizeof(dm_namespace_cases[0]); i++) {
+        for (int file_scoped = 0; file_scoped < 2; file_scoped++) {
+            char source[2048];
+            if (!dm_namespace_source(source, sizeof(source), i, file_scoped != 0)) {
+                ok = false;
+                continue;
+            }
+            CBMFileResult *r = dm_extract(source, CBM_LANG_CSHARP, "Bad.cs");
+            const char *scope = r ? r->doc_scope : NULL;
+            if (!scope || !cbm_doclink_cs_test_scope_parses(scope)) {
+                printf("  namespace %s/%s: the reader refuses the scope\n",
+                       dm_namespace_cases[i].id, file_scoped ? "file" : "block");
+                ok = false;
+            }
+            cbm_free_result(r);
+        }
+    }
+    static const char *xml[] = {
+        "<Project><PropertyGroup><P>N\x80Name</P></PropertyGroup></Project>",
+        "<Project><PropertyGroup><P\xC3\x28>Value</P\xC3\x28></PropertyGroup></Project>",
+        "<Project><PropertyGroup><P>N&#xD800;Name&#55296;</P></PropertyGroup></Project>",
+        "<Project><ItemGroup><Using Include=\"Acme.N\xED\xA0\x80Name\" /></ItemGroup></Project>",
+        "<Project><PropertyGroup Condition=\"'\xF4\x90\x80\x80'=='x'\"><P>V</P></PropertyGroup>"
+        "</Project>",
+        "<Project><Choose><When Condition=\"true\"><PropertyGroup><Q\x80>V</Q\x80>"
+        "</PropertyGroup></When></Choose></Project>",
+    };
+    for (size_t i = 0; i < sizeof(xml) / sizeof(xml[0]); i++) {
+        CBMFileResult *r = cbm_extract_file(xml[i], (int)strlen(xml[i]), CBM_LANG_XML, "p",
+                                            "App.csproj", 0, NULL, NULL);
+        const char *scope = r ? r->doc_scope : NULL;
+        if (!scope || !dm_utf8_ok(scope, strlen(scope))) {
+            printf("  project file %zu: blob=%d utf8=%d\n", i, scope != NULL,
+                   scope ? dm_utf8_ok(scope, strlen(scope)) : 0);
+            ok = false;
+        }
+        cbm_free_result(r);
+    }
+    ASSERT_TRUE(ok);
+    PASS();
+}
+
+/* S8: a scope written in this run that the reader refuses costs only its own
+ * file. The status stays ok and the other file's edges are there; the file's
+ * own reference is a graph gap; and nothing its parse set before the refusal
+ * stays -- a namespace it declares does not stand beside a type of that name
+ * (Shadow, Good.Lurker), and a name it quarantined does not block another
+ * file's declaration (Hidden2). */
+TEST(doc_mentions_cs_rejected_scope_contained) {
+    static const dm_source_t files[] = {
+        {"Bad.cs", "namespace Shadow\n"
+                   "{\n"
+                   "    public class Inner { }\n"
+                   "}\n"
+                   "namespace Good\n"
+                   "{\n"
+                   "    namespace Lurker { public class Deep { } }\n"
+                   "\n"
+                   "    /// <summary><see cref=\"Target\"/></summary>\n"
+                   "    public class FromBad { }\n"
+                   "}\n"
+                   "namespace .Broken\n"
+                   "{\n"
+                   "    public class Hidden2 { }\n"
+                   "}\n"},
+        {"Healthy.cs", "public class Shadow { }\n"
+                       "namespace Good\n"
+                       "{\n"
+                       "    public class Target { }\n"
+                       "    public class Lurker { }\n"
+                       "    public class Hidden2 { }\n"
+                       "\n"
+                       "    /// <summary><see cref=\"Target\"/> <see cref=\"Shadow\"/>\n"
+                       "    /// <see cref=\"Lurker\"/> <see cref=\"Hidden2\"/></summary>\n"
+                       "    public class Uses { }\n"
+                       "}\n"},
+    };
+    static const dm_want_t wants[] = {
+        {"Healthy.cs", "Target", "Healthy.Uses", "Healthy.Target", NULL, NULL, NULL},
+        {"Healthy.cs", "Shadow", "Healthy.Uses", "Healthy.Shadow", NULL, NULL, NULL},
+        {"Healthy.cs", "Lurker", "Healthy.Uses", "Healthy.Lurker", NULL, NULL, NULL},
+        {"Healthy.cs", "Hidden2", "Healthy.Uses", "Healthy.Hidden2", NULL, NULL, NULL},
+        {"Bad.cs", "Target", "Bad.FromBad", NULL, "graph_gap", "Healthy.Target", NULL},
+    };
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_rejected_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    for (int i = 0; i < DM_COUNT(files); i++) {
+        th_write_file(TH_PATH(tmp, files[i].path), files[i].text);
+    }
+    char db[512];
+    snprintf(db, sizeof(db), "%s/rejected.db", tmp);
+    cbm_doclink_cs_test_spoil_scope("Bad.cs");
+    int bad = dm_index(tmp, db, NULL) == 0 ? 0 : -1;
+    cbm_doclink_cs_test_spoil_scope(NULL);
+    int errors = bad == 0 ? dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved "
+                                         "WHERE reason = 'error'")
+                          : -1;
+    for (int i = 0; bad >= 0 && i < DM_COUNT(wants); i++) {
+        bad += dm_want_failed(db, &wants[i]);
+    }
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    ASSERT_EQ(errors, 0);
+    ASSERT_EQ(bad, 0);
+    PASS();
+}
+
 TEST(doc_mentions_alloc_failure_status) {
     static const struct {
         int point;
@@ -9557,7 +9784,7 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_namespace_boundaries);
     RUN_TEST(doc_mentions_cs_control_scopes);
     RUN_TEST(doc_mentions_cs_control_publication);
-    RUN_TEST(doc_mentions_cs_utf8_observation);
+    RUN_TEST(doc_mentions_cs_utf8_surfaces);
     RUN_TEST(doc_mentions_cs_namespace_publication);
     RUN_TEST(doc_mentions_cs_scope_parse_errors);
     RUN_TEST(doc_mentions_cs_norm_type);
@@ -9659,4 +9886,6 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_scratch_table_work);
     RUN_TEST(doc_mentions_incremental_non_ascii_name);
     RUN_TEST(doc_mentions_alloc_failure_status);
+    RUN_TEST(doc_mentions_cs_scanner_output_reads_back);
+    RUN_TEST(doc_mentions_cs_rejected_scope_contained);
 }

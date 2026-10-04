@@ -222,6 +222,11 @@ uint64_t cbm_doclink_cs_test_scratch_work(void);
 /* Test seam (doc_links.c): the nth MENTIONS edge insert from now on fails as
  * if memory ran out (0: none). */
 void cbm_doclinks_test_fail_edge_insert_after(int nth);
+/* Test seams (doc_links_cs.c): spoil the scope of the file at `rel_path`
+ * (every record, then one the reader refuses; NULL or "": none), and ask the
+ * reader whether it takes a scope blob. */
+void cbm_doclink_cs_test_spoil_scope(const char *rel_path);
+bool cbm_doclink_cs_test_scope_parses(const char *scope);
 #endif
 
 /* True when `rel_path` is a scope input of some language (scope_input). */

@@ -335,6 +335,9 @@ typedef struct {
     int *members_by_start;
     cs_tparam_t *tparams; /* by (owner, name) */
     int ntparams;
+    /* Its scope was written in this run and this reader refuses it: the file
+     * declares nothing here, and its own references are graph gaps. */
+    bool rejected;
 } cs_file_t;
 
 typedef struct {
@@ -468,7 +471,32 @@ typedef enum {
 /* Counted while references are resolved (by every worker at once). */
 typedef struct {
     _Atomic uint64_t ambiguous[CS_WHY_COUNT];
+    _Atomic uint64_t rejected; /* references of files whose fresh scope was refused */
 } cs_stats_t;
+
+/* What parsing one scope set in the tables all files share: so that a scope
+ * written in this run that this reader refuses can be taken back whole, and
+ * costs only its own file. Reset for every file. */
+typedef struct {
+    int ns;
+    bool declared;
+    bool prod;
+} cs_ns_was_t;
+
+typedef struct {
+    CBMHashTable *ht;
+    const char *key;
+} cs_mark_was_t;
+
+typedef struct {
+    int nnss; /* namespaces before the file */
+    cs_ns_was_t *flags;
+    int nflags;
+    int cap_flags;
+    cs_mark_was_t *marks;
+    int nmarks;
+    int cap_marks;
+} cs_undo_t;
 
 typedef struct {
     CBMArena arena;
@@ -517,6 +545,8 @@ typedef struct {
     int nshared;                 /* shared trees */
     cs_stats_t *stats;
     bool bind_inherited; /* CS_BIND_INHERITED */
+    cs_undo_t undo;      /* of the file being parsed */
+    int rejected;        /* files whose scope, written in this run, was refused */
 } cs_index_t;
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
@@ -627,11 +657,56 @@ static bool ht_mark(cs_index_t *ix, CBMHashTable *ht, const char *key) {
     return true;
 }
 
+/* Grow an undo array to hold one more entry. false when memory ran out. */
+static bool undo_room(cs_index_t *ix, void **arr, int n, int *cap, size_t size) {
+    if (n < *cap) {
+        return true;
+    }
+    int ncap = *cap ? *cap * PAIR_LEN : CBM_SZ_16;
+    void *grown = cbm_alloc(CBM_MEM_CLASS_OTHER, (size_t)ncap * size);
+    if (!grown) {
+        ix->oom = true;
+        return false;
+    }
+    if (n > 0) {
+        memcpy(grown, *arr, (size_t)n * size);
+    }
+    cbm_free(CBM_MEM_CLASS_OTHER, *arr);
+    *arr = grown;
+    *cap = ncap;
+    return true;
+}
+
+/* Remember the flags of namespace `ns` before the file's scope sets them. */
+static bool undo_note_ns(cs_index_t *ix, int ns) {
+    cs_undo_t *u = &ix->undo;
+    if (ns >= u->nnss) {
+        return true; /* made by this file: taken back as a whole */
+    }
+    if (!undo_room(ix, (void **)&u->flags, u->nflags, &u->cap_flags, sizeof(cs_ns_was_t))) {
+        return false;
+    }
+    u->flags[u->nflags++] =
+        (cs_ns_was_t){.ns = ns, .declared = ix->nss[ns].declared, .prod = ix->nss[ns].prod};
+    return true;
+}
+
 /* A type name declared in `f` at a place no namespace or outer type could be
  * established for. Product code never binds test-only declarations, so a name
  * only test files quarantine blocks references from test files only. */
 static bool quarantine_name(cs_index_t *ix, const cs_file_t *f, const char *name) {
-    return ht_mark(ix, f->is_test ? ix->quarantine_test : ix->quarantine, name);
+    CBMHashTable *ht = f->is_test ? ix->quarantine_test : ix->quarantine;
+    if (cbm_ht_get(ht, name)) {
+        return true;
+    }
+    char *k = ix_strdup(ix, name);
+    cs_undo_t *u = &ix->undo;
+    if (!k || !undo_room(ix, (void **)&u->marks, u->nmarks, &u->cap_marks, sizeof(cs_mark_was_t))) {
+        return false;
+    }
+    cbm_ht_set(ht, k, (void *)k);
+    u->marks[u->nmarks++] = (cs_mark_was_t){.ht = ht, .key = k};
+    return true;
 }
 
 static bool cs_is_test_path(const char *rel) {
@@ -937,13 +1012,16 @@ static bool parse_region(cs_index_t *ix, cs_file_t *f, char **fld, int n, int *n
     }
     (*next_region)++;
     int ns = ns_make_path(ix, f->regions[parent].ns, fld[5]);
-    if (ns < 0) {
+    if (ns < 0 || !undo_note_ns(ix, ns)) {
         return false;
     }
     ix->nss[ns].declared = true;
     /* product code declares it, and with it every namespace above: one that
      * is marked has its upper ones marked already */
     for (int up = ns; !f->is_test && up > 0 && !ix->nss[up].prod; up = ix->nss[up].parent) {
+        if (!undo_note_ns(ix, up)) {
+            return false;
+        }
         ix->nss[up].prod = true;
     }
     f->regions[id] = (cs_region_t){.parent = parent,
@@ -5621,6 +5699,18 @@ static void cs_destroy(void *index) {
     if (ix->stats) {
         log_ambiguous(ix->stats);
     }
+    if (ix->rejected > 0) {
+        /* scopes written in this run that this reader refused: each cost
+         * only its own file, whose references are graph gaps */
+        char files[CBM_SZ_32];
+        char refs[CBM_SZ_32];
+        snprintf(files, sizeof(files), "%d", ix->rejected);
+        snprintf(refs, sizeof(refs), "%llu",
+                 (unsigned long long)(ix->stats ? atomic_load(&ix->stats->rejected) : 0));
+        cbm_log_warn("doc_links.cs.rejected_scopes", "files", files, "references", refs);
+    }
+    cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.flags);
+    cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.marks);
     cbm_free(CBM_MEM_CLASS_OTHER, ix->stats);
     cbm_ht_free(ix->project_above);
     cbm_ht_free(ix->ns_by_key);
@@ -5688,10 +5778,96 @@ static bool build_tables(cs_index_t *ix, const cbm_doclink_build_in_t *in) {
     return collect_projects(ix, in);
 }
 
-/* Every file of the index with what its scope declares. Returns the path of
- * a file whose scope is not one this code wrote (the index is not built over
- * such a scope: nothing may be resolved around a declaration that is not
- * known), "" when memory ran out, NULL when all is well. */
+/* Start the undo record of one file's scope. */
+static void undo_begin(cs_index_t *ix) {
+    ix->undo.nnss = ix->nnss;
+    ix->undo.nflags = 0;
+    ix->undo.nmarks = 0;
+}
+
+/* Take back what the file's scope set in the shared tables: the names it
+ * quarantined, the flags it set on namespaces that were there before it, and
+ * the namespaces it made. */
+static void undo_scope(cs_index_t *ix) {
+    cs_undo_t *u = &ix->undo;
+    for (int i = u->nmarks - SKIP_ONE; i >= 0; i--) {
+        cbm_ht_delete(u->marks[i].ht, u->marks[i].key);
+    }
+    for (int i = u->nflags - SKIP_ONE; i >= 0; i--) {
+        ix->nss[u->flags[i].ns].declared = u->flags[i].declared;
+        ix->nss[u->flags[i].ns].prod = u->flags[i].prod;
+    }
+    for (int id = ix->nnss - SKIP_ONE; id >= u->nnss; id--) {
+        char key[CS_NAME_BUF + CBM_SZ_16];
+        const cs_ns_t *n = &ix->nss[id];
+        if (ns_key(key, sizeof(key), n->parent, n->name, strlen(n->name))) {
+            cbm_ht_delete(ix->ns_by_key, key);
+        }
+    }
+    ix->nnss = u->nnss;
+    u->nflags = 0;
+    u->nmarks = 0;
+}
+
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+/* Test seam: the scope of the file at this path is spoiled -- every record
+ * it has, then one this reader refuses -- as if its writer and this reader
+ * disagreed after the file's declarations were read. "" or NULL: none. */
+static char cs_test_spoiled_path[CBM_SZ_512];
+
+void cbm_doclink_cs_test_spoil_scope(const char *rel_path) {
+    snprintf(cs_test_spoiled_path, sizeof(cs_test_spoiled_path), "%s", rel_path ? rel_path : "");
+}
+
+static const char *cs_test_spoiled(cs_index_t *ix, const char *rel_path, const char *scope) {
+    if (!scope || !cs_test_spoiled_path[0] || strcmp(rel_path, cs_test_spoiled_path) != 0) {
+        return scope;
+    }
+    const char *spoiled = cbm_arena_sprintf(&ix->arena, "%sZ\tspoiled\n", scope);
+    return spoiled ? spoiled : scope;
+}
+
+/* Test seam: true when this reader takes the scope blob `scope` (its record
+ * checks, on an index of its own). A test holds every blob the scanner
+ * writes against it. */
+bool cbm_doclink_cs_test_scope_parses(const char *scope) {
+    cs_index_t *ix = (cs_index_t *)cbm_calloc(CBM_MEM_CLASS_OTHER, sizeof(*ix));
+    if (!ix) {
+        return false;
+    }
+    cbm_arena_init(&ix->arena);
+    ix->ns_by_key = cbm_ht_create(CBM_SZ_64);
+    ix->quarantine = cbm_ht_create(CBM_SZ_64);
+    ix->quarantine_test = cbm_ht_create(CBM_SZ_64);
+    ix->nss = (cs_ns_t *)ix_zalloc(ix, CBM_SZ_256 * sizeof(cs_ns_t));
+    bool ok = ix->ns_by_key && ix->quarantine && ix->quarantine_test && ix->nss;
+    if (ok) {
+        ix->nscap = CBM_SZ_256;
+        ix->nnss = SKIP_ONE;
+        ix->nss[0] = (cs_ns_t){.parent = CS_NONE, .name = ""};
+        cs_file_t f = {.rel_path = "Scope.cs"};
+        undo_begin(ix);
+        ok = parse_scope(ix, &f, scope) && !ix->oom;
+    }
+    cbm_ht_free(ix->ns_by_key);
+    cbm_ht_free(ix->quarantine);
+    cbm_ht_free(ix->quarantine_test);
+    cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.flags);
+    cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.marks);
+    cbm_arena_destroy(&ix->arena);
+    cbm_free(CBM_MEM_CLASS_OTHER, ix);
+    return ok;
+}
+#endif
+
+/* Every file of the index with what its scope declares. A scope read back
+ * from the store that this reader refuses is not one this code wrote: the
+ * index is not built over it (nothing may be resolved around a declaration
+ * that is not known), and its path is returned. A scope written in this run
+ * that the reader refuses is the scanner's and this reader's disagreement,
+ * which costs only its own file: what its parse set is taken back, the file
+ * declares nothing, and its references are graph gaps (counted, logged).
+ * Returns "" when memory ran out, NULL when all is well. */
 static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in) {
     CBMHashTable *dir_unit = cbm_ht_create(CBM_SZ_1K);
     const char *bad = dir_unit ? NULL : "";
@@ -5704,9 +5880,23 @@ static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in)
         f->is_test = cs_is_test_path(src->rel_path);
         /* a project file declares nothing: its blob went to the evaluator */
         const char *scope = cbm_msb_is_project_scope(src->scope) ? NULL : src->scope;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+        scope = cs_test_spoiled(ix, src->rel_path, scope);
+#endif
+        undo_begin(ix);
         if (scope && !parse_scope(ix, f, scope)) {
-            bad = ix->oom ? "" : src->rel_path;
-            break;
+            bool fresh = src->run_file >= 0 && src->run_file < in->run_file_count;
+            if (ix->oom || !fresh) {
+                bad = ix->oom ? "" : src->rel_path;
+                break;
+            }
+            undo_scope(ix);
+            *f = (cs_file_t){.rel_path = f->rel_path,
+                             .module_qn = f->module_qn,
+                             .is_test = f->is_test,
+                             .rejected = true};
+            ix->rejected++;
+            scope = NULL;
         }
         if (!scope) {
             /* no scope: an empty file (only its own region) */
@@ -5887,6 +6077,12 @@ static void cs_resolve(const void *index, int run_file, const CBMDocLink *link,
      * declaration. Both are declared-but-unplaced, i.e. graph gaps. */
     int file = ix->run_to_file[run_file];
     const cs_file_t *f = &ix->files[file];
+    if (f->rejected) {
+        /* its scope was refused: nothing is known around the reference */
+        out->reason = CBM_DOCLINK_REASON_GRAPH_GAP;
+        atomic_fetch_add_explicit(&ix->stats->rejected, 1, memory_order_relaxed);
+        return;
+    }
     bool file_doc = (link->flags & CBM_DOCLINK_FLAG_FILE) != 0;
     if ((!file_doc && line_unplaced(f, link->def_line)) || names_quarantined(ix, f, &r)) {
         out->reason = CBM_DOCLINK_REASON_GRAPH_GAP;

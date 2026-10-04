@@ -122,6 +122,69 @@ static void sb_putu(cs_sb_t *sb, uint32_t v) {
     }
 }
 
+/* ── Well-formed text ─────────────────────────────────────────────
+ *
+ * A scope blob is stored as a JSON string, and a JSON writer refuses a
+ * string that is not UTF-8: every byte the scans write is well-formed UTF-8.
+ * A name or a text of a C# source that is not is not kept (a name: the
+ * declaration is not placed; a text: "?"); project-file text gets U+FFFD for
+ * every byte that is no part of a well-formed sequence. Both are a function
+ * of the file's bytes alone. */
+
+static const char CS_REPLACEMENT[] = "\xEF\xBF\xBD"; /* U+FFFD */
+
+enum {
+    CS_UTF8_TAIL_MASK = 0xC0,
+    CS_UTF8_TAIL = 0x80,
+};
+
+/* Length of the well-formed UTF-8 sequence at s[0, n), 1 to 4; 0 when there
+ * is none: a stray continuation byte, an overlong form, a surrogate, a code
+ * point past U+10FFFF, a sequence cut short. */
+static size_t cs_utf8_len(const unsigned char *s, size_t n) {
+    if (n == 0) {
+        return 0;
+    }
+    unsigned char c = s[0];
+    if (c < 0x80) {
+        return SKIP_ONE;
+    }
+    size_t len = 0;
+    if (c >= 0xC2 && c <= 0xDF) {
+        len = PAIR_LEN;
+    } else if (c >= 0xE0 && c <= 0xEF) {
+        len = 3;
+    } else if (c >= 0xF0 && c <= 0xF4) {
+        len = 4;
+    }
+    if (len == 0 || n < len) {
+        return 0;
+    }
+    unsigned char c1 = s[1];
+    if ((c == 0xE0 && c1 < 0xA0) || (c == 0xED && c1 > 0x9F) || (c == 0xF0 && c1 < 0x90) ||
+        (c == 0xF4 && c1 > 0x8F)) {
+        return 0; /* overlong, surrogate, or past U+10FFFF */
+    }
+    for (size_t k = SKIP_ONE; k < len; k++) {
+        if ((s[k] & CS_UTF8_TAIL_MASK) != CS_UTF8_TAIL) {
+            return 0;
+        }
+    }
+    return len;
+}
+
+/* True when s[0, n) is well-formed UTF-8. */
+static bool cs_utf8_ok(const char *s, size_t n) {
+    for (size_t i = 0; i < n;) {
+        size_t l = cs_utf8_len((const unsigned char *)s + i, n - i);
+        if (l == 0) {
+            return false;
+        }
+        i += l;
+    }
+    return true;
+}
+
 /* ── Doc-comment references ──────────────────────────────────────── */
 
 static int cs_tag_syntax(const char *name, size_t len) {
@@ -939,9 +1002,10 @@ static TSNode cs_type_params(TSNode decl) {
 
 /* Node text without whitespace and without verbatim '@' markers, appended to
  * sb. `global::` prefixes are dropped. Text that is too long to be a type
- * name, or that holds a scope separator or non-whitespace control byte, is
- * written as "?" (an unresolvable name: the declaring type then counts as
- * having an open hierarchy). The whole field is replaced before any copy. */
+ * name, that holds a scope separator or non-whitespace control byte, or that
+ * is not well-formed UTF-8, is written as "?" (an unresolvable name: the
+ * declaring type then counts as having an open hierarchy). The whole field is
+ * replaced before any copy. */
 static void cs_put_text_nows(cs_scan_t *s, TSNode n) {
     const char *src = s->ctx->source;
     uint32_t a = ts_node_start_byte(n);
@@ -955,7 +1019,7 @@ static void cs_put_text_nows(cs_scan_t *s, TSNode n) {
         ok = c != '|' && c != ';' && c != '{' && c != '}' &&
              !((c < 0x20 && !isspace(c)) || c == 0x7f);
     }
-    if (!ok) {
+    if (!ok || !cs_utf8_ok(src + a, b - a)) {
         sb_putc(&s->sb, '?');
         return;
     }
@@ -978,8 +1042,9 @@ static void *cs_tmp_alloc(cs_scan_t *s, size_t n) {
 }
 
 /* Copy of source bytes [a, b) without whitespace and '@'. NULL unless it is a
- * (dotted) identifier of sane length: an error-recovered parse can hand back a
- * "name" spanning arbitrary code, which must not become a declaration. */
+ * (dotted) identifier of sane length and well-formed UTF-8: an error-recovered
+ * parse can hand back a "name" spanning arbitrary code, which must not become
+ * a declaration, and a name that is not UTF-8 cannot be written. */
 static char *cs_ident_dup(cs_scan_t *s, uint32_t a, uint32_t b) {
     const char *src = s->ctx->source;
     if (b <= a || b - a > CS_NAME_MAX) {
@@ -1001,7 +1066,7 @@ static char *cs_ident_dup(cs_scan_t *s, uint32_t a, uint32_t b) {
         out[w++] = (char)c;
     }
     out[w] = '\0';
-    return w > 0 ? out : NULL;
+    return w > 0 && cs_utf8_ok(out, w) ? out : NULL;
 }
 
 static char *cs_name_dup(cs_scan_t *s, TSNode n) {
@@ -1073,6 +1138,9 @@ static void cs_put_sig(cs_scan_t *s, TSNode params) {
             uint32_t a = ts_node_start_byte(ty);
             uint32_t b = ts_node_end_byte(ty);
             cbm_doclink_cs_norm_type(src + a, (size_t)(b - a), norm, sizeof(norm));
+            if (!cs_utf8_ok(norm, strlen(norm))) {
+                snprintf(norm, sizeof(norm), "?"); /* a type nothing is known about */
+            }
         }
         if (!first) {
             sb_putc(&s->sb, '|');
@@ -1829,7 +1897,7 @@ static char *cs_namespace_name_dup(cs_scan_t *s, uint32_t a, uint32_t b) {
         i = cs_skip_space(src, i, b);
         if (i == b) {
             out[w] = '\0';
-            return out;
+            return cs_utf8_ok(out, w) ? out : NULL; /* a name that cannot be written */
         }
         if (src[i] != '.') {
             return NULL;
@@ -1937,7 +2005,7 @@ static const char *cs_text_tparams(cs_scan_t *s, uint32_t *pos, uint32_t stop) {
             if (c == '>') {
                 out[w] = '\0';
                 *pos = k + SKIP_ONE;
-                return out;
+                return cs_utf8_ok(out, w) ? out : NULL; /* names that cannot be written */
             }
         } else if (cs_word_char((unsigned char)c)) {
             uint32_t e = cs_ident_end(src, k, limit, false);
@@ -3301,9 +3369,12 @@ static void csx_put_char(cs_sb_t *sb, unsigned char c) {
     }
 }
 
-/* A code point as UTF-8. */
+/* A code point as UTF-8. A surrogate (a numeric reference may name one) is
+ * no character: it is written as U+FFFD. */
 static void csx_put_codepoint(cs_sb_t *sb, uint32_t cp) {
-    if (cp < 0x80) {
+    if (cp >= 0xD800 && cp <= 0xDFFF) {
+        sb_puts(sb, CS_REPLACEMENT);
+    } else if (cp < 0x80) {
         csx_put_char(sb, (unsigned char)cp);
     } else if (cp < 0x800) {
         sb_putc(sb, (char)(0xC0 | (cp >> 6)));
@@ -3356,6 +3427,19 @@ static uint32_t csx_entity(const csx_t *x, uint32_t i, uint32_t end, uint32_t *c
     return 0;
 }
 
+/* The bytes src[i, end) of a project file that start at i into sb: a
+ * well-formed UTF-8 sequence as it stands, a byte that starts none as
+ * U+FFFD. Returns the index past what was taken. */
+static uint32_t csx_put_utf8(cs_sb_t *sb, const char *src, uint32_t i, uint32_t end) {
+    size_t len = cs_utf8_len((const unsigned char *)src + i, (size_t)(end - i));
+    if (len == 0) {
+        sb_puts(sb, CS_REPLACEMENT);
+        return i + SKIP_ONE;
+    }
+    sb_putn(sb, src + i, len);
+    return i + (uint32_t)len;
+}
+
 /* The text of `v`, entities decoded (unless `raw`), escaped. */
 static void csx_put_text(cs_sb_t *sb, const csx_t *x, csx_span_t v, bool raw) {
     for (uint32_t i = v.s; i < v.e;) {
@@ -3364,10 +3448,20 @@ static void csx_put_text(cs_sb_t *sb, const csx_t *x, csx_span_t v, bool raw) {
         if (past) {
             csx_put_codepoint(sb, cp);
             i = past;
+        } else if ((unsigned char)x->src[i] >= 0x80) {
+            i = csx_put_utf8(sb, x->src, i, v.e);
         } else {
             csx_put_char(sb, (unsigned char)x->src[i]);
             i++;
         }
+    }
+}
+
+/* An element's name into sb, each byte that starts no well-formed UTF-8
+ * sequence as U+FFFD (the tokenizer's names hold no separator). */
+static void csx_put_name(cs_sb_t *sb, const csx_t *x, csx_span_t name) {
+    for (uint32_t i = name.s; i < name.e;) {
+        i = csx_put_utf8(sb, x->src, i, name.e);
     }
 }
 
@@ -3435,7 +3529,7 @@ static void csx_put_property(csx_scan_t *p) {
     sb_putc(&p->out, 'V');
     csx_put_field(&p->out, &p->x, t->attr[CSX_A_CONDITION]);
     sb_putc(&p->out, '\t');
-    sb_putn(&p->out, p->x.src + t->name.s, t->name.e - t->name.s);
+    csx_put_name(&p->out, &p->x, t->name);
     sb_putc(&p->out, '\t');
     if (p->prop_complex) {
         sb_putc(&p->out, '?');
@@ -3452,7 +3546,7 @@ static void csx_put_property(csx_scan_t *p) {
 static void csx_choose_child(csx_scan_t *p, const csx_tok_t *t) {
     if (p->choose_props >= 0 && p->depth == p->choose_props) {
         sb_puts(&p->out, "K\t");
-        sb_putn(&p->out, p->x.src + t->name.s, t->name.e - t->name.s);
+        csx_put_name(&p->out, &p->x, t->name);
         sb_putc(&p->out, '\n');
     } else if (csx_is(&p->x, t->name, "PropertyGroup") && p->choose_props < 0 &&
                t->kind == CSX_OPEN) {
