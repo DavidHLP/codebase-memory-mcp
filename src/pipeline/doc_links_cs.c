@@ -2867,6 +2867,8 @@ typedef struct {
     cs_why_t why; /* of an ambiguous one */
 } cs_res_t;
 
+typedef struct cs_memo cs_memo_t;
+
 typedef struct {
     const cs_index_t *ix;
     int file;
@@ -2885,6 +2887,9 @@ typedef struct {
     /* Set when a namespace this context does not see was passed over (NULL:
      * nobody asks). */
     bool *passed_over;
+    /* What the using directives of a scope level gave a query, remembered
+     * for the pass the caller runs (lookup); NULL: nothing is remembered. */
+    cs_memo_t *memo;
 } cs_ctx_t;
 
 static cs_res_t res_edge(const cbm_gbuf_node_t *n, bool exact) {
@@ -4437,6 +4442,13 @@ static void add_alias_target(const cs_ctx_t *c, const cs_using_t *u, cs_found_t 
     }
 }
 
+/* True once a level has two candidates: the lookup is ambiguous whatever the
+ * directives after them bring, so they are not asked (S5). Which candidate
+ * came first, and whether there was one, never depends on the ones skipped. */
+static bool found_decided(const cs_found_t *fd) {
+    return fd->n > SKIP_ONE;
+}
+
 static void level_aliases(const cs_ctx_t *c, const cs_using_t *us, int n,
                           const cs_using_index_t *index, const cs_query_t *q, cs_found_t *fd) {
     /* an alias names a type or a namespace: no candidate for `Name{T}` */
@@ -4444,7 +4456,7 @@ static void level_aliases(const cs_ctx_t *c, const cs_using_t *us, int n,
         return;
     }
     if (!index || !index->ready) {
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n && !found_decided(fd); i++) {
             cs_work(SKIP_ONE);
             if (us[i].kind == 'a' && strcmp(us[i].alias, q->name) == 0) {
                 add_alias_target(c, &us[i], fd);
@@ -4463,7 +4475,7 @@ static void level_aliases(const cs_ctx_t *c, const cs_using_t *us, int n,
             hi = mid;
         }
     }
-    for (size_t i = lo; i < index->naliases; i++) {
+    for (size_t i = lo; i < index->naliases && !found_decided(fd); i++) {
         cs_work(SKIP_ONE);
         if (strcmp(index->aliases[i].name, q->name)) {
             break;
@@ -4599,7 +4611,7 @@ static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
     /* A common name in a large repository must not make a small scope walk
      * more postings than it has directives. The baseline scan stays cheap. */
     if (!indexed || hi - lo >= (size_t)n) {
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n && !found_decided(fd); i++) {
             level_using(c, &us[i], q, a_type_name, fd);
         }
         return;
@@ -4618,7 +4630,7 @@ static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
         if (ids.n > 1) {
             qsort(ids.ids, ids.n, sizeof(int), candidate_id_cmp);
         }
-        for (size_t i = 0; i < ids.n; i++) {
+        for (size_t i = 0; i < ids.n && !found_decided(fd); i++) {
             cs_work(SKIP_ONE);
             /* Own and twin postings may select the SAME directive twice.
              * Distinct directive IDs must still be resolved separately. */
@@ -4631,9 +4643,88 @@ static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
         cbm_free(CBM_MEM_CLASS_OTHER, ids.ids);
     }
     if (!complete) {
-        for (int i = 0; i < n; i++) {
+        for (int i = 0; i < n && !found_decided(fd); i++) {
             level_using(c, &us[i], q, a_type_name, fd);
         }
+    }
+}
+
+/* The using step of a lookup -- what the directives of one region, and at
+ * the global namespace the unit's, give one query -- remembered for one pass
+ * over a file's references (or one pass of the build): a name looked up
+ * again in the same region costs one probe, not the directives (S5). The key
+ * holds everything the step reads: the file, the region and unit asked, the
+ * context's visibility (product code, unit, assembly) and the query. A memo
+ * that ran out of memory stops remembering; the lookups stay exact. */
+struct cs_memo {
+    CBMHashTable *steps; /* key -> cs_found_t in `arena` */
+    CBMArena arena;
+    bool off;
+};
+
+enum { CS_MEMO_KEY = CS_NAME_BUF + CBM_SZ_128 };
+
+static void memo_init(cs_memo_t *m) {
+    memset(m, 0, sizeof(*m));
+    cbm_arena_init(&m->arena);
+    m->steps = cbm_ht_create(CBM_SZ_256);
+    m->off = m->steps == NULL;
+}
+
+static void memo_destroy(cs_memo_t *m) {
+    cbm_ht_free(m->steps);
+    cbm_arena_destroy(&m->arena);
+    memset(m, 0, sizeof(*m));
+}
+
+/* The key of one using step; false when it does not fit (not remembered). */
+static bool memo_key(char *buf, size_t cap, const cs_ctx_t *c, int region, int unit,
+                     const cs_query_t *q) {
+    int n = snprintf(buf, cap, "%d|%d|%d|%d|%d|%d|%d|%d%d%d%c|%s", c->file, region, unit, c->unit,
+                     c->group, (int)c->prod, q->arity, (int)q->types_only, (int)q->statics,
+                     (int)q->ctors, q->kind ? q->kind : '-', q->name);
+    return n > 0 && (size_t)n < cap;
+}
+
+static bool memo_get(const cs_memo_t *m, const char *key, cs_found_t *out) {
+    cs_work(SKIP_ONE);
+    const cs_found_t *hit = (const cs_found_t *)cbm_ht_get(m->steps, key);
+    if (hit) {
+        *out = *hit;
+    }
+    return hit != NULL;
+}
+
+static void memo_put(cs_memo_t *m, const char *key, const cs_found_t *step) {
+    char *k = cbm_arena_strdup(&m->arena, key);
+    cs_found_t *v = (cs_found_t *)cbm_arena_alloc(&m->arena, sizeof(*v));
+    if (!k || !v) {
+        m->off = true;
+        return;
+    }
+    *v = *step;
+    cbm_ht_set(m->steps, k, v);
+    m->off = cbm_ht_get(m->steps, k) != v; /* an insert that did not take */
+}
+
+/* What the directives of this scope level give the query: the region's own
+ * (`us`, when asked) and, at the global namespace, the unit's. Asked once per
+ * key when the context has a memo. */
+static void using_step(const cs_ctx_t *c, int region, const cs_using_t *us, int nus,
+                       const cs_using_index_t *usi, const cs_unit_t *unit, const cs_query_t *q,
+                       cs_found_t *step) {
+    char key[CS_MEMO_KEY];
+    bool keyed = c->memo && !c->memo->off &&
+                 memo_key(key, sizeof(key), c, region, unit ? c->unit : CS_NONE, q);
+    if (keyed && memo_get(c->memo, key, step)) {
+        return;
+    }
+    level_usings(c, us, nus, usi, q, step);
+    if (unit && !found_decided(step)) {
+        level_usings(c, unit->usings, unit->nusings, &unit->using_index, q, step);
+    }
+    if (keyed) {
+        memo_put(c->memo, key, step);
     }
 }
 
@@ -4714,9 +4805,16 @@ static void lookup(const cs_ctx_t *c, const cs_query_t *q, cs_found_t *fd, bool 
             fd->exact = true;
             return;
         }
-        level_usings(c, us, nus, usi, q, fd);
-        if (unit) {
-            level_usings(c, unit->usings, unit->nusings, &unit->using_index, q, fd);
+        if (nus > 0 || unit) {
+            /* Nothing is found yet (settled), and a step only adds: the step
+             * is asked on its own and its candidates are the level's. */
+            cs_found_t step = {0};
+            using_step(c, asked ? reg : CS_NONE, us, nus, usi, unit, q, &step);
+            fd->first = step.first;
+            fd->n = step.n;
+            fd->invisible = step.invisible;
+            fd->why = step.why;
+            fd->joined = fd->joined || step.joined;
         }
         if (settled(fd, &invisible)) {
             *statics = fd->first.kind == 'M';
@@ -5515,6 +5613,10 @@ static bool resolve_usings(cs_index_t *ix) {
             return false;
         }
     }
+    /* A lookup asks only regions above the directive's own, whose directives
+     * are resolved already: what it remembers of them stays true. */
+    cs_memo_t memo;
+    memo_init(&memo);
     for (int fi = 0; fi < ix->nfiles; fi++) {
         cs_file_t *f = &ix->files[fi];
         /* Regions are in ancestor order. Publish an outer region's index
@@ -5528,10 +5630,12 @@ static bool resolve_usings(cs_index_t *ix) {
                 c.prod = false; /* a directive names whatever the compiler bound */
                 c.glob = r == 0;
                 c.skip_region = r;
+                c.memo = &memo;
                 resolve_using(&f->usings[i], &c);
             }
             const cs_using_t *us = reg->u_hi > reg->u_lo ? f->usings + reg->u_lo : NULL;
             if (!build_using_index(ix, us, reg->u_hi - reg->u_lo, &reg->using_index)) {
+                memo_destroy(&memo);
                 return false;
             }
         }
@@ -5543,6 +5647,7 @@ static bool resolve_usings(cs_index_t *ix) {
             }
         }
     }
+    memo_destroy(&memo);
     return true;
 }
 
@@ -5570,6 +5675,8 @@ static bool resolve_bases(cs_index_t *ix) {
     int *listed =
         (int *)cbm_calloc(CBM_MEM_CLASS_OTHER, ((size_t)ix->nents + SKIP_ONE) * sizeof(int));
     bool ok = listed != NULL;
+    cs_memo_t memo; /* every directive is resolved: what a lookup remembers stays true */
+    memo_init(&memo);
     for (int ei = 0; ok && ei < ix->nents; ei++) {
         cs_entity_t *e = &ix->ents[ei];
         int written = 0;
@@ -5587,6 +5694,7 @@ static bool resolve_bases(cs_index_t *ix) {
             /* a base list is written outside the type it belongs to */
             ctx_at(&c, ix, e->decls[d].file, t->region, t->outer);
             c.prod = false; /* a declared base is whatever the compiler bound */
+            c.memo = &memo;
             for (const char *p = t->bases; p && *p;) {
                 const char *bar = strchr(p, '|');
                 size_t n = bar ? (size_t)(bar - p) : strlen(p);
@@ -5601,6 +5709,7 @@ static bool resolve_bases(cs_index_t *ix) {
             }
         }
     }
+    memo_destroy(&memo);
     cbm_free(CBM_MEM_CLASS_OTHER, listed);
     ix->oom = ix->oom || !ok;
     return ok;
@@ -6054,7 +6163,26 @@ static bool names_quarantined(const cs_index_t *ix, const cs_file_t *f, const cs
     return false;
 }
 
-static void cs_resolve(const void *index, int run_file, const CBMDocLink *link,
+/* The working state of one file's references: the memo of their lookups. */
+static void *cs_file_begin(const void *index, int run_file) {
+    (void)index;
+    (void)run_file;
+    cs_memo_t *m = (cs_memo_t *)cbm_alloc(CBM_MEM_CLASS_OTHER, sizeof(*m));
+    if (m) {
+        memo_init(m);
+    }
+    return m;
+}
+
+static void cs_file_end(void *state) {
+    cs_memo_t *m = (cs_memo_t *)state;
+    if (m) {
+        memo_destroy(m);
+        cbm_free(CBM_MEM_CLASS_OTHER, m);
+    }
+}
+
+static void cs_resolve(const void *index, void *state, int run_file, const CBMDocLink *link,
                        const cbm_gbuf_t *graph, cbm_doclink_outcome_t *out) {
     const cs_index_t *ix = (const cs_index_t *)index;
     (void)graph; /* every node was looked up when the index was built */
@@ -6091,6 +6219,7 @@ static void cs_resolve(const void *index, int run_file, const CBMDocLink *link,
     cs_ctx_t c;
     ctx_init(&c, ix, file, link->def_line, file_doc);
     c.glob = r.glob;
+    c.memo = (cs_memo_t *)state;
     cs_res_t res = resolve_ref(&c, &r);
     if (res.st == CS_LOCAL) {
         out->kind = CBM_DOCLINK_LOCAL;
@@ -6260,6 +6389,8 @@ const cbm_doclink_resolver_t cbm_doclink_cs_resolver = {
     .scope_tag = CBM_DOCLINK_CS_SCOPE_TAG,
     .build = cs_build,
     .destroy = cs_destroy,
+    .file_begin = cs_file_begin,
+    .file_end = cs_file_end,
     .resolve = cs_resolve,
     .scope_delta = cs_scope_delta,
 };

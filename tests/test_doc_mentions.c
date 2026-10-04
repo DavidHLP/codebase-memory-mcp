@@ -8729,6 +8729,138 @@ TEST(doc_mentions_cs_import_lookup_cost) {
     PASS();
 }
 
+/* S5: `Shared` is declared in k namespaces nobody imports; one file has k
+ * usings of other namespaces and r documented classes that each name it, so
+ * every one of its r lookups would walk the k directives. The resolver's
+ * lookup work, and the number of `missing` rows for `Shared` (r when all are
+ * resolved; -1 when the repository cannot be indexed). */
+static uint64_t dm_repeated_name_work(int k, int r, int *rows) {
+    enum { CAP = 256 * 1024 };
+    char *src = malloc(CAP);
+    char tmp[256] = "/tmp/cbm_dm_repeated_XXXXXX";
+    *rows = -1;
+    if (!src || !cbm_mkdtemp(tmp)) {
+        free(src);
+        return 0;
+    }
+    size_t w = 0;
+    for (int i = 0; i < k; i++) {
+        w += (size_t)snprintf(src + w, CAP - w,
+                              "namespace P%d { public class Shared { } }\n"
+                              "namespace In.U%d { public class Other%d { } }\n",
+                              i, i, i);
+    }
+    th_write_file(TH_PATH(tmp, "src/Far.cs"), src);
+    w = 0;
+    for (int i = 0; i < k; i++) {
+        w += (size_t)snprintf(src + w, CAP - w, "using In.U%d;\n", i);
+    }
+    w += (size_t)snprintf(src + w, CAP - w, "namespace N0\n{\n");
+    for (int j = 0; j < r; j++) {
+        w += (size_t)snprintf(src + w, CAP - w,
+                              "/// <summary><see cref=\"Shared\"/></summary>\n"
+                              "public class L%d { }\n",
+                              j);
+    }
+    snprintf(src + w, CAP - w, "}\n");
+    th_write_file(TH_PATH(tmp, "src/Uses.cs"), src);
+    free(src);
+    char db[512];
+    snprintf(db, sizeof(db), "%s/repeated.db", tmp);
+    cbm_doclink_cs_test_work_reset();
+    uint64_t work = dm_index(tmp, db, NULL) == 0 ? cbm_doclink_cs_test_work() : 0;
+    *rows = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved "
+                         "WHERE raw = 'Shared' AND reason = 'missing'");
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    return work;
+}
+
+/* A name looked up again in the same region costs once: with k and r both
+ * four times as large the work grows with the input (about 4 x), not with
+ * r x k (16 x). */
+TEST(doc_mentions_cs_lookup_repeated_name_work) {
+    int rows[2] = {0};
+    uint64_t small = dm_repeated_name_work(60, 40, &rows[0]);
+    uint64_t large = dm_repeated_name_work(240, 160, &rows[1]);
+    double ratio = small ? (double)large / (double)small : 0.0;
+    printf("  repeated name, k 60 -> 240 and r 40 -> 160: %llu -> %llu steps, %.2f times the "
+           "work, want at most 6\n",
+           (unsigned long long)small, (unsigned long long)large, ratio);
+    ASSERT_EQ(rows[0], 40);
+    ASSERT_EQ(rows[1], 160);
+    ASSERT_GT(small, 0);
+    ASSERT_LTE(large, 6 * small);
+    PASS();
+}
+
+/* S5: k namespaces all declare `Shared` and one file imports all of them;
+ * `refs` documented classes name it (0 or 1). The resolver's lookup work and
+ * the reason of the row (empty when there is none). */
+static uint64_t dm_ambiguous_name_work(int k, int refs, char *reason, size_t cap) {
+    enum { SRC_CAP = 64 * 1024 };
+    char *src = malloc(SRC_CAP);
+    char tmp[256] = "/tmp/cbm_dm_ambiguous_XXXXXX";
+    reason[0] = '\0';
+    if (!src || !cbm_mkdtemp(tmp)) {
+        free(src);
+        return 0;
+    }
+    size_t w = 0;
+    for (int i = 0; i < k; i++) {
+        w += (size_t)snprintf(src + w, SRC_CAP - w, "namespace P%d { public class Shared { } }\n",
+                              i);
+    }
+    th_write_file(TH_PATH(tmp, "src/Far.cs"), src);
+    w = 0;
+    for (int i = 0; i < k; i++) {
+        w += (size_t)snprintf(src + w, SRC_CAP - w, "using P%d;\n", i);
+    }
+    w += (size_t)snprintf(src + w, SRC_CAP - w, "namespace N0\n{\n");
+    for (int j = 0; j < refs; j++) {
+        w += (size_t)snprintf(src + w, SRC_CAP - w,
+                              "/// <summary><see cref=\"Shared\"/></summary>\n"
+                              "public class L%d { }\n",
+                              j);
+    }
+    snprintf(src + w, SRC_CAP - w, "public class Last { }\n}\n");
+    th_write_file(TH_PATH(tmp, "src/Uses.cs"), src);
+    free(src);
+    char db[512];
+    snprintf(db, sizeof(db), "%s/ambiguous.db", tmp);
+    cbm_doclink_cs_test_work_reset();
+    uint64_t work = dm_index(tmp, db, NULL) == 0 ? cbm_doclink_cs_test_work() : 0;
+    dm_row(db, "src/Uses.cs", "Shared", reason, cap, NULL, 0);
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    return work;
+}
+
+/* One lookup stops at its second candidate: the name is ambiguous whatever
+ * the directives after it bring. The work of one ambiguous reference (the
+ * run with it less the run without it) does not grow with the k imports that
+ * all declare the name. */
+TEST(doc_mentions_cs_lookup_ambiguous_stops) {
+    static const int ks[2] = {50, 200};
+    uint64_t one[2] = {0};
+    bool ambiguous = true;
+    for (int i = 0; i < 2; i++) {
+        char reason[64];
+        char none[64];
+        uint64_t with = dm_ambiguous_name_work(ks[i], 1, reason, sizeof(reason));
+        uint64_t without = dm_ambiguous_name_work(ks[i], 0, none, sizeof(none));
+        one[i] = with > without ? with - without : 0;
+        ambiguous = ambiguous && strcmp(reason, "ambiguous") == 0 && !none[0];
+    }
+    printf("  one ambiguous reference, k 50 -> 200 imports that declare it: %llu -> %llu steps, "
+           "want at most 1.5 times\n",
+           (unsigned long long)one[0], (unsigned long long)one[1]);
+    ASSERT_TRUE(ambiguous);
+    ASSERT_GT(one[0], 0);
+    ASSERT_LTE(2 * one[1], 3 * one[0]);
+    PASS();
+}
+
 /* Parent/global imports are ready for a child's directives. The child's own
  * directives stay excluded while those targets are resolved. */
 TEST(doc_mentions_cs_import_stage_aliases) {
@@ -10009,6 +10141,8 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_text_forms);
     RUN_TEST(doc_mentions_cs_lookup_cost);
     RUN_TEST(doc_mentions_cs_import_lookup_cost);
+    RUN_TEST(doc_mentions_cs_lookup_repeated_name_work);
+    RUN_TEST(doc_mentions_cs_lookup_ambiguous_stops);
     RUN_TEST(doc_mentions_cs_import_stage_aliases);
     RUN_TEST(doc_mentions_cs_import_static_parts);
     RUN_TEST(doc_mentions_cs_import_candidate_allocation);

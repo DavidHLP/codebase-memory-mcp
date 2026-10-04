@@ -189,9 +189,16 @@ typedef struct {
     /* The language's project-wide index; NULL on allocation failure. */
     void *(*build)(const cbm_doclink_build_in_t *in);
     void (*destroy)(void *index);
+    /* Optional working state for the references of one file, which one thread
+     * resolves: made before its first reference, handed to every resolve call
+     * of the file, released after its last. A NULL state (no hook, or memory
+     * ran out) changes the cost of resolving, never an outcome. */
+    void *(*file_begin)(const void *index, int run_file);
+    void (*file_end)(void *state);
     /* Resolve one reference of run file `run_file` (its own scope is in the
-     * index). Thread-safe: the index is read-only after build. */
-    void (*resolve)(const void *index, int run_file, const CBMDocLink *link,
+     * index). Thread-safe: the index is read-only after build; `state` is the
+     * file's own (file_begin) or NULL. */
+    void (*resolve)(const void *index, void *state, int run_file, const CBMDocLink *link,
                     const cbm_gbuf_t *graph, cbm_doclink_outcome_t *out);
     /* Incremental runs; both optional.
      * scope_input  true for a file that is no source of the language and has

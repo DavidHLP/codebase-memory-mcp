@@ -429,6 +429,7 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
      * file-level doc resolves */
     const cbm_gbuf_node_t *file_node = NULL;
     bool file_node_looked_up = false;
+    void *state = (R && index && R->file_begin) ? R->file_begin(index, file_idx) : NULL;
     for (int i = 0; i < n; i++) {
         const CBMDocLink *link = &result->doc_links.items[i];
         cbm_doclink_outcome_t out = {.kind = CBM_DOCLINK_UNRESOLVED,
@@ -438,7 +439,7 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
         } else if (!R || !index) {
             continue; /* no resolver for this language: nothing to say */
         } else {
-            R->resolve(index, file_idx, link, graph, &out);
+            R->resolve(index, state, file_idx, link, graph, &out);
         }
         if (out.kind == CBM_DOCLINK_LOCAL) {
             atomic_fetch_add_explicit(&dl->local_refs, 1, memory_order_relaxed);
@@ -494,6 +495,9 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
             break;
         }
         atomic_fetch_add_explicit(&dl->reasons[reason], 1, memory_order_relaxed);
+    }
+    if (state && R->file_end) {
+        R->file_end(state);
     }
     if (nm > 0) {
         emit_mentions(dl, fi->rel_path, mentions, nm, edge_out);
