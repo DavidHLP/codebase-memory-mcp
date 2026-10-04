@@ -1928,6 +1928,15 @@ static void doc_collect_kotlin(CBMExtractCtx *ctx, TSNode parent, TSNode anchor,
     }
 }
 
+/* A doc comment was lost because memory ran out. For a language whose doc
+ * comments are read for links, the doc-link layer must not then report a
+ * complete graph (CBMDocLinkArray.failed). */
+static void doc_lost(CBMExtractCtx *ctx) {
+    if (ctx->result && cbm_doclink_lang_supported(ctx->language)) {
+        ctx->result->doc_links.failed = true;
+    }
+}
+
 /* Leading trivia of `anchor`, in source order. */
 static void doc_collect_trivia(CBMExtractCtx *ctx, TSNode anchor, doc_trivia_t *t) {
     memset(t, 0, sizeof(*t));
@@ -1944,11 +1953,14 @@ static void doc_collect_trivia(CBMExtractCtx *ctx, TSNode anchor, doc_trivia_t *
         found = doc_collect_cursor(ctx, parent, anchor, t);
     }
     if (!found) {
+        bool failed = t->failed;
         memset(t, 0, sizeof(*t));
-        return;
-    }
-    if (t->count == 0 && ctx->language == CBM_LANG_KOTLIN) {
+        t->failed = failed;
+    } else if (t->count == 0 && ctx->language == CBM_LANG_KOTLIN) {
         doc_collect_kotlin(ctx, parent, anchor, t);
+    }
+    if (t->failed) {
+        doc_lost(ctx);
     }
 }
 
@@ -2071,6 +2083,7 @@ static const char *doc_run_text(CBMExtractCtx *ctx, const doc_trivia_t *t, int f
         buf = (char *)cbm_arena_alloc(ctx->arena, total + SKIP_ONE);
     }
     if (!buf) {
+        doc_lost(ctx);
         return NULL;
     }
     size_t w = 0;
@@ -8618,8 +8631,11 @@ static void extract_csharp_vars(CBMExtractCtx *ctx, TSNode node, CBMArena *a) {
         return;
     }
     /* All declarators have this field as their documentation anchor. Keep one
-     * immutable arena string, while each variable retains its own identity.
-     * Failed or absent collection keeps the original per-variable lookup. */
+     * immutable arena string, while each variable retains its own identity:
+     * the doc-link driver takes the references of that one text once, from
+     * the first declarator. A text that could not be collected whole is no
+     * doc of any of them (doc_lost has marked the file's doc links failed);
+     * it is not looked up again per declarator. */
     bool complete = false;
     const char *doc = extract_member_docstring_status(ctx, node, &complete);
     if (!complete) {
@@ -8641,11 +8657,7 @@ static void extract_csharp_vars(CBMExtractCtx *ctx, TSNode node, CBMArena *a) {
                 }
                 if (!ts_node_is_null(id)) {
                     const char *name = cbm_node_text(a, id, ctx->source);
-                    if (doc) {
-                        push_var_def_qn_doc(ctx, name, NULL, decl, doc);
-                    } else {
-                        push_var_def(ctx, name, decl);
-                    }
+                    push_var_def_qn_doc(ctx, name, NULL, decl, doc);
                 }
             }
         }

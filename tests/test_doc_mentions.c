@@ -6036,8 +6036,8 @@ TEST(doc_mentions_cs_scan_declarator_modifier_work) {
     PASS();
 }
 
-/* Sharing a large comment must not copy or parse its prose per declarator.
- * Tokens remain per source; the measured work excludes that required output. */
+/* Sharing a large comment must not copy or parse its prose per declarator,
+ * and its references are taken once, from the first declarator (S4). */
 TEST(doc_mentions_cs_shared_doc_work) {
     bool bounded = true;
     for (int n = 16; n <= 32; n *= 2) {
@@ -6066,7 +6066,7 @@ TEST(doc_mentions_cs_shared_doc_work) {
                    "cleaned=%llu tokens=%d\n",
                    n, prose, len, (unsigned long long)copied, (unsigned long long)parse_input,
                    (unsigned long long)cleaned, tokens);
-            ASSERT_EQ(tokens, n);
+            ASSERT_EQ(tokens, 1);
             bounded = bounded && copied <= (uint64_t)len * 2 && parse_input <= (uint64_t)len * 2 &&
                       cleaned <= 12;
         }
@@ -6075,24 +6075,27 @@ TEST(doc_mentions_cs_shared_doc_work) {
     PASS();
 }
 
-/* A one-shot resource failure must not suppress later sources via sharing. */
+/* A failed allocation while a shared doc comment is read loses references:
+ * the file's doc links say so (S17), and the later declarators do not take
+ * the comment again -- neither from the shared text nor by a lookup of their
+ * own (S4). Without a failure the first declarator has every reference. */
 TEST(doc_mentions_cs_shared_doc_allocation_failure) {
     static const struct {
-        int kind, nth, refs, expected[3];
+        int kind, nth, refs;
     } cases[] = {
-        {CBM_DOCLINK_ALLOC_VALUE, 3, 2, {2, 1, 2}},
-        {CBM_DOCLINK_ALLOC_TOKENS, 2, 10, {10, 9, 10}},
-        {CBM_DOCLINK_ALLOC_TEXT, 2, 2, {2, 2, 2}},
-        /* The second comment collection loses a span while growing past8.
-         * It must not become the shared doc for the later variables. */
-        {CBM_DOCLINK_ALLOC_SPAN, 4, 12, {12, 12, 12}},
+        {CBM_DOCLINK_ALLOC_KINDS, 0, 2}, /* no failure */
+        {CBM_DOCLINK_ALLOC_VALUE, 2, 2}, {CBM_DOCLINK_ALLOC_TOKENS, 2, 20},
+        {CBM_DOCLINK_ALLOC_TEXT, 1, 2},  {CBM_DOCLINK_ALLOC_SPAN, 2, 12},
     };
     bool ok = true;
     for (size_t k = 0; k < sizeof(cases) / sizeof(cases[0]); k++) {
         char *src = dm_repeated("class C {\n", "/// <see cref=\"First\"/>\n", cases[k].refs,
                                 "public int a,b,c;\n}\n");
         ASSERT_NOT_NULL(src);
-        cbm_doclink_test_fail_alloc_after(cases[k].kind, cases[k].nth);
+        bool fail = cases[k].kind < CBM_DOCLINK_ALLOC_KINDS;
+        if (fail) {
+            cbm_doclink_test_fail_alloc_after(cases[k].kind, cases[k].nth);
+        }
         CBMFileResult *r = dm_extract(src, CBM_LANG_CSHARP, "Failure.cs");
         cbm_doclink_test_reset_alloc();
         free(src);
@@ -6105,19 +6108,19 @@ TEST(doc_mentions_cs_shared_doc_allocation_failure) {
             ASSERT_TRUE(name[0] >= 'a' && name[0] <= 'c' && name[1] == '\0');
             counts[name[0] - 'a']++;
         }
+        bool failed = r->doc_links.failed;
         cbm_free_result(r);
-        printf("  shared doc allocation: stage=%d counts=%d,%d,%d expected=%d,%d,%d\n",
-               cases[k].kind, counts[0], counts[1], counts[2], cases[k].expected[0],
-               cases[k].expected[1], cases[k].expected[2]);
-        for (int i = 0; i < 3; i++) {
-            ok = ok && counts[i] == cases[k].expected[i];
-        }
+        printf("  shared doc allocation: stage=%d counts=%d,%d,%d failed=%d\n", cases[k].kind,
+               counts[0], counts[1], counts[2], failed);
+        bool first = fail ? counts[0] < cases[k].refs : counts[0] == cases[k].refs;
+        ok = ok && failed == fail && first && counts[1] == 0 && counts[2] == 0;
     }
     ASSERT_TRUE(ok);
     PASS();
 }
 
-/* Shared lexical tokens survive output growth, distinct comments and files. */
+/* Each shared comment yields its references once, from the first declarator
+ * of its own declaration -- distinct comments and files stay distinct. */
 TEST(doc_mentions_cs_shared_doc_replay) {
     enum { REFS = 80 };
     char *first = dm_repeated("class C {\n/// ", "<see cref=\"First\"/> ", REFS,
@@ -6129,7 +6132,7 @@ TEST(doc_mentions_cs_shared_doc_replay) {
     CBMFileResult *r = dm_extract(src, CBM_LANG_CSHARP, "Shared.cs");
     free(src);
     ASSERT_NOT_NULL(r);
-    ASSERT_EQ(r->doc_links.count, 6 * REFS);
+    ASSERT_EQ(r->doc_links.count, 2 * REFS);
     int counts[6] = {0};
     for (int i = 0; i < r->doc_links.count; i++) {
         const CBMDocLink *link = &r->doc_links.items[i];
@@ -6147,16 +6150,14 @@ TEST(doc_mentions_cs_shared_doc_replay) {
     }
     cbm_free_result(r);
     for (int i = 0; i < 6; i++) {
-        ASSERT_EQ(counts[i], REFS);
+        ASSERT_EQ(counts[i], (i == 0 || i == 3) ? REFS : 0);
     }
     r = dm_extract("class C {\n/// <see cref=\"Other\"/>\npublic int a,b,c;\n}\n", CBM_LANG_CSHARP,
                    "Shared.cs");
     ASSERT_NOT_NULL(r);
-    ASSERT_EQ(r->doc_links.count, 3);
-    for (int i = 0; i < r->doc_links.count; i++) {
-        ASSERT_STR_EQ(r->doc_links.items[i].raw, "Other");
-        ASSERT_EQ(r->doc_links.items[i].line, 2);
-    }
+    ASSERT_EQ(r->doc_links.count, 1);
+    ASSERT_STR_EQ(r->doc_links.items[0].raw, "Other");
+    ASSERT_EQ(r->doc_links.items[0].line, 2);
     cbm_free_result(r);
     PASS();
 }
@@ -6463,7 +6464,8 @@ static int dm_check_repo(const char *tag, const dm_source_t *files, int nfiles,
 
 #define DM_COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
 
-/* Distinct variables documented together remain distinct MENTIONS sources. */
+/* Variables documented together by one comment: the comment's references
+ * are the first declarator's (S4); the other declarators mention nothing. */
 TEST(doc_mentions_cs_shared_doc_sources) {
     static const char source[] = "namespace N {\n"
                                  "public class First { } public class Second { }\n"
@@ -6475,7 +6477,7 @@ TEST(doc_mentions_cs_shared_doc_sources) {
                                  "}\n}\n";
     CBMFileResult *r = dm_extract(source, CBM_LANG_CSHARP, "Shared.cs");
     ASSERT_NOT_NULL(r);
-    ASSERT_EQ(r->doc_links.count, 6);
+    ASSERT_EQ(r->doc_links.count, 2);
     int pairs[3][2] = {{0}};
     for (int i = 0; i < r->doc_links.count; i++) {
         const CBMDocLink *link = &r->doc_links.items[i];
@@ -6495,19 +6497,73 @@ TEST(doc_mentions_cs_shared_doc_sources) {
     cbm_free_result(r);
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 2; j++) {
-            ASSERT_EQ(pairs[i][j], 1);
+            ASSERT_EQ(pairs[i][j], i == 0 ? 1 : 0);
         }
     }
     const dm_source_t files[] = {{"Shared.cs", source}};
     static const dm_want_t wants[] = {
-        {"Shared.cs", "First", "a", "First", NULL, NULL, NULL},
-        {"Shared.cs", "Second", "a", "Second", NULL, NULL, NULL},
-        {"Shared.cs", "First", "b", "First", NULL, NULL, NULL},
-        {"Shared.cs", "Second", "b", "Second", NULL, NULL, NULL},
-        {"Shared.cs", "First", "c", "First", NULL, NULL, NULL},
-        {"Shared.cs", "Second", "c", "Second", NULL, NULL, NULL},
+        {"Shared.cs", "First", "C.a", "First", NULL, NULL, NULL},
+        {"Shared.cs", "Second", "C.a", "Second", NULL, NULL, NULL},
+        {"Shared.cs", "First", "C.b", NULL, NULL, "First", NULL},
+        {"Shared.cs", "Second", "C.b", NULL, NULL, "Second", NULL},
+        {"Shared.cs", "First", "C.c", NULL, NULL, "First", NULL},
+        {"Shared.cs", "Second", "C.c", NULL, NULL, "Second", NULL},
     };
     ASSERT_EQ(dm_check_repo("shared_doc", files, DM_COUNT(files), wants, DM_COUNT(wants)), 0);
+    PASS();
+}
+
+/* S4: tokens, resolutions and rows of a doc comment shared by the
+ * declarators of one field declaration grow with its references, not with
+ * references x declarators. Doubling both the declarators and the
+ * references doubles the tokens and the rows, no more. */
+static int dm_shared_rows(int declarators, int refs, int *tokens) {
+    size_t cap = (size_t)(declarators + refs) * 40 + 256;
+    char *src = malloc(cap);
+    if (!src) {
+        return -1;
+    }
+    size_t w = (size_t)snprintf(src, cap, "namespace N\n{\n    public class C\n    {\n        ///");
+    for (int i = 0; i < refs; i++) {
+        w += (size_t)snprintf(src + w, cap - w, " <see cref=\"Nowhere%d\"/>", i);
+    }
+    w += (size_t)snprintf(src + w, cap - w, "\n        public int v0");
+    for (int i = 1; i < declarators; i++) {
+        w += (size_t)snprintf(src + w, cap - w, ", v%d", i);
+    }
+    snprintf(src + w, cap - w, ";\n    }\n}\n");
+    CBMFileResult *r = dm_extract(src, CBM_LANG_CSHARP, "Fields.cs");
+    *tokens = r ? r->doc_links.count : -1;
+    cbm_free_result(r);
+    const dm_source_t files[] = {{"Fields.cs", src}};
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_s4rows_XXXXXX");
+    int rows = -1;
+    if (cbm_mkdtemp(tmp)) {
+        th_write_file(TH_PATH(tmp, files[0].path), files[0].text);
+        char db[512];
+        snprintf(db, sizeof(db), "%s/rows.db", tmp);
+        if (dm_index(tmp, db, NULL) == 0) {
+            rows = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved");
+        }
+        dm_unlink_db(db);
+        th_rmtree(tmp);
+    }
+    free(src);
+    return rows;
+}
+
+TEST(doc_mentions_cs_shared_doc_once) {
+    int tokens_small = 0;
+    int tokens_large = 0;
+    int rows_small = dm_shared_rows(8, 8, &tokens_small);
+    int rows_large = dm_shared_rows(16, 16, &tokens_large);
+    printf("  shared doc: 8 x 8 -> %d tokens, %d rows; 16 x 16 -> %d tokens, %d rows\n",
+           tokens_small, rows_small, tokens_large, rows_large);
+    ASSERT_EQ(tokens_small, 8);
+    ASSERT_EQ(rows_small, 8);
+    ASSERT_EQ(tokens_large, 16);
+    ASSERT_EQ(rows_large, 16);
     PASS();
 }
 
@@ -9430,6 +9486,69 @@ TEST(doc_mentions_incremental_non_ascii_name) {
     PASS();
 }
 
+/* S17: memory that runs out while doc-link data is extracted or published
+ * loses references, a scope or an edge -- the layer then says error, never
+ * ok over a silently thinner graph. One allocation fails at each point in
+ * turn (a doc span, a doc text, a reference value, a token, the scope scan,
+ * a MENTIONS edge); the run without a failure has no error row. */
+enum { DM_FAIL_EDGE = CBM_DOCLINK_ALLOC_KINDS };
+
+static int dm_alloc_failure_errors(int point) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_s17_XXXXXX");
+    if (!cbm_mkdtemp(tmp)) {
+        return -1;
+    }
+    th_write_file(TH_PATH(tmp, "src/A.cs"), "namespace N\n{\n    public class Target { }\n}\n");
+    th_write_file(TH_PATH(tmp, "src/B.cs"), "namespace N\n"
+                                            "{\n"
+                                            "    /// <summary><see cref=\"Target\"/></summary>\n"
+                                            "    public class Uses\n"
+                                            "    {\n"
+                                            "        /// <see cref=\"Target\"/>\n"
+                                            "        public int a, b;\n"
+                                            "    }\n"
+                                            "}\n");
+    if (point == DM_FAIL_EDGE) {
+        cbm_doclinks_test_fail_edge_insert_after(1);
+    } else if (point >= 0) {
+        cbm_doclink_test_fail_alloc_after(point, 1);
+    }
+    char db[512];
+    snprintf(db, sizeof(db), "%s/s17.db", tmp);
+    int errors =
+        dm_index(tmp, db, NULL) == 0
+            ? dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'")
+            : -1;
+    cbm_doclinks_test_fail_edge_insert_after(0);
+    cbm_doclink_test_reset_alloc();
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    return errors;
+}
+
+TEST(doc_mentions_alloc_failure_status) {
+    static const struct {
+        int point;
+        const char *what;
+    } points[] = {
+        {CBM_DOCLINK_ALLOC_SPAN, "doc span"},    {CBM_DOCLINK_ALLOC_TEXT, "doc text"},
+        {CBM_DOCLINK_ALLOC_VALUE, "value"},      {CBM_DOCLINK_ALLOC_TOKENS, "token"},
+        {CBM_DOCLINK_ALLOC_SCOPE, "scope scan"}, {DM_FAIL_EDGE, "MENTIONS edge"},
+    };
+    int baseline = dm_alloc_failure_errors(-1);
+    bool ok = baseline == 0;
+    for (size_t i = 0; i < sizeof(points) / sizeof(points[0]); i++) {
+        int errors = dm_alloc_failure_errors(points[i].point);
+        if (errors != 1) {
+            printf("  a failed %s allocation: %d error rows, want 1\n", points[i].what, errors);
+            ok = false;
+        }
+    }
+    ASSERT_TRUE(ok);
+    PASS();
+}
+
 SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_extract_cs_tokens);
     RUN_TEST(doc_mentions_cs_scope_blob);
@@ -9481,6 +9600,7 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_scan_branch_merge_work);
     RUN_TEST(doc_mentions_cs_scan_declarator_modifier_work);
     RUN_TEST(doc_mentions_cs_shared_doc_sources);
+    RUN_TEST(doc_mentions_cs_shared_doc_once);
     RUN_TEST(doc_mentions_cs_shared_doc_work);
     RUN_TEST(doc_mentions_cs_shared_doc_replay);
     RUN_TEST(doc_mentions_cs_shared_doc_allocation_failure);
@@ -9538,4 +9658,5 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_msbuild_unread_project_opens);
     RUN_TEST(doc_mentions_cs_scratch_table_work);
     RUN_TEST(doc_mentions_incremental_non_ascii_name);
+    RUN_TEST(doc_mentions_alloc_failure_status);
 }

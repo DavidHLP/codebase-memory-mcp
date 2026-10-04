@@ -2984,7 +2984,17 @@ const char *cbm_doclink_cs_scan_scope(CBMExtractCtx *ctx) {
         cs_emit_unplaced(&s, s.untrusted_row + TS_LINE_OFFSET, s.root_end_line);
     }
     cs_cost_publish(&s);
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    if (cbm_doclink_test_fail_alloc(CBM_DOCLINK_ALLOC_SCOPE)) {
+        s.failed = true;
+    }
+#endif
     if (s.failed || s.sb.failed || !s.sb.buf) {
+        /* memory ran out: no scope would read as a file that declares
+         * nothing, so the layer is told */
+        if (ctx->result) {
+            ctx->result->doc_links.failed = true;
+        }
         return NULL;
     }
     return s.sb.buf;
@@ -3584,7 +3594,11 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
     /* A project file past the size a project file has is not read either,
      * and its blob says so: what it holds is unknown, not absent. */
     if (ctx->source_len > CSX_MAX_PROJECT_BYTES) {
-        return cbm_arena_strdup(ctx->arena, CBM_DOCLINK_CS_SCOPE_TAG "\nP\t\t>\n");
+        const char *blob = cbm_arena_strdup(ctx->arena, CBM_DOCLINK_CS_SCOPE_TAG "\nP\t\t>\n");
+        if (!blob && ctx->result) {
+            ctx->result->doc_links.failed = true; /* memory ran out */
+        }
+        return blob;
     }
     /* a *.csproj marks its directory as a C# project even when it cannot be
      * read; a *.props or *.targets file has a blob only as an MSBuild
@@ -3649,6 +3663,9 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
         return NULL;
     }
     if (p.out.failed || p.value.failed || !p.out.buf) {
+        if (ctx->result) {
+            ctx->result->doc_links.failed = true; /* memory ran out, see above */
+        }
         return NULL;
     }
     return p.out.buf;

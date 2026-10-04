@@ -179,9 +179,7 @@ bool cbm_doclink_lang_supported(CBMLanguage lang) {
 typedef struct {
     const char *doc;
     uint32_t line;
-    int token_first;
-    int token_count;
-    bool parsed;
+    bool parsed; /* its references were taken, for the first definition that has it */
 } doc_line_ent_t;
 
 typedef struct {
@@ -303,6 +301,7 @@ void cbm_doclinks_push(CBMDocLinkArray *arr, CBMArena *a, CBMDocLink link) {
             grown = (CBMDocLink *)cbm_arena_alloc(a, (size_t)ncap * sizeof(*grown));
         }
         if (!grown) {
+            arr->failed = true; /* the token is lost: the layer must not say ok */
             return;
         }
         if (arr->count > 0) {
@@ -381,36 +380,36 @@ void cbm_doclinks_extract(CBMExtractCtx *ctx) {
         if (twins && d->label && strcmp(d->label, L->twin_label) == 0) {
             doclink_twin_key_t key = {d->start_line, d->name};
             if (bsearch(&key, twins, (size_t)twin_count, sizeof(twins[0]), twin_key_cmp)) {
-                continue; /* the Field twin carries these references */
+                /* the Field twin carries these references -- and so those of
+                 * the declarators after it, which share this doc text */
+                doc_line_ent_t *taken = doc_info_of(ctx, d->docstring);
+                if (taken) {
+                    taken->parsed = true;
+                }
+                continue;
             }
         }
         doc_line_ent_t *info = doc_info_of(ctx, d->docstring);
         uint32_t doc_line = info ? info->line : 0;
-        bool reusable = ctx->language == CBM_LANG_CSHARP && info && info->line > 0;
-        CBMDocLinkArray *links = &ctx->result->doc_links;
-        if (reusable && info->parsed) {
-            /* C# lexical tokens depend only on the shared text and its line.
-             * Bind each replay to this definition. Indices survive array
-             * growth; no token pointer is kept across a push. */
-            for (int k = 0; k < info->token_count; k++) {
-                CBMDocLink link = links->items[info->token_first + k];
-                link.source_qn = d->qualified_name;
-                link.def_line = d->start_line;
-                cbm_doclinks_push(links, ctx->arena, link);
+        bool csharp = ctx->language == CBM_LANG_CSHARP;
+        if (csharp && info && info->parsed) {
+            /* One C# doc comment documents every declarator of a field
+             * declaration (`int a, b, c;` share its text, extract_defs.c): its
+             * references are taken once, from the first declarator. Taken
+             * again per declarator, the tokens, their resolutions and the
+             * rows grow with references x declarators. */
+            continue;
+        }
+        if (csharp) {
+            if (!cbm_doclink_cs_parse_doc_checked(ctx, d, d->docstring,
+                                                  doc_line ? doc_line : d->start_line)) {
+                ctx->result->doc_links.failed = true; /* a reference value was lost */
             }
         } else {
-            int first = links->count;
-            bool complete = false;
-            if (reusable) {
-                complete = cbm_doclink_cs_parse_doc_checked(ctx, d, d->docstring, doc_line);
-            } else {
-                L->parse_doc(ctx, d, d->docstring, doc_line ? doc_line : d->start_line);
-            }
-            if (reusable && complete) {
-                info->token_first = first;
-                info->token_count = links->count - first;
-                info->parsed = true;
-            }
+            L->parse_doc(ctx, d, d->docstring, doc_line ? doc_line : d->start_line);
+        }
+        if (info) {
+            info->parsed = true;
         }
     }
     /* The file's own doc: its references belong to the file. The parser gets

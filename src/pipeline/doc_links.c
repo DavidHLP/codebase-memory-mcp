@@ -342,9 +342,35 @@ static void mark_failed(cbm_doclinks_t *dl, const char *rel, const char *why) {
     }
 }
 
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+static _Atomic int doclinks_test_edge_fail_after;
+
+void cbm_doclinks_test_fail_edge_insert_after(int nth) {
+    atomic_store(&doclinks_test_edge_fail_after, nth > 0 ? nth : 0);
+}
+#endif
+
+/* Insert one MENTIONS edge; 0 when it could not be stored. */
+static int64_t doclinks_insert_edge(cbm_gbuf_t *gb, int64_t src, int64_t tgt, const char *props) {
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    int n = atomic_load(&doclinks_test_edge_fail_after);
+    while (n > 0) {
+        if (atomic_compare_exchange_weak(&doclinks_test_edge_fail_after, &n, n - SKIP_ONE)) {
+            if (n == SKIP_ONE) {
+                return 0;
+            }
+            break;
+        }
+    }
+#endif
+    return cbm_gbuf_insert_edge(gb, src, tgt, "MENTIONS", props);
+}
+
 /* Emit one MENTIONS edge per (source, target): first line, its syntax, the
- * mention count, and tier exact when any mention bound exactly. */
-static void emit_mentions(cbm_doclinks_t *dl, doclink_mention_t *m, int n, cbm_gbuf_t *edge_out) {
+ * mention count, and tier exact when any mention bound exactly. A failed
+ * insert fails the layer: the edge is not there. */
+static void emit_mentions(cbm_doclinks_t *dl, const char *rel, doclink_mention_t *m, int n,
+                          cbm_gbuf_t *edge_out) {
     qsort(m, (size_t)n, sizeof(*m), mention_cmp);
     int i = 0;
     while (i < n) {
@@ -360,16 +386,25 @@ static void emit_mentions(cbm_doclinks_t *dl, doclink_mention_t *m, int n, cbm_g
                  "\"count\":%d}",
                  cbm_doclink_syntax_name(m[i].syntax), exact ? "exact" : "unique", m[i].line,
                  j - i);
-        cbm_gbuf_insert_edge(edge_out, m[i].src, m[i].tgt, "MENTIONS", props);
-        atomic_fetch_add_explicit(&dl->edges, 1, memory_order_relaxed);
+        if (doclinks_insert_edge(edge_out, m[i].src, m[i].tgt, props) == 0) {
+            mark_failed(dl, rel, "alloc"); /* an edge that is not there is not counted */
+        } else {
+            atomic_fetch_add_explicit(&dl->edges, 1, memory_order_relaxed);
+        }
         i = j;
     }
 }
 
 void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileResult *result,
                                const cbm_gbuf_t *graph, cbm_gbuf_t *edge_out) {
-    if (!dl || !result || file_idx < 0 || file_idx >= dl->file_count ||
-        result->doc_links.count == 0 || !result->doc_links.items) {
+    if (!dl || !result || file_idx < 0 || file_idx >= dl->file_count) {
+        return;
+    }
+    if (result->doc_links.failed) {
+        /* the extraction lost doc-link data of this file to memory */
+        mark_failed(dl, dl->files[file_idx].rel_path, "extract");
+    }
+    if (result->doc_links.count == 0 || !result->doc_links.items) {
         return;
     }
     int64_t started = doclinks_now_ns();
@@ -461,7 +496,7 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
         atomic_fetch_add_explicit(&dl->reasons[reason], 1, memory_order_relaxed);
     }
     if (nm > 0) {
-        emit_mentions(dl, mentions, nm, edge_out);
+        emit_mentions(dl, fi->rel_path, mentions, nm, edge_out);
     }
     cbm_free(CBM_MEM_CLASS_OTHER, mentions);
     atomic_fetch_add_explicit(&dl->resolve_ns, doclinks_now_ns() - started, memory_order_relaxed);

@@ -624,6 +624,11 @@ typedef struct {
     CBMDocLink *items;
     int count;
     int cap;
+    /* Memory ran out while this file's doc-link data was extracted (a token,
+     * a reference value, a doc text or the scope blob was lost): the
+     * resolving half fails the layer instead of publishing a silently
+     * incomplete graph. */
+    bool failed;
 } CBMDocLinkArray;
 
 // Full extraction result for one file.

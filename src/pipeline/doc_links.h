@@ -219,6 +219,9 @@ uint64_t cbm_doclink_cs_test_work(void);
 /* The buckets the index build walked to empty its per-file scratch table
  * (reset with the work above). */
 uint64_t cbm_doclink_cs_test_scratch_work(void);
+/* Test seam (doc_links.c): the nth MENTIONS edge insert from now on fails as
+ * if memory ran out (0: none). */
+void cbm_doclinks_test_fail_edge_insert_after(int nth);
 #endif
 
 /* True when `rel_path` is a scope input of some language (scope_input). */
