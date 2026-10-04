@@ -212,6 +212,15 @@ typedef struct {
     bool (*scope_input)(const char *rel_path);
     int (*scope_delta)(const char *stored, const char *fresh, cbm_doclink_name_fn removed,
                        void *ud);
+    /* Optional, together: whether the reader takes a scope blob written in
+     * this run (1), refuses it (0), or could not tell for memory (-1); and
+     * what is stored instead of a refused blob. A run refuses the blob of its
+     * own file and goes on without the file's declarations; the marker makes
+     * a later run that reads the file's scope back do the same, where the
+     * blob itself would be a stored scope the reader refuses, which fails
+     * the run. */
+    int (*scope_accepted)(const char *scope);
+    const char *rejected_scope;
 } cbm_doclink_resolver_t;
 
 extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
@@ -229,10 +238,8 @@ uint64_t cbm_doclink_cs_test_scratch_work(void);
 /* Test seam (doc_links.c): the nth MENTIONS edge insert from now on fails as
  * if memory ran out (0: none). */
 void cbm_doclinks_test_fail_edge_insert_after(int nth);
-/* Test seams (doc_links_cs.c): spoil the scope of the file at `rel_path`
- * (every record, then one the reader refuses; NULL or "": none), and ask the
- * reader whether it takes a scope blob. */
-void cbm_doclink_cs_test_spoil_scope(const char *rel_path);
+/* Test seam (doc_links_cs.c): ask the reader whether it takes a scope blob.
+ * (The scope of one file is spoiled where it is written: doclink.h.) */
 bool cbm_doclink_cs_test_scope_parses(const char *scope);
 #endif
 
@@ -245,5 +252,11 @@ bool cbm_doclinks_is_scope_input(const char *rel_path);
  * language is GLOBAL; otherwise the language's scope_delta hook decides. */
 int cbm_doclinks_scope_delta(const char *stored, const char *fresh, cbm_doclink_name_fn removed,
                              void *ud);
+
+/* What is stored for a scope blob written in this run (the surface row's
+ * `dl`, lsp_surface.c): the blob itself, or its language's rejected-scope
+ * marker when that language's reader refuses it (scope_accepted). NULL when
+ * memory ran out deciding. */
+const char *cbm_doclinks_storable_scope(const char *scope);
 
 #endif /* CBM_PIPELINE_DOC_LINKS_H */

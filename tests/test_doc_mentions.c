@@ -9962,47 +9962,51 @@ TEST(doc_mentions_cs_scanner_output_reads_back) {
  * stays -- a namespace it declares does not stand beside a type of that name
  * (Shadow, Good.Lurker), and a name it quarantined does not block another
  * file's declaration (Hidden2). */
-TEST(doc_mentions_cs_rejected_scope_contained) {
-    static const dm_source_t files[] = {
-        {"Bad.cs", "namespace Shadow\n"
-                   "{\n"
-                   "    public class Inner { }\n"
-                   "}\n"
+/* S8: Bad.cs declares what would shadow and hide Healthy.cs's names; its
+ * scope is spoiled where it is written (cbm_doclink_cs_test_spoil_scope). */
+static const dm_source_t dm_rejected_files[] = {
+    {"Bad.cs", "namespace Shadow\n"
+               "{\n"
+               "    public class Inner { }\n"
+               "}\n"
+               "namespace Good\n"
+               "{\n"
+               "    namespace Lurker { public class Deep { } }\n"
+               "\n"
+               "    /// <summary><see cref=\"Target\"/></summary>\n"
+               "    public class FromBad { }\n"
+               "}\n"
+               "namespace .Broken\n"
+               "{\n"
+               "    public class Hidden2 { }\n"
+               "}\n"},
+    {"Healthy.cs", "public class Shadow { }\n"
                    "namespace Good\n"
                    "{\n"
-                   "    namespace Lurker { public class Deep { } }\n"
-                   "\n"
-                   "    /// <summary><see cref=\"Target\"/></summary>\n"
-                   "    public class FromBad { }\n"
-                   "}\n"
-                   "namespace .Broken\n"
-                   "{\n"
+                   "    public class Target { }\n"
+                   "    public class Lurker { }\n"
                    "    public class Hidden2 { }\n"
+                   "\n"
+                   "    /// <summary><see cref=\"Target\"/> <see cref=\"Shadow\"/>\n"
+                   "    /// <see cref=\"Lurker\"/> <see cref=\"Hidden2\"/></summary>\n"
+                   "    public class Uses { }\n"
                    "}\n"},
-        {"Healthy.cs", "public class Shadow { }\n"
-                       "namespace Good\n"
-                       "{\n"
-                       "    public class Target { }\n"
-                       "    public class Lurker { }\n"
-                       "    public class Hidden2 { }\n"
-                       "\n"
-                       "    /// <summary><see cref=\"Target\"/> <see cref=\"Shadow\"/>\n"
-                       "    /// <see cref=\"Lurker\"/> <see cref=\"Hidden2\"/></summary>\n"
-                       "    public class Uses { }\n"
-                       "}\n"},
-    };
-    static const dm_want_t wants[] = {
-        {"Healthy.cs", "Target", "Healthy.Uses", "Healthy.Target", NULL, NULL, NULL},
-        {"Healthy.cs", "Shadow", "Healthy.Uses", "Healthy.Shadow", NULL, NULL, NULL},
-        {"Healthy.cs", "Lurker", "Healthy.Uses", "Healthy.Lurker", NULL, NULL, NULL},
-        {"Healthy.cs", "Hidden2", "Healthy.Uses", "Healthy.Hidden2", NULL, NULL, NULL},
-        {"Bad.cs", "Target", "Bad.FromBad", NULL, "graph_gap", "Healthy.Target", NULL},
-    };
+};
+
+static const dm_want_t dm_rejected_wants[] = {
+    {"Healthy.cs", "Target", "Healthy.Uses", "Healthy.Target", NULL, NULL, NULL},
+    {"Healthy.cs", "Shadow", "Healthy.Uses", "Healthy.Shadow", NULL, NULL, NULL},
+    {"Healthy.cs", "Lurker", "Healthy.Uses", "Healthy.Lurker", NULL, NULL, NULL},
+    {"Healthy.cs", "Hidden2", "Healthy.Uses", "Healthy.Hidden2", NULL, NULL, NULL},
+    {"Bad.cs", "Target", "Bad.FromBad", NULL, "graph_gap", "Healthy.Target", NULL},
+};
+
+TEST(doc_mentions_cs_rejected_scope_contained) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_rejected_XXXXXX");
     ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
-    for (int i = 0; i < DM_COUNT(files); i++) {
-        th_write_file(TH_PATH(tmp, files[i].path), files[i].text);
+    for (int i = 0; i < DM_COUNT(dm_rejected_files); i++) {
+        th_write_file(TH_PATH(tmp, dm_rejected_files[i].path), dm_rejected_files[i].text);
     }
     char db[512];
     snprintf(db, sizeof(db), "%s/rejected.db", tmp);
@@ -10012,11 +10016,83 @@ TEST(doc_mentions_cs_rejected_scope_contained) {
     int errors = bad == 0 ? dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved "
                                          "WHERE reason = 'error'")
                           : -1;
-    for (int i = 0; bad >= 0 && i < DM_COUNT(wants); i++) {
-        bad += dm_want_failed(db, &wants[i]);
+    for (int i = 0; bad >= 0 && i < DM_COUNT(dm_rejected_wants); i++) {
+        bad += dm_want_failed(db, &dm_rejected_wants[i]);
     }
     dm_unlink_db(db);
     th_rmtree(tmp);
+    ASSERT_EQ(errors, 0);
+    ASSERT_EQ(bad, 0);
+    PASS();
+}
+
+/* The scope blob stored for `rel_path` (the surface row's `dl`), into out;
+ * "" when there is none. */
+static void dm_stored_scope(const char *db, const char *rel_path, char *out, size_t cap) {
+    out[0] = '\0';
+    sqlite3 *h = NULL;
+    if (sqlite3_open_v2(db, &h, SQLITE_OPEN_READONLY, NULL) == SQLITE_OK) {
+        sqlite3_stmt *st = NULL;
+        if (sqlite3_prepare_v2(h,
+                               "SELECT json_extract(defs_json, '$.dl') FROM lsp_surface "
+                               "WHERE rel_path = ?1",
+                               -1, &st, NULL) == SQLITE_OK) {
+            sqlite3_bind_text(st, 1, rel_path, -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(st) == SQLITE_ROW && sqlite3_column_text(st, 0)) {
+                snprintf(out, cap, "%s", (const char *)sqlite3_column_text(st, 0));
+            }
+        }
+        sqlite3_finalize(st);
+    }
+    sqlite3_close(h);
+}
+
+/* S8 across runs: the scope its own run refused is stored as the rejected
+ * marker, so a later incremental run that reads it back treats the file as
+ * the full run does -- it declares nothing, its references are graph gaps --
+ * instead of failing the layer over a stored scope the reader refuses. A
+ * body-only edit elsewhere reads the marker back; one in the rejected file
+ * compares its marker with the fresh one. Each step equals a full run. */
+TEST(doc_mentions_cs_rejected_scope_across_runs) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_rejected_runs_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[400];
+    char db[512];
+    char full_db[512];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    snprintf(db, sizeof(db), "%s/inc.db", tmp);
+    snprintf(full_db, sizeof(full_db), "%s/full.db", tmp);
+    for (int i = 0; i < DM_COUNT(dm_rejected_files); i++) {
+        th_write_file(TH_PATH(repo, dm_rejected_files[i].path), dm_rejected_files[i].text);
+    }
+    cbm_doclink_cs_test_spoil_scope("Bad.cs");
+    int indexed = dm_index(repo, db, NULL);
+    char stored[256];
+    dm_stored_scope(db, "Bad.cs", stored, sizeof(stored));
+    bool marked = strcmp(stored, CBM_DOCLINK_CS_SCOPE_TAG "\n!\trejected\n") == 0;
+    char edited[2048];
+    snprintf(edited, sizeof(edited), "%s\n// body-only edit\n", dm_rejected_files[1].text);
+    th_write_file(TH_PATH(repo, "Healthy.cs"), edited);
+    int read_back = dm_step(repo, db, full_db, "the rejected scope read back",
+                            CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+    snprintf(edited, sizeof(edited), "%s\n// body-only edit\n", dm_rejected_files[0].text);
+    th_write_file(TH_PATH(repo, "Bad.cs"), edited);
+    int again = dm_step(repo, db, full_db, "the rejected file edited",
+                        CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+    cbm_doclink_cs_test_spoil_scope(NULL);
+    int errors = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'");
+    int bad = 0;
+    for (int i = 0; i < DM_COUNT(dm_rejected_wants); i++) {
+        bad += dm_want_failed(db, &dm_rejected_wants[i]);
+    }
+    dm_unlink_db(db);
+    dm_unlink_db(full_db);
+    th_rmtree(tmp);
+    ASSERT_EQ(indexed, 0);
+    ASSERT_TRUE(marked);
+    ASSERT_EQ(read_back, 0);
+    ASSERT_EQ(again, 0);
     ASSERT_EQ(errors, 0);
     ASSERT_EQ(bad, 0);
     PASS();
@@ -10162,4 +10238,5 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_alloc_failure_status);
     RUN_TEST(doc_mentions_cs_scanner_output_reads_back);
     RUN_TEST(doc_mentions_cs_rejected_scope_contained);
+    RUN_TEST(doc_mentions_cs_rejected_scope_across_runs);
 }

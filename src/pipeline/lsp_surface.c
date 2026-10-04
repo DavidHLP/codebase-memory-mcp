@@ -28,6 +28,7 @@
 #include "foundation/log.h"
 #include "foundation/mem_core.h"
 #include "foundation/sha256.h"
+#include "pipeline/doc_links.h" /* cbm_doclinks_storable_scope */
 #include "pipeline/worker_pool.h"
 #include "yyjson/yyjson.h"
 
@@ -161,7 +162,11 @@ static char *surface_file_to_json(const CBMFileResult *result, const CBMLSPDef *
      * The defs decoder ignores this key; cbm_doclinks_scopes_from_surfaces
      * reads it back for the files an incremental run does not re-extract. */
     if (result && result->doc_scope) {
-        char *portable = cbm_doclink_portable_scope(result->doc_scope);
+        /* a scope this run's reader refuses is stored as its language's
+         * rejected marker: a later run then treats the file as this one does
+         * (doc_links.h, scope_accepted) */
+        const char *kept = cbm_doclinks_storable_scope(result->doc_scope);
+        char *portable = kept ? cbm_doclink_portable_scope(kept) : NULL;
         if (!portable) {
             yyjson_mut_doc_free(doc);
             return NULL; /* a missing scope would diverge silently: fail the row */

@@ -113,6 +113,18 @@ int cbm_doclinks_scope_delta(const char *stored, const char *fresh, cbm_doclink_
     return R->scope_delta(stored, fresh, removed, ud);
 }
 
+const char *cbm_doclinks_storable_scope(const char *scope) {
+    const cbm_doclink_resolver_t *R = resolver_of_scope(scope);
+    if (!R || !R->scope_accepted || !R->rejected_scope) {
+        return scope;
+    }
+    int accepted = R->scope_accepted(scope);
+    if (accepted < 0) {
+        return NULL;
+    }
+    return accepted ? scope : R->rejected_scope;
+}
+
 /* ── Run state ───────────────────────────────────────────────────── */
 
 typedef struct {

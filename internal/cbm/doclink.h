@@ -157,6 +157,12 @@ void cbm_doclink_test_fail_alloc_after(int kind, int nth);
 bool cbm_doclink_test_fail_alloc(int kind);
 void cbm_doclink_test_reset_alloc(void);
 
+/* The C# scope scan of the file at `rel_path` writes, after its records, one
+ * the resolver refuses -- as if writer and reader disagreed (NULL or "":
+ * none). What is stored for the file and what this run resolves both carry
+ * it. */
+void cbm_doclink_cs_test_spoil_scope(const char *rel_path);
+
 /* Actual comment memcpy bytes, input bytes submitted to the C# lexical parser,
  * and bytes allocated for cleaned reference values; separate from token output. */
 void cbm_doclink_test_doc_work_reset(void);

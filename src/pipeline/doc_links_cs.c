@@ -5925,45 +5925,44 @@ static void undo_scope(cs_index_t *ix) {
     u->nmarks = 0;
 }
 
-#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
-/* Test seam: the scope of the file at this path is spoiled -- every record
- * it has, then one this reader refuses -- as if its writer and this reader
- * disagreed after the file's declarations were read. "" or NULL: none. */
-static char cs_test_spoiled_path[CBM_SZ_512];
+/* What is stored, in place of its scope blob, for a file whose scope the
+ * reader refused in the run that wrote it (cs_scope_accepted, lsp_surface.c):
+ * the tag and one `!` record. A later run that reads it back treats the file
+ * as that run did -- it declares nothing, its references are graph gaps --
+ * where the refused blob itself would fail that run as a stored scope this
+ * reader does not take. */
+static const char CS_REJECTED_SCOPE[] = CBM_DOCLINK_CS_SCOPE_TAG "\n!\trejected\n";
 
-void cbm_doclink_cs_test_spoil_scope(const char *rel_path) {
-    snprintf(cs_test_spoiled_path, sizeof(cs_test_spoiled_path), "%s", rel_path ? rel_path : "");
+static bool cs_scope_marked_rejected(const char *scope) {
+    return scope && strcmp(scope, CS_REJECTED_SCOPE) == 0;
 }
 
-static const char *cs_test_spoiled(cs_index_t *ix, const char *rel_path, const char *scope) {
-    if (!scope || !cs_test_spoiled_path[0] || strcmp(rel_path, cs_test_spoiled_path) != 0) {
-        return scope;
+/* Whether this reader takes a scope blob written in this run: its record
+ * checks, on an index of the blob's own (what makes a blob refused depends on
+ * the blob alone). 1 taken, 0 refused, -1 memory ran out. A project file's
+ * blob goes to the MSBuild evaluator, which takes every blob. */
+static int cs_scope_accepted(const char *scope) {
+    if (!scope || cbm_msb_is_project_scope(scope) || cs_scope_marked_rejected(scope)) {
+        return SKIP_ONE;
     }
-    const char *spoiled = cbm_arena_sprintf(&ix->arena, "%sZ\tspoiled\n", scope);
-    return spoiled ? spoiled : scope;
-}
-
-/* Test seam: true when this reader takes the scope blob `scope` (its record
- * checks, on an index of its own). A test holds every blob the scanner
- * writes against it. */
-bool cbm_doclink_cs_test_scope_parses(const char *scope) {
     cs_index_t *ix = (cs_index_t *)cbm_calloc(CBM_MEM_CLASS_OTHER, sizeof(*ix));
     if (!ix) {
-        return false;
+        return CBM_NOT_FOUND;
     }
-    cbm_arena_init(&ix->arena);
-    ix->ns_by_key = cbm_ht_create(CBM_SZ_64);
-    ix->quarantine = cbm_ht_create(CBM_SZ_64);
-    ix->quarantine_test = cbm_ht_create(CBM_SZ_64);
-    ix->nss = (cs_ns_t *)ix_zalloc(ix, CBM_SZ_256 * sizeof(cs_ns_t));
-    bool ok = ix->ns_by_key && ix->quarantine && ix->quarantine_test && ix->nss;
-    if (ok) {
-        ix->nscap = CBM_SZ_256;
+    cbm_arena_init_lazy(&ix->arena, CBM_ARENA_APPEND_BLOCK);
+    ix->ns_by_key = cbm_ht_create(CBM_SZ_16);
+    ix->quarantine = cbm_ht_create(CBM_SZ_16);
+    ix->quarantine_test = cbm_ht_create(CBM_SZ_16);
+    ix->nss = (cs_ns_t *)ix_zalloc(ix, CBM_SZ_16 * sizeof(cs_ns_t));
+    int accepted = CBM_NOT_FOUND;
+    if (ix->ns_by_key && ix->quarantine && ix->quarantine_test && ix->nss) {
+        ix->nscap = CBM_SZ_16;
         ix->nnss = SKIP_ONE;
         ix->nss[0] = (cs_ns_t){.parent = CS_NONE, .name = ""};
         cs_file_t f = {.rel_path = "Scope.cs"};
         undo_begin(ix);
-        ok = parse_scope(ix, &f, scope) && !ix->oom;
+        bool parsed = parse_scope(ix, &f, scope);
+        accepted = ix->oom ? CBM_NOT_FOUND : (parsed ? SKIP_ONE : 0);
     }
     cbm_ht_free(ix->ns_by_key);
     cbm_ht_free(ix->quarantine);
@@ -5972,7 +5971,14 @@ bool cbm_doclink_cs_test_scope_parses(const char *scope) {
     cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.marks);
     cbm_arena_destroy(&ix->arena);
     cbm_free(CBM_MEM_CLASS_OTHER, ix);
-    return ok;
+    return accepted;
+}
+
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+/* Test seam: true when this reader takes the scope blob `scope`. A test holds
+ * every blob the scanner writes against it. */
+bool cbm_doclink_cs_test_scope_parses(const char *scope) {
+    return cs_scope_accepted(scope) == SKIP_ONE;
 }
 #endif
 
@@ -5996,13 +6002,12 @@ static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in)
         f->is_test = cs_is_test_path(src->rel_path);
         /* a project file declares nothing: its blob went to the evaluator */
         const char *scope = cbm_msb_is_project_scope(src->scope) ? NULL : src->scope;
-#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
-        scope = cs_test_spoiled(ix, src->rel_path, scope);
-#endif
+        /* a scope its own run refused, stored as the marker: as in that run */
+        bool marked = cs_scope_marked_rejected(scope);
         undo_begin(ix);
-        if (scope && !parse_scope(ix, f, scope)) {
+        if (marked || (scope && !parse_scope(ix, f, scope))) {
             bool fresh = src->run_file >= 0 && src->run_file < in->run_file_count;
-            if (ix->oom || !fresh) {
+            if (!marked && (ix->oom || !fresh)) {
                 bad = ix->oom ? "" : src->rel_path;
                 break;
             }
@@ -6354,7 +6359,9 @@ static bool delta_has_bases(const char *scope) {
  * nobody's scope. */
 static int cs_scope_delta(const char *stored, const char *fresh, cbm_doclink_name_fn removed,
                           void *ud) {
-    if (cbm_msb_is_project_scope(stored) || cbm_msb_is_project_scope(fresh)) {
+    /* a rejected file declares nothing: unchanged while it stays rejected */
+    if (cbm_msb_is_project_scope(stored) || cbm_msb_is_project_scope(fresh) ||
+        cs_scope_marked_rejected(stored) || cs_scope_marked_rejected(fresh)) {
         return strcmp(stored, fresh) == 0 ? CBM_DOCLINK_DELTA_LOCAL : CBM_DOCLINK_DELTA_GLOBAL;
     }
     if (!delta_same_usings(stored, fresh) && (delta_has_bases(stored) || delta_has_bases(fresh))) {
@@ -6400,4 +6407,6 @@ const cbm_doclink_resolver_t cbm_doclink_cs_resolver = {
     .file_end = cs_file_end,
     .resolve = cs_resolve,
     .scope_delta = cs_scope_delta,
+    .scope_accepted = cs_scope_accepted,
+    .rejected_scope = CS_REJECTED_SCOPE,
 };

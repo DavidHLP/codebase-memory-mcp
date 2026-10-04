@@ -3027,6 +3027,14 @@ char *cbm_doclink_cs_portable_scope(const char *scope) {
     return out;
 }
 
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+static char cs_test_spoiled_path[CBM_SZ_512];
+
+void cbm_doclink_cs_test_spoil_scope(const char *rel_path) {
+    snprintf(cs_test_spoiled_path, sizeof(cs_test_spoiled_path), "%s", rel_path ? rel_path : "");
+}
+#endif
+
 const char *cbm_doclink_cs_scan_scope(CBMExtractCtx *ctx) {
     if (ts_node_is_null(ctx->root)) {
         return NULL;
@@ -3055,6 +3063,10 @@ const char *cbm_doclink_cs_scan_scope(CBMExtractCtx *ctx) {
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
     if (cbm_doclink_test_fail_alloc(CBM_DOCLINK_ALLOC_SCOPE)) {
         s.failed = true;
+    }
+    if (cs_test_spoiled_path[0] && ctx->rel_path &&
+        strcmp(ctx->rel_path, cs_test_spoiled_path) == 0) {
+        sb_puts(&s.sb, "Z\tspoiled\n");
     }
 #endif
     if (s.failed || s.sb.failed || !s.sb.buf) {
