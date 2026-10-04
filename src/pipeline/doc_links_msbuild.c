@@ -557,6 +557,12 @@ typedef struct {
     st_component_t *owner;
     msb_tri_t group;         /* the condition of the <PropertyGroup> being read */
     const msb_rec_t *hgroup; /* the <ItemGroup> being read */
+    /* The <ImportGroup> being read: its condition's text (one string the
+     * group's imports share) and what it came to. MSBuild evaluates a
+     * group's condition once, where the group stands; evaluating it again
+     * for every import cost imports x condition length. */
+    const char *igroup_text;
+    msb_tri_t igroup;
 } msb_frame_t;
 
 enum { MSB_SEEDS = 5, MSB_LIVE_OWNERS = 5 };
@@ -2609,9 +2615,10 @@ static void msb_add_item(msb_eval_t *ev, const msb_rec_t *group, const msb_rec_t
     msb_work(sizeof(msb_item_t));
 }
 
-/* An <Import> standing in the file on top of the frame stack. */
-static void msb_import(msb_eval_t *ev, int file, const msb_rec_t *r) {
-    msb_tri_t c = tri_and(msb_cond(ev, file, r->f[0]), msb_cond(ev, file, r->f[1]));
+/* An <Import> standing in the file on top of the frame stack, under its
+ * <ImportGroup>'s condition `group` (MSB_TRUE outside a group). */
+static void msb_import(msb_eval_t *ev, int file, const msb_rec_t *r, msb_tri_t group) {
+    msb_tri_t c = tri_and(group, msb_cond(ev, file, r->f[1]));
     if (c == MSB_FALSE || r->f[3]) {
         return; /* not taken; or an SDK's file, which is no file of the repository */
     }
@@ -2704,9 +2711,20 @@ static void msb_pass1(msb_eval_t *ev, int file) {
         case 'C':
             ev->unevaluable++;
             break;
-        case 'I':
-            msb_import(ev, at, r);
+        case 'I': {
+            /* the group's condition once per group: its imports share the
+             * text (cbm_msb_add); a legacy blob's copies are evaluated each */
+            msb_tri_t group = MSB_TRUE;
+            if (r->f[0]) {
+                if (fr->igroup_text != r->f[0]) {
+                    fr->igroup_text = r->f[0];
+                    fr->igroup = msb_cond(ev, at, r->f[0]);
+                }
+                group = fr->igroup;
+            }
+            msb_import(ev, at, r, group); /* may push a frame: fr is not used after it */
             break;
+        }
         default:
             break;
         }
@@ -2846,12 +2864,32 @@ static int target_cmp(const void *a, const void *b) {
     return strcmp(((const cbm_msb_using_t *)a)->target, ((const cbm_msb_using_t *)b)->target);
 }
 
+/* An <ItemGroup>'s condition for the items of one pass over them. MSBuild
+ * evaluates it once, where the group stands, and the final properties the
+ * items see do not change while they are read: evaluating it again for
+ * every item cost items x condition length. */
+typedef struct {
+    const msb_rec_t *group;
+    msb_tri_t value;
+} msb_group_memo_t;
+
+static msb_tri_t item_group_cond(msb_eval_t *ev, const msb_item_t *it, msb_group_memo_t *memo) {
+    if (!it->group) {
+        return MSB_TRUE;
+    }
+    if (memo->group != it->group) {
+        memo->group = it->group;
+        memo->value = msb_cond(ev, it->file, it->group->f[0]);
+    }
+    return memo->value;
+}
+
 /* One <Using> item with the final properties: into `inc` or `rem`. */
-static void msb_using(msb_eval_t *ev, const msb_item_t *it, msb_ulist_t *inc, msb_ulist_t *rem) {
+static void msb_using(msb_eval_t *ev, const msb_item_t *it, msb_ulist_t *inc, msb_ulist_t *rem,
+                      msb_group_memo_t *memo) {
     const msb_rec_t *r = it->item;
     msb_record();
-    msb_tri_t c = tri_and(msb_cond(ev, it->file, it->group ? it->group->f[0] : NULL),
-                          msb_cond(ev, it->file, r->f[0]));
+    msb_tri_t c = tri_and(item_group_cond(ev, it, memo), msb_cond(ev, it->file, r->f[0]));
     if (c == MSB_FALSE) {
         return;
     }
@@ -3111,8 +3149,9 @@ bool cbm_msb_eval(const cbm_msb_t *m, const char *project_rel, cbm_msb_result_t 
         for (int i = 0; implicit && implicit[i]; i++) {
             ulist_add(&ev, &inc, 'n', "", implicit[i]);
         }
+        msb_group_memo_t memo = {0};
         for (int i = 0; i < ev.nitems; i++) {
-            msb_using(&ev, &ev.items[i], &inc, &rem);
+            msb_using(&ev, &ev.items[i], &inc, &rem, &memo);
             /* All four expansions remain live until aliases and targets
              * have been copied into the persistent evaluation arena. */
             cbm_arena_reset(&ev.scratch);
@@ -3435,8 +3474,9 @@ static bool apply_targets(cbm_msb_eval_context_t *context, msb_eval_t *ev, int r
 
 static void eval_items(msb_eval_t *ev, const msb_eval_t *owner, msb_ulist_t *inc,
                        msb_ulist_t *rem) {
+    msb_group_memo_t memo = {0};
     for (int i = 0; !ev->oom && i < owner->nitems; i++) {
-        msb_using(ev, &owner->items[i], inc, rem);
+        msb_using(ev, &owner->items[i], inc, rem, &memo);
         cbm_arena_reset(&ev->scratch);
     }
 }
@@ -3682,6 +3722,7 @@ bool cbm_msb_eval_context_eval(cbm_msb_eval_context_t *context, const char *proj
 static void st_eval_rope(msb_eval_t *ev, st_rope_t *rope, msb_ulist_t *inc, msb_ulist_t *rem) {
     st_rope_t *stack[CBM_SZ_64];
     int depth = 0;
+    msb_group_memo_t memo = {0};
     while (!ev->oom && (rope || depth)) {
         if (!rope) {
             rope = stack[--depth];
@@ -3689,7 +3730,7 @@ static void st_eval_rope(msb_eval_t *ev, st_rope_t *rope, msb_ulist_t *inc, msb_
         }
         msb_work(1);
         if (!rope->left) {
-            msb_using(ev, &rope->item, inc, rem);
+            msb_using(ev, &rope->item, inc, rem, &memo);
             cbm_arena_reset(&ev->scratch);
             rope = NULL;
         } else {

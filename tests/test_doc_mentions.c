@@ -3483,6 +3483,140 @@ TEST(doc_mentions_msbuild_import_group_roundtrip) {
     PASS();
 }
 
+/* The evaluator side of the same product: an <ImportGroup>'s condition is
+ * evaluated once, where the group stands, not again for every import in it.
+ * Doubling both the imports and the condition's length at most doubles the
+ * evaluator's work; evaluated per import, it would quadruple. */
+TEST(doc_mentions_msbuild_import_group_condition_work) {
+    enum { IMPORTS = 100, TERMS = 100, CAP = 64 * 1024 };
+    /* Flag is defined (an undefined property is unknown); no term holds */
+    static const char term[] = "'$(Flag)' == 'aaaaaaaaaaaaaaaa'";
+    uint64_t work[2] = {0};
+    char *xml = malloc(CAP);
+    ASSERT_NOT_NULL(xml);
+    for (int sample = 0; sample < 2; sample++) {
+        int imports = IMPORTS << sample;
+        int terms = TERMS << sample;
+        size_t used = (size_t)snprintf(xml, CAP,
+                                       "<Project><PropertyGroup><Flag>b</Flag></PropertyGroup>"
+                                       "<ImportGroup Condition=\"");
+        for (int i = 0; i < terms; i++) {
+            used += (size_t)snprintf(xml + used, CAP - used, "%s%s", i ? " or " : "", term);
+        }
+        used += (size_t)snprintf(xml + used, CAP - used, "\">");
+        for (int i = 0; i < imports; i++) {
+            used += (size_t)snprintf(xml + used, CAP - used, "<Import Project=\"X.props\"/>");
+        }
+        used += (size_t)snprintf(xml + used, CAP - used,
+                                 "</ImportGroup><ItemGroup><Using Include=\"Kept\"/>"
+                                 "</ItemGroup></Project>");
+        ASSERT_LT(used, (size_t)CAP);
+        cbm_msb_t *m = cbm_msb_new();
+        ASSERT_NOT_NULL(m);
+        ASSERT_TRUE(dm_msb_add_xml(m, "App.csproj", xml));
+        ASSERT_TRUE(dm_msb_add_xml(
+            m, "X.props",
+            "<Project><ItemGroup><Using Include=\"Not.Taken\"/></ItemGroup></Project>"));
+        cbm_msb_test_cost_reset();
+        cbm_msb_result_t r;
+        ASSERT_TRUE(cbm_msb_eval(m, "App.csproj", &r));
+        work[sample] = cbm_msb_test_work();
+        ASSERT_TRUE(dm_has_using(&r, 'n', "Kept"));
+        ASSERT_FALSE(dm_has_using(&r, 'n', "Not.Taken"));
+        ASSERT_EQ(r.count, 1);
+        ASSERT_FALSE(r.open);
+        ASSERT_EQ(r.unevaluable, 0);
+        cbm_msb_result_free(&r);
+        cbm_msb_free(m);
+    }
+    free(xml);
+    fprintf(stderr, "msbuild import group condition work: %llu -> %llu\n",
+            (unsigned long long)work[0], (unsigned long long)work[1]);
+    ASSERT_GT(work[0], 0);
+    ASSERT_LTE(work[1], 2 * work[0]);
+    PASS();
+}
+
+/* The same for an <ItemGroup>: its condition is evaluated once for the
+ * items of a pass, not again for every <Using> in it. */
+TEST(doc_mentions_msbuild_item_group_condition_work) {
+    enum { USINGS = 100, TERMS = 100, CAP = 64 * 1024 };
+    static const char term[] = "'$(Flag)' == 'aaaaaaaaaaaaaaaa'";
+    uint64_t work[2] = {0};
+    char *xml = malloc(CAP);
+    ASSERT_NOT_NULL(xml);
+    for (int sample = 0; sample < 2; sample++) {
+        int usings = USINGS << sample;
+        int terms = TERMS << sample;
+        size_t used = (size_t)snprintf(xml, CAP,
+                                       "<Project><PropertyGroup><Flag>b</Flag></PropertyGroup>"
+                                       "<ItemGroup Condition=\"");
+        for (int i = 0; i < terms; i++) {
+            used += (size_t)snprintf(xml + used, CAP - used, "%s%s", i ? " or " : "", term);
+        }
+        used += (size_t)snprintf(xml + used, CAP - used, "\">");
+        for (int i = 0; i < usings; i++) {
+            used +=
+                (size_t)snprintf(xml + used, CAP - used, "<Using Include=\"Not.Taken%04d\"/>", i);
+        }
+        used += (size_t)snprintf(xml + used, CAP - used,
+                                 "</ItemGroup><ItemGroup><Using Include=\"Kept\"/>"
+                                 "</ItemGroup></Project>");
+        ASSERT_LT(used, (size_t)CAP);
+        cbm_msb_t *m = cbm_msb_new();
+        ASSERT_NOT_NULL(m);
+        ASSERT_TRUE(dm_msb_add_xml(m, "App.csproj", xml));
+        cbm_msb_test_cost_reset();
+        cbm_msb_result_t r;
+        ASSERT_TRUE(cbm_msb_eval(m, "App.csproj", &r));
+        work[sample] = cbm_msb_test_work();
+        ASSERT_TRUE(dm_has_using(&r, 'n', "Kept"));
+        ASSERT_EQ(r.count, 1);
+        ASSERT_FALSE(r.open);
+        ASSERT_EQ(r.unevaluable, 0);
+        cbm_msb_result_free(&r);
+        cbm_msb_free(m);
+    }
+    free(xml);
+    fprintf(stderr, "msbuild item group condition work: %llu -> %llu\n",
+            (unsigned long long)work[0], (unsigned long long)work[1]);
+    ASSERT_GT(work[0], 0);
+    ASSERT_LTE(work[1], 2 * work[0]);
+    PASS();
+}
+
+/* MSBuild evaluates an <ImportGroup>'s condition once, before its imports:
+ * a property the group's first import sets does not take the second import
+ * away. */
+TEST(doc_mentions_msbuild_import_group_condition_once) {
+    const dm_project_file_t files[] = {
+        /* a property no file defines is unknown (the SDK or the
+         * environment may set it): Stop is defined first */
+        {"App.csproj", "<Project><PropertyGroup><Stop>no</Stop></PropertyGroup>"
+                       "<ImportGroup Condition=\"'$(Stop)' == 'no'\">"
+                       "<Import Project=\"First.props\"/><Import Project=\"Second.props\"/>"
+                       "</ImportGroup>"
+                       "<ImportGroup Condition=\"'$(Stop)' == 'no'\">"
+                       "<Import Project=\"Third.props\"/></ImportGroup></Project>"},
+        {"First.props", "<Project><PropertyGroup><Stop>yes</Stop></PropertyGroup>"
+                        "<ItemGroup><Using Include=\"From.First\"/></ItemGroup></Project>"},
+        {"Second.props",
+         "<Project><ItemGroup><Using Include=\"From.Second\"/></ItemGroup></Project>"},
+        {"Third.props",
+         "<Project><ItemGroup><Using Include=\"From.Third\"/></ItemGroup></Project>"},
+    };
+    cbm_msb_result_t r;
+    ASSERT_TRUE(dm_msb_eval(files, 4, "App.csproj", &r));
+    ASSERT_TRUE(dm_has_using(&r, 'n', "From.First"));
+    ASSERT_TRUE(dm_has_using(&r, 'n', "From.Second"));
+    /* a later group with the same text is evaluated where it stands */
+    ASSERT_FALSE(dm_has_using(&r, 'n', "From.Third"));
+    ASSERT_EQ(r.count, 2);
+    ASSERT_FALSE(r.open);
+    cbm_msb_result_free(&r);
+    PASS();
+}
+
 TEST(doc_mentions_msbuild_legacy_import_blob) {
     cbm_msb_t *m = cbm_msb_new();
     ASSERT_NOT_NULL(m);
@@ -9837,6 +9971,9 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_msbuild_blob);
     RUN_TEST(doc_mentions_msbuild_import_group_blob_growth);
     RUN_TEST(doc_mentions_msbuild_import_group_roundtrip);
+    RUN_TEST(doc_mentions_msbuild_import_group_condition_work);
+    RUN_TEST(doc_mentions_msbuild_item_group_condition_work);
+    RUN_TEST(doc_mentions_msbuild_import_group_condition_once);
     RUN_TEST(doc_mentions_msbuild_legacy_import_blob);
     RUN_TEST(doc_mentions_msbuild_bad_import_group_blob);
     RUN_TEST(doc_mentions_msbuild_imports);
