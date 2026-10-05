@@ -1,0 +1,19 @@
+tests/repro/issue2061_swift_identity/mcp_driver.c
+  s_369d103dcf82b9::t_e7701a2d83f6c5 162-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "44294f896d53bc513a57d4fc7c415a1ba810d12b",
+  "prompts": {},
+  "sessions": {
+    "s_369d103dcf82b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a109ac-f7a8-7950-979d-39c4def6d337",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
