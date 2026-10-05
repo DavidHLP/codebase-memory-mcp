@@ -8521,30 +8521,13 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
 
 /* Distinct declarations retain their own source ranges and outgoing edges;
  * labels/arity alone cannot choose generic constraints or sync vs async. */
-TEST(pipeline_swift_generic_async_identity_issue2061) {
-    const char *suffixes[] = {"pick<T>(_:T)",
-                              "pick<T:Equatable>(_:T)",
-                              "pick<T;where T:Hashable>(_:T)",
-                              "pick<T;where T:Comparable>(_:T)",
-                              "pick(_:Int)",
-                              "pick(_:Int)async"};
+static int swift_declaration_identity_case(const char **suffixes, int total,
+                                          const char *service_source, const char *caller_source) {
     for (int mode = 0; mode < 2; mode++) {
         char tmp[256];
         snprintf(tmp, sizeof(tmp), "/tmp/cbm_swift_generic_XXXXXX");
         ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
-        write_temp_file(tmp, "Sources/Service.swift",
-                        "class Service {\n"
-                        "func pick<T>(_ x: T) { mark0() }\n"
-                        "func pick<T: Equatable>(_ x: T) { mark1() }\n"
-                        "func pick<T>(_ x: T) where T: Hashable { mark2() }\n"
-                        "func pick<T>(_ x: T) where T: Comparable { mark3() }\n"
-                        "func pick(_ x: Int) { mark4() }\n"
-                        "func pick(_ x: Int) async { mark5() }\n"
-                        "}\n"
-                        "func mark0() {}\nfunc mark1() {}\nfunc mark2() {}\n"
-                        "func mark3() {}\nfunc mark4() {}\nfunc mark5() {}\n");
-        const char *caller_source = "class Caller {\nlet service = Service()\n"
-                                    "func invoke() { self.service.pick(value) }\n}\n";
+        write_temp_file(tmp, "Sources/Service.swift", service_source);
         write_temp_file(tmp, "Sources/Caller.swift", caller_source);
         for (int i = 0; mode && i < 50; i++) {
             char path[64], source[80];
@@ -8561,9 +8544,9 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
             if (phase) {
                 char path[512];
                 snprintf(path, sizeof(path), "%s/Sources/Caller.swift", tmp);
-                write_temp_file(tmp, "Sources/Caller.swift",
-                                "class Caller {\nlet service = Service()\n"
-                                "func invoke() { self.service.pick(value) }\n}\n// changed\n");
+                char changed[1024];
+                snprintf(changed, sizeof(changed), "%s// changed\n", caller_source);
+                write_temp_file(tmp, "Sources/Caller.swift", changed);
                 ASSERT_EQ(pipeline_test_set_mtime(path, 2000000000, 0), 0);
             }
             cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
@@ -8580,13 +8563,13 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
             int count = 0;
             ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "pick", &overloads, &count),
                       CBM_STORE_OK);
-            ASSERT_EQ(count, 6);
+            ASSERT_EQ(count, total);
             cbm_store_free_nodes(overloads, count);
             char qn[512];
             snprintf(qn, sizeof(qn), "%s.Sources.Caller.Caller.invoke()", project);
             cbm_node_t caller = {0};
             ASSERT_EQ(cbm_store_find_node_by_qn(s, project, qn, &caller), CBM_STORE_OK);
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < total; i++) {
                 cbm_node_t target = {0}, marker = {0};
                 snprintf(qn, sizeof(qn), "%s.Sources.Service.Service.%s", project, suffixes[i]);
                 ASSERT_EQ(cbm_store_find_node_by_qn(s, project, qn, &target), CBM_STORE_OK);
@@ -8604,11 +8587,13 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
                 cbm_store_free_edges(edges, n);
                 ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &n),
                           CBM_STORE_OK);
-                ASSERT_EQ(n, 6);
+                ASSERT_EQ(n, total);
                 int compatible = 0;
                 for (int e = 0; e < n; e++) {
                     if (edges[e].target_id == target.id) {
-                        ASSERT_NOT_NULL(strstr(edges[e].properties_json, "\"candidates\":6"));
+                        char candidates[64];
+                        snprintf(candidates, sizeof(candidates), "\"candidates\":%d", total);
+                        ASSERT_NOT_NULL(strstr(edges[e].properties_json, candidates));
                         compatible++;
                     }
                 }
@@ -8630,6 +8615,45 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
         th_rmtree(tmp);
     }
     PASS();
+}
+
+TEST(pipeline_swift_generic_async_identity_issue2061) {
+    const char *suffixes[] = {"pick<T>(_:T)", "pick<T:Equatable>(_:T)",
+                              "pick<T;where T:Hashable>(_:T)",
+                              "pick<T;where T:Comparable>(_:T)", "pick(_:Int)", "pick(_:Int)async"};
+    return swift_declaration_identity_case(
+        suffixes, 6,
+        "class Service {\n"
+        "func pick<T>(_ x: T) { mark0() }\n"
+        "func pick<T: Equatable>(_ x: T) { mark1() }\n"
+        "func pick<T>(_ x: T) where T: Hashable { mark2() }\n"
+        "func pick<T>(_ x: T) where T: Comparable { mark3() }\n"
+        "func pick(_ x: Int) { mark4() }\n"
+        "func pick(_ x: Int) async { mark5() }\n}\n"
+        "func mark0() {}\nfunc mark1() {}\nfunc mark2() {}\n"
+        "func mark3() {}\nfunc mark4() {}\nfunc mark5() {}\n",
+        "class Caller {\nlet service = Service()\n"
+        "func invoke() { self.service.pick(value) }\n}\n");
+}
+
+TEST(pipeline_swift_qualified_and_return_identity_issue2061) {
+    const char *qualified[] = {"pick(_:A/Item)", "pick(_:B/Item)"};
+    ASSERT_EQ(swift_declaration_identity_case(
+                  qualified, 2,
+                  "class Service {\nfunc pick(_ x: A.Item) { mark0() }\n"
+                  "func pick(_ x: B.Item) { mark1() }\n}\n"
+                  "func mark0() {}\nfunc mark1() {}\n"
+                  "enum A { struct Item {} }\nenum B { struct Item {} }\n",
+                  "class Caller {\nlet service = Service()\n"
+                  "func invoke() { self.service.pick(value) }\n}\n"), 0);
+    const char *returns[] = {"pick()=>Int", "pick()=>String"};
+    return swift_declaration_identity_case(
+        returns, 2,
+        "class Service {\nfunc pick() -> Int { mark0(); return 1 }\n"
+        "func pick() -> String { mark1(); return \"x\" }\n}\n"
+        "func mark0() {}\nfunc mark1() {}\n",
+        "class Caller {\nlet service = Service()\n"
+        "func invoke() { let _: Int = self.service.pick() }\n}\n");
 }
 
 /* The parallel call pass must retain both type-only overload candidates. */
@@ -18469,6 +18493,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
     RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
     RUN_TEST(pipeline_swift_generic_async_identity_issue2061);
+    RUN_TEST(pipeline_swift_qualified_and_return_identity_issue2061);
     RUN_TEST(pipeline_swift_default_before_required_candidates_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_unresolved_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061);
