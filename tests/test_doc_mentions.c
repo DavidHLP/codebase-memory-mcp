@@ -9775,7 +9775,8 @@ TEST(doc_mentions_incremental_non_ascii_name) {
  * loses references, a scope or an edge -- the layer then says error, never
  * ok over a silently thinner graph. One allocation fails at each point in
  * turn (a doc span, a doc text, a reference value, a token, the scope scan,
- * a MENTIONS edge); the run without a failure has no error row. */
+ * the project scan, the doc-line map, a MENTIONS edge); the run without a
+ * failure has no error row. */
 enum { DM_FAIL_EDGE = CBM_DOCLINK_ALLOC_KINDS };
 
 static int dm_alloc_failure_errors(int point) {
@@ -10103,10 +10104,10 @@ TEST(doc_mentions_alloc_failure_status) {
         int point;
         const char *what;
     } points[] = {
-        {CBM_DOCLINK_ALLOC_SPAN, "doc span"},    {CBM_DOCLINK_ALLOC_TEXT, "doc text"},
-        {CBM_DOCLINK_ALLOC_VALUE, "value"},      {CBM_DOCLINK_ALLOC_TOKENS, "token"},
-        {CBM_DOCLINK_ALLOC_SCOPE, "scope scan"}, {CBM_DOCLINK_ALLOC_PROJECT, "project scan"},
-        {DM_FAIL_EDGE, "MENTIONS edge"},
+        {CBM_DOCLINK_ALLOC_SPAN, "doc span"},         {CBM_DOCLINK_ALLOC_TEXT, "doc text"},
+        {CBM_DOCLINK_ALLOC_VALUE, "value"},           {CBM_DOCLINK_ALLOC_TOKENS, "token"},
+        {CBM_DOCLINK_ALLOC_SCOPE, "scope scan"},      {CBM_DOCLINK_ALLOC_PROJECT, "project scan"},
+        {CBM_DOCLINK_ALLOC_DOC_LINE, "doc-line map"}, {DM_FAIL_EDGE, "MENTIONS edge"},
     };
     int baseline = dm_alloc_failure_errors(-1);
     bool ok = baseline == 0;

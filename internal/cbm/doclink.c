@@ -195,6 +195,15 @@ static CBMArena *doclink_scratch(CBMExtractCtx *ctx) {
     return ctx->scratch ? ctx->scratch : ctx->arena;
 }
 
+/* The map could not hold a doc: its references then take their definition's
+ * line, and a doc shared by several declarators is taken once per declarator.
+ * The layer must not say ok over that (CBMDocLinkArray.failed). */
+static void doc_line_lost(CBMExtractCtx *ctx) {
+    if (ctx->result) {
+        ctx->result->doc_links.failed = true;
+    }
+}
+
 void cbm_doclink_note_doc_line(CBMExtractCtx *ctx, const char *doc, uint32_t line) {
     if (!ctx || !doc || !cbm_doclink_lang_supported(ctx->language)) {
         return;
@@ -204,6 +213,7 @@ void cbm_doclink_note_doc_line(CBMExtractCtx *ctx, const char *doc, uint32_t lin
     if (!m) {
         m = (doc_line_map_t *)cbm_arena_alloc(a, sizeof(*m));
         if (!m) {
+            doc_line_lost(ctx);
             return;
         }
         memset(m, 0, sizeof(*m));
@@ -211,9 +221,18 @@ void cbm_doclink_note_doc_line(CBMExtractCtx *ctx, const char *doc, uint32_t lin
     }
     if (m->count >= m->cap) {
         int ncap = m->cap ? m->cap * PAIR_LEN : DOC_LINE_MAP_INIT;
-        doc_line_ent_t *grown = (doc_line_ent_t *)cbm_arena_alloc(a, (size_t)ncap * sizeof(*grown));
+        doc_line_ent_t *grown;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+        if (cbm_doclink_test_fail_alloc(CBM_DOCLINK_ALLOC_DOC_LINE)) {
+            grown = NULL;
+        } else
+#endif
+        {
+            grown = (doc_line_ent_t *)cbm_arena_alloc(a, (size_t)ncap * sizeof(*grown));
+        }
         if (!grown) {
-            return; /* the reference keeps its definition's line instead */
+            doc_line_lost(ctx);
+            return;
         }
         if (m->count > 0) {
             memcpy(grown, m->items, (size_t)m->count * sizeof(*grown));

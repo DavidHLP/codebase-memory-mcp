@@ -149,8 +149,9 @@ enum {
     CBM_DOCLINK_ALLOC_TEXT,
     CBM_DOCLINK_ALLOC_VALUE,
     CBM_DOCLINK_ALLOC_TOKENS,
-    CBM_DOCLINK_ALLOC_SCOPE,   /* the C# scope scan, as if its builder ran out */
-    CBM_DOCLINK_ALLOC_PROJECT, /* the project-file scan, likewise */
+    CBM_DOCLINK_ALLOC_SCOPE,    /* the C# scope scan, as if its builder ran out */
+    CBM_DOCLINK_ALLOC_PROJECT,  /* the project-file scan, likewise */
+    CBM_DOCLINK_ALLOC_DOC_LINE, /* the doc-line map's growth */
     CBM_DOCLINK_ALLOC_KINDS,
 };
 void cbm_doclink_test_fail_alloc_after(int kind, int nth);
