@@ -1774,12 +1774,10 @@ static bool xref_stream_at(pdf_doc_t *d, int64_t off, pdf_xref_t *sec, pdf_val_t
     bool dflt = !index || (index->kind == PV_ARR && index->count == 0) ||
                 (index->kind == PV_NUM && index->num == 0.0) ||
                 (index->kind == PV_BOOL && !index->b);
-    int64_t pairs[2];
+    int64_t pairs[2] = {0, 0}; /* read only on the default /Index (no items) */
     pdf_val_t **items = NULL;
     int nitems = 0;
     if (dflt) {
-        pairs[0] = 0;
-        pairs[1] = 0;
         if (size && !num_to_int(size, &pairs[1])) {
             return false;
         }

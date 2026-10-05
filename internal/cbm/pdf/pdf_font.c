@@ -1036,10 +1036,14 @@ static bool ttf_fmt4(const unsigned char *p, size_t len, size_t so, uint32_t *re
         uint32_t start;
         uint32_t delta;
         uint32_t ro;
-        rd16(p, len, ends + 2 * (size_t)s, &end);
-        rd16(p, len, starts + 2 * (size_t)s, &start);
-        rd16(p, len, deltas + 2 * (size_t)s, &delta);
-        rd16(p, len, ro_pos + 2 * (size_t)s, &ro);
+        /* in range by the check above; a failed read fails the map like the
+         * prototype's short slice (and gcc -O2 sees every value set) */
+        if (!rd16(p, len, ends + 2 * (size_t)s, &end) ||
+            !rd16(p, len, starts + 2 * (size_t)s, &start) ||
+            !rd16(p, len, deltas + 2 * (size_t)s, &delta) ||
+            !rd16(p, len, ro_pos + 2 * (size_t)s, &ro)) {
+            return false;
+        }
         uint32_t last = end < 0xFFFEU ? end : 0xFFFEU;
         if (start > last) {
             continue;
@@ -1100,9 +1104,10 @@ static bool ttf_fmt12(const unsigned char *p, size_t len, size_t so, uint32_t *r
         uint32_t b;
         uint32_t g0;
         size_t at = so + 16 + 12 * (size_t)i;
-        rd32(p, len, at, &a);
-        rd32(p, len, at + 4, &b);
-        rd32(p, len, at + 8, &g0);
+        /* in range by the check above (gcc -O2 sees every value set) */
+        if (!rd32(p, len, at, &a) || !rd32(p, len, at + 4, &b) || !rd32(p, len, at + 8, &g0)) {
+            return false;
+        }
         uint64_t cmax = (uint64_t)a + PDF_GID_SPACE;
         if ((uint64_t)b < cmax) {
             cmax = b;
