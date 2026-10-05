@@ -1,0 +1,46 @@
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/noble-cli-target.json
+  s_369d103dcf82b9::t_afd03d9d4e8627 1
+docs/SWIFT_IDENTITY_VALIDATION.md
+  s_369d103dcf82b9::t_00b6a9d9b1a59c 8-48,50-52,54-135
+  s_369d103dcf82b9::t_44b81dfc4db954 49,53
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/final-graph.stdout
+  s_369d103dcf82b9::t_8f01cbfac05ef0 1-19
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/noble-cli-name.json
+  s_369d103dcf82b9::t_f846b13943aadc 1
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/noble-cli-caller.json
+  s_369d103dcf82b9::t_72970d9f8f8344 1
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/objectscript-routine.stderr
+  s_369d103dcf82b9::t_6d48151689f101 1-6
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/swift-cli-validate.py.txt
+  s_369d103dcf82b9::t_cd455ce389bf1a 1-44
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/README.md
+  s_369d103dcf82b9::t_e854c3f094832b 1-26
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/final-mcp.stdout
+  s_369d103dcf82b9::t_adc878d33fa09c 1-16
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/noble-cli-search.json
+  s_369d103dcf82b9::t_db305597bdd4ed 1
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/objectscript-udl.stderr
+  s_369d103dcf82b9::t_1c1352864656e4 1-6
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/swift-combined-driver.c.txt
+  s_369d103dcf82b9::t_9494a5be6d74c6 1-22
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/noble-cli-tree.json
+  s_369d103dcf82b9::t_0a3c090e293d02 1
+tests/repro/issue2061_swift_identity/evidence/2026-10-05/swift-objectscript-baseline-probe.c.txt
+  s_369d103dcf82b9::t_ca5864f90dab3f 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39d5db48a83f94641fccbb44c8cbc0233b5e2a51",
+  "prompts": {},
+  "sessions": {
+    "s_369d103dcf82b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a109ac-f7a8-7950-979d-39c4def6d337",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
