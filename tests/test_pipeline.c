@@ -8906,6 +8906,12 @@ static int swift_incompatible_overload_fixture(bool parallel) {
     ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "get", &gets, &get_count), CBM_STORE_OK);
     ASSERT_EQ(get_count, 1);
     ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, gets[0].id), 0);
+    /* Fault injection: the same checker must detect an incompatible edge,
+     * which would make the preceding negative assertion fail in either path. */
+    cbm_edge_t injected = {.project = project, .source_id = wrong.id,
+                           .target_id = gets[0].id, .type = "CALLS"};
+    ASSERT_GT(cbm_store_insert_edge(s, &injected), 0);
+    ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, gets[0].id), 1);
     cbm_store_free_nodes(gets, get_count);
     cbm_node_free_fields(&wrong);
     ASSERT_EQ(pipeline_has_calls_edge(s, runs[0].id, fetches[0].id), 0);
