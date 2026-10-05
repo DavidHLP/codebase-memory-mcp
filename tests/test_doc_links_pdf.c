@@ -1085,27 +1085,29 @@ TEST(pdf_links_pipeline) {
     ASSERT_NOT_NULL(strstr(props, "\"syntax\":\"pdf_path\""));
     ASSERT_NOT_NULL(strstr(props, "\"tier\":\"exact\""));
     ASSERT_NOT_NULL(strstr(props, "\"line\":1"));
-    /* a Go method through its receiver (its QN has none) */
+    /* qualified names (pdf_qn) did not pass the held-out audit (77 of 80 correct,
+     * Wilson 95 % low 0.896 < 0.90): no edge, a below_bar_tier row each */
+    const char *const qns[] = {"server.Handler.Serve", "app.models.User.save", "server.NewHandler",
+                               "app.models"};
+    for (size_t i = 0; i < sizeof(qns) / sizeof(qns[0]); i++) {
+        char qreason[64];
+        char qsyntax[32];
+        dm_row(db, "docs/design.pdf", qns[i], qreason, sizeof(qreason), qsyntax, sizeof(qsyntax));
+        ASSERT_STR_EQ(qreason, "below_bar_tier");
+        ASSERT_STR_EQ(qsyntax, "pdf_qn");
+    }
     dm_edge(db, "docs.design.page_1", "pkg.server.Serve", props, sizeof(props), &n);
-    ASSERT_EQ(n, 1);
-    ASSERT_NOT_NULL(strstr(props, "\"tier\":\"unique\""));
-    /* qn-exact */
+    ASSERT_EQ(n, 0);
     dm_edge(db, "docs.design.page_1", "app.models.User.save", props, sizeof(props), &n);
-    ASSERT_EQ(n, 1);
-    ASSERT_NOT_NULL(strstr(props, "\"tier\":\"exact\""));
-    ASSERT_NOT_NULL(strstr(props, "\"line\":2"));
-    /* page 2: a Go function, a file name */
-    dm_edge(db, "docs.design.page_2", "pkg.server.NewHandler", props, sizeof(props), &n);
-    ASSERT_EQ(n, 1);
+    ASSERT_EQ(n, 0);
+    /* page 2: a file name */
     dm_edge(db, "docs.design.page_2", "app.models.py.__file__", props, sizeof(props), &n);
     ASSERT_EQ(n, 1);
     ASSERT_NOT_NULL(strstr(props, "\"syntax\":\"pdf_file\""));
-    /* a module by its qualified name (a Module node is named by its path) */
-    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id=e.source_id JOIN "
-                           "nodes t ON t.id=e.target_id WHERE e.type='MENTIONS' AND "
-                           "t.label='Module' AND t.file_path='app/models.py' AND s.name='page 2' "
-                           "AND e.properties LIKE '%\"tier\":\"exact\"%'"),
-              1);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id=e.source_id WHERE "
+                           "e.type='MENTIONS' AND s.file_path='docs/design.pdf' AND "
+                           "e.properties LIKE '%\"syntax\":\"pdf_qn\"%'"),
+              0);
     /* hygiene: a test target is a row, a data file nothing; a fixture PDF links nothing */
     char reason[64];
     dm_row(db, "docs/design.pdf", "tests/test_api.py", reason, sizeof(reason), NULL, 0);
@@ -1124,10 +1126,11 @@ TEST(pdf_links_pipeline) {
     ASSERT_STR_EQ(reason, "missing");
     ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE raw='other/thing.go'"),
               0);
-    /* back navigation: the method knows the page that names it */
+    /* back navigation: the file knows the page that names it */
     ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id=e.source_id JOIN "
-                           "nodes t ON t.id=e.target_id WHERE e.type='MENTIONS' AND t.name='Serve' "
-                           "AND s.name='page 1'"),
+                           "nodes t ON t.id=e.target_id WHERE e.type='MENTIONS' AND "
+                           "t.label='File' AND t.file_path='pkg/server/handler.go' AND "
+                           "s.name='page 1'"),
               1);
     th_cleanup(tmp);
     PASS();

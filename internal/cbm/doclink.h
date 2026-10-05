@@ -81,7 +81,7 @@
     /* names) only decides which line fragments a cross-line join replaces        */           \
     X(CBM_DOCLINK_PDF_PATH, CBM_LANG_PDF, "pdf_path", false, true, "MENTIONS")                 \
     X(CBM_DOCLINK_PDF_FILE, CBM_LANG_PDF, "pdf_file", false, true, "MENTIONS")                 \
-    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, false, "MENTIONS")                    \
     X(CBM_DOCLINK_PDF_NAME, CBM_LANG_PDF, "pdf_name", false, false, "MENTIONS")                \
     /* restructuredtext (doclink_rst.c): Sphinx domain markup, directives, inline literals */  \
     X(CBM_DOCLINK_RST_ROLE, CBM_LANG_RST, "role", false, true, "MENTIONS")                     \
