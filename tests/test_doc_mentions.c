@@ -13,6 +13,7 @@
 #include "test_doc_mentions_helpers.h"
 
 #include "cbm.h"
+#include "helpers.h" /* cbm_kind_in_set_free_cache */
 #include "doclink.h"
 #include "lang_specs.h"
 #include "foundation/compat_thread.h"
@@ -5980,10 +5981,14 @@ typedef struct {
     CBMFileResult *result;
 } dm_extract_job_t;
 
-/* cbm_thread_create body: extract job->src as C#. */
+/* cbm_thread_create body: extract job->src as C#, then free this thread's
+ * parser and caches as a worker thread does when it ends (LeakSanitizer
+ * reports them otherwise). */
 static void *dm_extract_thread(void *arg) {
     dm_extract_job_t *job = (dm_extract_job_t *)arg;
     job->result = dm_extract(job->src, CBM_LANG_CSHARP, job->rel_path);
+    cbm_destroy_thread_parser();
+    cbm_kind_in_set_free_cache();
     return NULL;
 }
 
@@ -9892,11 +9897,18 @@ TEST(doc_mentions_msbuild_malformed_props_opens) {
     PASS();
 }
 
-enum { DM_BIG_MEMBERS = 20000, DM_SMALL_FILES = 200 };
+/* Sized so that the large file parses far within the extraction budget on
+ * the slowest sanitizer leg, under load too (20,000 fields were cut there,
+ * and 4,000 beside five other suites, leaving the test without its large
+ * file). Every small file costs at least the scratch table's minimum size:
+ * these 20 and the large file come to 3,008 steps, within the bound, while
+ * the regression, DM_SMALL_FILES x 2 x DM_BIG_MEMBERS, is ten times it. */
+enum { DM_BIG_MEMBERS = 1000, DM_SMALL_FILES = 20 };
 
 /* What the resolver looks at to build its index over one file of
  * DM_BIG_MEMBERS fields followed (in path order) by DM_SMALL_FILES files of
- * one type and one field each. 0 when the repository cannot be indexed. */
+ * one type and one field each. 0 when the repository cannot be indexed or the
+ * large file did not reach the index whole. */
 static uint64_t dm_scratch_work(void) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_scratch_XXXXXX");
@@ -9930,16 +9942,23 @@ static uint64_t dm_scratch_work(void) {
     cbm_doclink_cs_test_work_reset();
     uint64_t work = dm_index(tmp, db, NULL) == 0 ? cbm_doclink_cs_test_scratch_work() : 0;
     int rows = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved");
+    int fields = dm_count(db, "SELECT COUNT(*) FROM nodes WHERE label = 'Field' AND "
+                              "file_path = 'a/Big.cs'");
+    if (fields != DM_BIG_MEMBERS) {
+        printf("  scratch table: a/Big.cs reached the index with %d of %d fields\n", fields,
+               (int)DM_BIG_MEMBERS);
+    }
     dm_unlink_db(db);
     th_rmtree(tmp);
-    return rows == 1 ? work : 0;
+    return rows == 1 && fields == DM_BIG_MEMBERS ? work : 0;
 }
 
 /* The per-file scratch table of the index build is not emptied at the size
  * one large file grew it to: after a file of DM_BIG_MEMBERS names, every one
- * of DM_SMALL_FILES small files costs about its own size. The work stays
- * within a small multiple of all the names the files declare (emptying the
- * large table for every small file cost DM_SMALL_FILES times its size). */
+ * of DM_SMALL_FILES small files costs about the table's minimum size. The
+ * work stays within a small multiple of all the names the files declare
+ * (emptying the large table for every small file cost DM_SMALL_FILES times
+ * its size). */
 TEST(doc_mentions_cs_scratch_table_work) {
     uint64_t names = (uint64_t)DM_BIG_MEMBERS + (uint64_t)DM_SMALL_FILES * 2;
     uint64_t work = dm_scratch_work();
@@ -10473,6 +10492,85 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_namespace_publication);
     RUN_TEST(doc_mentions_cs_scope_parse_errors);
     RUN_TEST(doc_mentions_cs_norm_type);
+    RUN_TEST(doc_mentions_resolver_rules);
+    RUN_TEST(doc_mentions_resolver_arity_and_members);
+    RUN_TEST(doc_mentions_resolver_parse_errors);
+    RUN_TEST(doc_mentions_ship_gate);
+    RUN_TEST(doc_mentions_file_node_lookup);
+    RUN_TEST(doc_mentions_index_status_and_delete);
+    RUN_TEST(doc_mentions_index_status_preview_bounds);
+    RUN_TEST(doc_mentions_index_status_preview_text);
+    RUN_TEST(doc_mentions_index_status_preview_order);
+    RUN_TEST(doc_mentions_index_status_preview_failure);
+    RUN_TEST(doc_mentions_scope_delta_rules);
+    RUN_TEST(doc_mentions_incremental_equals_full);
+    RUN_TEST(doc_mentions_parallel_equals_sequential);
+    RUN_TEST(doc_mentions_cs_scan_dollar_run);
+    RUN_TEST(doc_mentions_cs_shared_doc_sources);
+    RUN_TEST(doc_mentions_cs_shared_doc_once);
+    RUN_TEST(doc_mentions_cs_shared_doc_replay);
+    RUN_TEST(doc_mentions_cs_shared_doc_allocation_failure);
+    RUN_TEST(doc_mentions_cs_scan_header_reads);
+    RUN_TEST(doc_mentions_cs_scan_nested_holes);
+    RUN_TEST(doc_mentions_cs_scan_holes_stack);
+    RUN_TEST(doc_mentions_incremental_project_files);
+    RUN_TEST(doc_mentions_cs_lookup_order);
+    RUN_TEST(doc_mentions_cs_type_parameters);
+    RUN_TEST(doc_mentions_cs_usings);
+    RUN_TEST(doc_mentions_cs_entities);
+    RUN_TEST(doc_mentions_cs_assemblies_by_name);
+    RUN_TEST(doc_mentions_cs_reference_source);
+    RUN_TEST(doc_mentions_cs_assemblies_differ);
+    RUN_TEST(doc_mentions_cs_shared_parts);
+    RUN_TEST(doc_mentions_cs_shared_trees);
+    RUN_TEST(doc_mentions_cs_no_project_files);
+    RUN_TEST(doc_mentions_cs_contract_join);
+    RUN_TEST(doc_mentions_cs_idle_project_file);
+    RUN_TEST(doc_mentions_cs_test_namespaces);
+    RUN_TEST(doc_mentions_cs_members);
+    RUN_TEST(doc_mentions_cs_constructors);
+    RUN_TEST(doc_mentions_cs_inherited_members);
+    RUN_TEST(doc_mentions_cs_doc_ids);
+    RUN_TEST(doc_mentions_cs_reasons);
+    RUN_TEST(doc_mentions_cs_text_forms);
+    RUN_TEST(doc_mentions_cs_unit_usings_unchanged);
+    RUN_TEST(doc_mentions_cs_lookup_ambiguous_stops);
+    RUN_TEST(doc_mentions_cs_import_stage_aliases);
+    RUN_TEST(doc_mentions_cs_import_static_parts);
+    RUN_TEST(doc_mentions_cs_import_candidate_allocation);
+    RUN_TEST(doc_mentions_cs_no_silent_limits);
+    RUN_TEST(doc_mentions_cs_many_assemblies);
+    RUN_TEST(doc_mentions_incremental_using_of_based_type);
+    RUN_TEST(doc_mentions_cs_scan_nesting_limits);
+    RUN_TEST(doc_mentions_cs_damaged_stored_scope);
+    RUN_TEST(doc_mentions_cs_portable_scope_bound);
+    RUN_TEST(doc_mentions_cs_unbalanced_brackets);
+    RUN_TEST(doc_mentions_cs_stored_scope_nesting);
+    RUN_TEST(doc_mentions_index_status_unknown_reason);
+    RUN_TEST(doc_mentions_incremental_non_ascii_name);
+    RUN_TEST(doc_mentions_alloc_failure_status);
+    RUN_TEST(doc_mentions_directives_only_failure);
+    RUN_TEST(doc_mentions_cs_scanner_output_reads_back);
+    RUN_TEST(doc_mentions_cs_rejected_scope_contained);
+    RUN_TEST(doc_mentions_cs_rejected_scope_across_runs);
+}
+
+/* The cost tests (work counters held to a multiple of the input) and the MSBuild
+ * evaluator run as suites of their own, so that each stays within the per-suite
+ * wall clock of the harness on the slowest sanitizer legs. */
+SUITE(doc_mentions_cost) {
+    RUN_TEST(doc_mentions_cs_scan_branch_memory);
+    RUN_TEST(doc_mentions_cs_scan_branch_merge_work);
+    RUN_TEST(doc_mentions_cs_scan_declarator_modifier_work);
+    RUN_TEST(doc_mentions_cs_shared_doc_work);
+    RUN_TEST(doc_mentions_cs_lookup_cost);
+    RUN_TEST(doc_mentions_cs_import_lookup_cost);
+    RUN_TEST(doc_mentions_cs_lookup_repeated_name_work);
+    RUN_TEST(doc_mentions_cs_unit_usings_across_files_work);
+    RUN_TEST(doc_mentions_cs_scratch_table_work);
+}
+
+SUITE(doc_mentions_msbuild) {
     RUN_TEST(doc_mentions_msbuild_usings);
     RUN_TEST(doc_mentions_msbuild_targets_isolation);
     RUN_TEST(doc_mentions_msbuild_targets_failure);
@@ -10494,31 +10592,6 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_msbuild_eval_storage);
     RUN_TEST(doc_mentions_msbuild_value_lifetimes);
     RUN_TEST(doc_mentions_msbuild_value_allocation);
-    RUN_TEST(doc_mentions_resolver_rules);
-    RUN_TEST(doc_mentions_resolver_arity_and_members);
-    RUN_TEST(doc_mentions_resolver_parse_errors);
-    RUN_TEST(doc_mentions_ship_gate);
-    RUN_TEST(doc_mentions_file_node_lookup);
-    RUN_TEST(doc_mentions_index_status_and_delete);
-    RUN_TEST(doc_mentions_index_status_preview_bounds);
-    RUN_TEST(doc_mentions_index_status_preview_text);
-    RUN_TEST(doc_mentions_index_status_preview_order);
-    RUN_TEST(doc_mentions_index_status_preview_failure);
-    RUN_TEST(doc_mentions_scope_delta_rules);
-    RUN_TEST(doc_mentions_incremental_equals_full);
-    RUN_TEST(doc_mentions_parallel_equals_sequential);
-    RUN_TEST(doc_mentions_cs_scan_dollar_run);
-    RUN_TEST(doc_mentions_cs_scan_branch_memory);
-    RUN_TEST(doc_mentions_cs_scan_branch_merge_work);
-    RUN_TEST(doc_mentions_cs_scan_declarator_modifier_work);
-    RUN_TEST(doc_mentions_cs_shared_doc_sources);
-    RUN_TEST(doc_mentions_cs_shared_doc_once);
-    RUN_TEST(doc_mentions_cs_shared_doc_work);
-    RUN_TEST(doc_mentions_cs_shared_doc_replay);
-    RUN_TEST(doc_mentions_cs_shared_doc_allocation_failure);
-    RUN_TEST(doc_mentions_cs_scan_header_reads);
-    RUN_TEST(doc_mentions_cs_scan_nested_holes);
-    RUN_TEST(doc_mentions_cs_scan_holes_stack);
     RUN_TEST(doc_mentions_msbuild_blob);
     RUN_TEST(doc_mentions_msbuild_import_group_blob_growth);
     RUN_TEST(doc_mentions_msbuild_import_group_roundtrip);
@@ -10531,56 +10604,11 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_msbuild_conditions);
     RUN_TEST(doc_mentions_msbuild_unknown_spreads);
     RUN_TEST(doc_mentions_msbuild_gate);
-    RUN_TEST(doc_mentions_incremental_project_files);
 #ifndef _WIN32
     RUN_TEST(doc_mentions_msbuild_linked_project_file);
     RUN_TEST(doc_mentions_msbuild_linked_import_directory);
 #endif
-    RUN_TEST(doc_mentions_cs_lookup_order);
-    RUN_TEST(doc_mentions_cs_type_parameters);
-    RUN_TEST(doc_mentions_cs_usings);
-    RUN_TEST(doc_mentions_cs_entities);
-    RUN_TEST(doc_mentions_cs_assemblies_by_name);
-    RUN_TEST(doc_mentions_cs_reference_source);
-    RUN_TEST(doc_mentions_cs_assemblies_differ);
-    RUN_TEST(doc_mentions_cs_shared_parts);
-    RUN_TEST(doc_mentions_cs_shared_trees);
-    RUN_TEST(doc_mentions_cs_no_project_files);
-    RUN_TEST(doc_mentions_cs_contract_join);
-    RUN_TEST(doc_mentions_cs_idle_project_file);
-    RUN_TEST(doc_mentions_cs_test_namespaces);
-    RUN_TEST(doc_mentions_cs_members);
-    RUN_TEST(doc_mentions_cs_constructors);
-    RUN_TEST(doc_mentions_cs_inherited_members);
-    RUN_TEST(doc_mentions_cs_doc_ids);
-    RUN_TEST(doc_mentions_cs_reasons);
-    RUN_TEST(doc_mentions_cs_text_forms);
-    RUN_TEST(doc_mentions_cs_lookup_cost);
-    RUN_TEST(doc_mentions_cs_import_lookup_cost);
-    RUN_TEST(doc_mentions_cs_lookup_repeated_name_work);
-    RUN_TEST(doc_mentions_cs_unit_usings_across_files_work);
-    RUN_TEST(doc_mentions_cs_unit_usings_unchanged);
-    RUN_TEST(doc_mentions_cs_lookup_ambiguous_stops);
-    RUN_TEST(doc_mentions_cs_import_stage_aliases);
-    RUN_TEST(doc_mentions_cs_import_static_parts);
-    RUN_TEST(doc_mentions_cs_import_candidate_allocation);
-    RUN_TEST(doc_mentions_cs_no_silent_limits);
-    RUN_TEST(doc_mentions_cs_many_assemblies);
-    RUN_TEST(doc_mentions_incremental_using_of_based_type);
     RUN_TEST(doc_mentions_msbuild_many_project_files);
-    RUN_TEST(doc_mentions_cs_scan_nesting_limits);
-    RUN_TEST(doc_mentions_cs_damaged_stored_scope);
-    RUN_TEST(doc_mentions_cs_portable_scope_bound);
-    RUN_TEST(doc_mentions_cs_unbalanced_brackets);
-    RUN_TEST(doc_mentions_cs_stored_scope_nesting);
-    RUN_TEST(doc_mentions_index_status_unknown_reason);
     RUN_TEST(doc_mentions_msbuild_unread_project_opens);
     RUN_TEST(doc_mentions_msbuild_malformed_props_opens);
-    RUN_TEST(doc_mentions_cs_scratch_table_work);
-    RUN_TEST(doc_mentions_incremental_non_ascii_name);
-    RUN_TEST(doc_mentions_alloc_failure_status);
-    RUN_TEST(doc_mentions_directives_only_failure);
-    RUN_TEST(doc_mentions_cs_scanner_output_reads_back);
-    RUN_TEST(doc_mentions_cs_rejected_scope_contained);
-    RUN_TEST(doc_mentions_cs_rejected_scope_across_runs);
 }

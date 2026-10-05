@@ -6373,14 +6373,41 @@ static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in)
     return bad;
 }
 
-/* The graph node of every declaration. false when memory ran out. */
+typedef struct {
+    const char *path;
+    int idx;
+} cs_file_order_t;
+
+static int file_order_cmp(const void *a, const void *b) {
+    const cs_file_order_t *x = (const cs_file_order_t *)a;
+    const cs_file_order_t *y = (const cs_file_order_t *)b;
+    int c = strcmp(x->path ? x->path : "", y->path ? y->path : "");
+    return c ? c : (x->idx > y->idx) - (x->idx < y->idx);
+}
+
+/* The graph node of every declaration. false when memory ran out. Files are
+ * bound in path order: a file's bindings do not depend on the others, but the
+ * scratch table's cost does on the order (it is emptied per file), and the
+ * order the file system listed the files in differs between systems. */
 static bool build_nodes(cs_index_t *ix, const cbm_gbuf_t *g) {
     cs_node_pass_t np = {.names = cbm_ht_create(CBM_SZ_256), .sized = CBM_SZ_256};
     cbm_arena_init(&np.keys);
-    bool ok = np.names != NULL;
-    for (int i = 0; ok && i < ix->nfiles; i++) {
-        ok = bind_nodes(ix, &ix->files[i], g, &np);
+    cs_file_order_t *order = (cs_file_order_t *)cbm_alloc(
+        CBM_MEM_CLASS_OTHER, (size_t)(ix->nfiles ? ix->nfiles : 1) * sizeof(*order));
+    bool ok = np.names != NULL && order != NULL;
+    if (!order) {
+        ix->oom = true;
     }
+    for (int i = 0; ok && i < ix->nfiles; i++) {
+        order[i] = (cs_file_order_t){ix->files[i].rel_path, i};
+    }
+    if (ok && ix->nfiles > 1) {
+        qsort(order, (size_t)ix->nfiles, sizeof(*order), file_order_cmp);
+    }
+    for (int i = 0; ok && i < ix->nfiles; i++) {
+        ok = bind_nodes(ix, &ix->files[order[i].idx], g, &np);
+    }
+    cbm_free(CBM_MEM_CLASS_OTHER, order);
     cbm_ht_free(np.names);
     cbm_arena_destroy(&np.keys);
     cbm_free(CBM_MEM_CLASS_OTHER, np.last);
