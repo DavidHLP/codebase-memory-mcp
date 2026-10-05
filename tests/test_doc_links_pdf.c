@@ -707,6 +707,63 @@ static unsigned char *tp_xrefstm_sections(int sections, size_t *out_len) {
     return b.p;
 }
 
+/* tp_simple's page, then `n` objects that each open a string and never close
+ * it, and no cross-reference: the reader rebuilds it from the object headers. */
+static unsigned char *tp_open_strings(int n, size_t *out_len) {
+    tp_buf_t b = {0};
+    tp_puts(&b, "%PDF-1.7\n");
+    const char *content = "BT /F1 12 Tf 72 700 Td (open strings) Tj ET";
+    const char *body[4] = {TP_CATALOG, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", TP_PAGE_F1_5,
+                           TP_HELV};
+    char line[128];
+    for (int i = 1; i <= 4; i++) {
+        snprintf(line, sizeof(line), "%d 0 obj\n", i);
+        tp_puts(&b, line);
+        tp_puts(&b, body[i - 1]);
+        tp_puts(&b, "\nendobj\n");
+    }
+    snprintf(line, sizeof(line), "5 0 obj\n<< /Length %zu >>\nstream\n", strlen(content));
+    tp_puts(&b, line);
+    tp_puts(&b, content);
+    tp_puts(&b, "\nendstream\nendobj\n");
+    for (int i = 0; i < n; i++) {
+        snprintf(line, sizeof(line), "%d 0 obj\n(", 6 + i);
+        tp_puts(&b, line);
+        for (int k = 0; k < 100; k++) {
+            tp_puts(&b, "a");
+        }
+        tp_puts(&b, "\n");
+    }
+    *out_len = b.n;
+    return b.p;
+}
+
+/* Objects whose strings never end cost what the file costs: each object's
+ * value is read up to the next object, not to the end of the file again (a
+ * thousand objects asked for about 60 MB). */
+TEST(pdf_extract_open_strings_linear) {
+    size_t len;
+    tp_text_t t;
+    unsigned char *pdf = tp_open_strings(1000, &len);
+    cbm_mem_class_reset_peaks();
+    size_t arena0 = cbm_mem_class_peak_bytes(CBM_MEM_CLASS_ARENA);
+    size_t extract0 = cbm_mem_class_peak_bytes(CBM_MEM_CLASS_EXTRACT);
+    ASSERT_TRUE(tp_extract(pdf, len, &t));
+    size_t grew = (cbm_mem_class_peak_bytes(CBM_MEM_CLASS_ARENA) - arena0) +
+                  (cbm_mem_class_peak_bytes(CBM_MEM_CLASS_EXTRACT) - extract0);
+    ASSERT_EQ(t.r.status, CBM_PDF_OK);
+    ASSERT_EQ(t.r.counts.xref_reconstructed, 1);
+    ASSERT_EQ(t.r.npages, 1);
+    ASSERT_STR_EQ(t.r.pages[0].text, "open strings");
+    if (grew > 16 * len + (1U << 20)) {
+        fprintf(stderr, "open strings: %zu bytes for a %zu-byte file\n", grew, len);
+    }
+    ASSERT_TRUE(grew <= 16 * len + (1U << 20));
+    cbm_arena_destroy(&t.arena);
+    free(pdf);
+    PASS();
+}
+
 /* A thousand sections naming one /XRefStm decode it once: a later (older)
  * section adds nothing, and every copy used to stay until the document closed. */
 TEST(pdf_extract_xrefstm_once) {
@@ -1059,6 +1116,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_extract_filters_and_hostile);
     RUN_TEST(pdf_extract_object_chains);
     RUN_TEST(pdf_extract_xrefstm_once);
+    RUN_TEST(pdf_extract_open_strings_linear);
     RUN_TEST(pdf_scan_mentions);
     RUN_TEST(pdf_links_pipeline);
     RUN_TEST(pdf_snippet_is_page_text);

@@ -1072,6 +1072,30 @@ static bool endstream_follows(const pdf_doc_t *d, size_t q) {
     return false;
 }
 
+static bool build_hdrs(pdf_doc_t *d);
+
+/* Where the first object header at or after `at` starts (d->len when none):
+ * an object's value is read up to there. The objects of a file do not overlap;
+ * a token that ran on into the next ones (a string without its end) made every
+ * object before it read the rest of the file again, n objects times the file.
+ * The bytes of a stream are not bounded by this: its /Length places them. */
+static size_t object_end(pdf_doc_t *d, size_t at) {
+    if (!build_hdrs(d)) {
+        return d->len;
+    }
+    int lo = 0;
+    int hi = d->nhdrs;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (d->hdrs[mid].off >= at) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    return lo < d->nhdrs ? d->hdrs[lo].off : d->len;
+}
+
 /* The value of the object at off (or off + hdr), without its stream; *stream_at
  * is where a "stream" keyword after the value starts, 0 when none follows. NULL:
  * no matching header there. */
@@ -1097,7 +1121,7 @@ static pdf_val_t *indirect_value_at(pdf_doc_t *d, int64_t off, bool has_expect, 
         return NULL;
     }
     const unsigned char *s = d->data;
-    size_t len = d->len;
+    size_t len = object_end(d, at);
     size_t p = at;
     pdf_tok_t t;
     pdf_lex(d, s, len, &p, &t);
@@ -1343,7 +1367,39 @@ struct pdf_objstm {
     int64_t *ooff;
     int n;
     pdf_numidx_t *sorted; /* (onum, order), built on first need */
+    int64_t *starts;      /* first + each offset, ascending, built on first need */
 };
+
+static int i64_cmp(const void *x, const void *y);
+
+/* Where the member after the one at `at` starts (sm->len when none): members
+ * do not overlap, as the objects of a file do not (object_end). */
+static size_t member_end(pdf_doc_t *d, pdf_objstm_t *sm, size_t at) {
+    if (!sm->starts) {
+        sm->starts = (int64_t *)pdf_big(d, (size_t)(sm->n ? sm->n : 1) * sizeof(int64_t));
+        if (!sm->starts) {
+            return sm->len;
+        }
+        for (int i = 0; i < sm->n; i++) {
+            sm->starts[i] = pdf_sat_add(sm->first, sm->ooff[i]);
+        }
+        qsort(sm->starts, (size_t)sm->n, sizeof(int64_t), i64_cmp);
+    }
+    int lo = 0;
+    int hi = sm->n;
+    while (lo < hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (sm->starts[mid] > (int64_t)at) {
+            hi = mid;
+        } else {
+            lo = mid + 1;
+        }
+    }
+    if (lo < sm->n && (uint64_t)sm->starts[lo] < (uint64_t)sm->len) {
+        return (size_t)sm->starts[lo];
+    }
+    return sm->len;
+}
 
 static int64_t objstm_find(pdf_doc_t *d, pdf_objstm_t *sm, int64_t num, int64_t idx) {
     if (idx >= 0 && idx < sm->n && sm->onum[idx] == num) {
@@ -1408,9 +1464,10 @@ pdf_val_t *pdf_get(pdf_doc_t *d, int64_t num) {
             int64_t at = off == INT64_MIN ? -1 : pdf_sat_add(sm->first, off);
             if (at >= 0 && (uint64_t)at <= (uint64_t)sm->len) {
                 size_t p = (size_t)at;
+                size_t end = member_end(d, sm, (size_t)at);
                 pdf_tok_t t;
-                pdf_lex(d, sm->data, sm->len, &p, &t);
-                obj = pdf_parse_value(d, sm->data, sm->len, &p, &t, 0);
+                pdf_lex(d, sm->data, end, &p, &t);
+                obj = pdf_parse_value(d, sm->data, end, &p, &t, 0);
             }
         }
     }
@@ -1987,8 +2044,11 @@ static void reconstruct(pdf_doc_t *d) {
         }
         size_t p = q;
         pdf_tok_t t;
-        pdf_lex(d, s, len, &p, &t);
-        pdf_val_t *v = pdf_parse_value(d, s, len, &p, &t, 0);
+        /* read up to the next "trailer": scanned trailers do not overlap either */
+        const unsigned char *nx = cbm_memmem(s + q, len - q, "trailer", 7);
+        size_t tlen = nx ? (size_t)(nx - s) : len;
+        pdf_lex(d, s, tlen, &p, &t);
+        pdf_val_t *v = pdf_parse_value(d, s, tlen, &p, &t, 0);
         if (v && v->kind == PV_DICT) {
             for (int k = 0; k < v->nkv; k++) {
                 kl_push(&trail, v->kv[k].key, v->kv[k].klen, v->kv[k].val);
