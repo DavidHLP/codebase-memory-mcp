@@ -7246,14 +7246,16 @@ static char *handle_index_status(cbm_mcp_server_t *srv, const char *args) {
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = doc ? yyjson_mut_obj(doc) : NULL;
-    if (!root) {
-        yyjson_mut_doc_free(doc);
-        free(project);
-        return mcp_result_from_json(args, NULL);
+    /* A failed allocation or report answers with the MCP allocation-error
+     * response, through the one exit below. */
+    bool failed = !root;
+    if (root) {
+        yyjson_mut_doc_set_root(doc, root);
     }
-    yyjson_mut_doc_set_root(doc, root);
 
-    if (project) {
+    if (failed) {
+        /* nothing to report into */
+    } else if (project) {
         int nodes = cbm_store_count_nodes(store, project);
         int edges = cbm_store_count_edges(store, project);
         /* A negative count is a failed read (CBM_STORE_ERR), not a small
@@ -7287,11 +7289,8 @@ static char *handle_index_status(cbm_mcp_server_t *srv, const char *args) {
         safe_str_free(&proj_info.indexed_at);
         safe_str_free(&proj_info.root_path);
         if (!doc_links_built) {
-            yyjson_mut_doc_free(doc);
-            free(project);
-            return mcp_result_from_json(args, NULL);
-        }
-        if (counts_unreadable) {
+            failed = true;
+        } else if (counts_unreadable) {
             const char *hint;
             if (nodes < 0 && edges < 0) {
                 hint = "The nodes and edges tables could not be read; the database may be "
@@ -7314,7 +7313,7 @@ static char *handle_index_status(cbm_mcp_server_t *srv, const char *args) {
         yyjson_mut_obj_add_str(doc, root, "status", "no_project");
     }
 
-    char *json = yy_doc_to_str(doc);
+    char *json = failed ? NULL : yy_doc_to_str(doc);
     yyjson_mut_doc_free(doc);
     free(project);
 
