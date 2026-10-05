@@ -125,8 +125,14 @@ TEST(doc_links_md_extract_tokens) {
     t = md_token(r, "app/applications.py");
     ASSERT_NOT_NULL(t);
     ASSERT_EQ(t->syntax, CBM_DOCLINK_MD_PATH);
-    ASSERT_NOT_NULL(md_token(r, "app/middleware/"));
-    ASSERT_NOT_NULL(md_token(r, "/docs")); /* a token; the resolver calls it a route */
+    t = md_token(r, "app/middleware/");
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->syntax, CBM_DOCLINK_MD_CODE_PATH);
+    /* a token (the resolver calls it a route); one directory name alone is a
+     * bare path: in a held-out audit `doc/` was another project's as often as not */
+    t = md_token(r, "/docs");
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->syntax, CBM_DOCLINK_MD_BARE_PATH);
     /* an image, a URL: no tokens */
     ASSERT_NULL(md_token(r, "img/a.png"));
     ASSERT_NULL(md_token(r, "https://example.org/a/b.py"));
@@ -140,7 +146,11 @@ TEST(doc_links_md_extract_tokens) {
     ASSERT_NOT_NULL(md_token(r, "pkg.Config.Name"));
     ASSERT_NULL(md_token(r, "self.Name")); /* one identifier after `self.`: a bare name */
     ASSERT_NOT_NULL(md_token(r, "os.path.join"));
-    ASSERT_NOT_NULL(md_token(r, "main.py"));
+    /* a file name alone is its own family: in the held-out audit every wrong
+     * code path was one (`config.yaml`: the reader's own file) */
+    t = md_token(r, "main.py");
+    ASSERT_NOT_NULL(t);
+    ASSERT_EQ(t->syntax, CBM_DOCLINK_MD_BARE_PATH);
     /* fenced code and HTML comments are not scanned; HTML <code> is */
     ASSERT_NULL(md_token(r, "app/fenced.py"));
     ASSERT_NULL(md_token(r, "app/commented.py"));
@@ -231,6 +241,11 @@ TEST(doc_links_md_classify_span) {
         {"\"a/b.py\"", CBM_DOCLINK_MD_NONE, NULL, NULL, 0, 0, false, false},
         {"pkg/Type.Member", CBM_DOCLINK_MD_NONE, NULL, NULL, 0, 0, false, false},
         {"@scope/pkg", CBM_DOCLINK_MD_NONE, NULL, NULL, 0, 0, false, false},
+        /* a traversal or a root names no directory (a held-out link: `../` in a
+         * warning about attacker-controlled paths) */
+        {"../", CBM_DOCLINK_MD_NONE, NULL, NULL, 0, 0, false, false},
+        {"./", CBM_DOCLINK_MD_NONE, NULL, NULL, 0, 0, false, false},
+        {"../..", CBM_DOCLINK_MD_NONE, NULL, NULL, 0, 0, false, false},
     };
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
         const md_case_t *c = &cases[i];
@@ -348,8 +363,9 @@ TEST(doc_links_md_resolve) {
     ASSERT_STR_EQ(syntax, "code_name");
     dm_row(db, "docs/guide.md", "test_routing.only_in_tests", reason, sizeof(reason), NULL, 0);
     ASSERT_STR_EQ(reason, "test_only_target");
-    dm_row(db, "docs/guide.md", "main.py", reason, sizeof(reason), NULL, 0);
+    dm_row(db, "docs/guide.md", "main.py", reason, sizeof(reason), syntax, sizeof(syntax));
     ASSERT_STR_EQ(reason, "ambiguous"); /* lib/main.py, but not next to the document */
+    ASSERT_STR_EQ(syntax, "bare_path");
     dm_row(db, "docs/guide.md", "../app/gone.py", reason, sizeof(reason), NULL, 0);
     ASSERT_STR_EQ(reason, "missing");
     dm_row(db, "docs/guide.md", "app/html.py", reason, sizeof(reason), NULL, 0);
@@ -582,21 +598,146 @@ TEST(doc_links_md_ship_gate) {
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_LINK));
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_ROLE));
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_ADOC_INCLUDE));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_LITERALINCLUDE));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_CODE_PATH));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_CODE_PATH));
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlmdgate_XXXXXX");
     ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
     md_write_fixture(tmp);
+    /* a file name alone, next to its file: it resolves, and its tier holds it */
+    th_write_file(TH_PATH(tmp, "pkg/README.md"), "# Pkg\n\nSee `config.go`.\n");
     char db[512];
     snprintf(db, sizeof(db), "%s/md.db", tmp);
     ASSERT_EQ(dm_index(tmp, db, NULL), 0);
     char props[512];
     ASSERT_EQ(md_edge(db, "Guide", "config.go.__file__", props, sizeof(props)), 1);
-    ASSERT_EQ(md_edge(db, "Paths", "APIRouter.add", props, sizeof(props)), 0);
-    ASSERT_TRUE(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE "
-                             "reason = 'below_bar_tier' AND syntax = 'code_path'") > 0);
-    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges WHERE type = 'MENTIONS' AND "
-                           "properties LIKE '%\"syntax\":\"code_path\"%'"),
+    ASSERT_EQ(md_edge(db, "Paths", "APIRouter.add", props, sizeof(props)), 1);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE "
+                           "reason = 'below_bar_tier' AND syntax = 'code_path'"),
               0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE "
+                           "reason = 'below_bar_tier' AND syntax = 'bare_path' "
+                           "AND rel_path = 'pkg/README.md'"),
+              1);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges WHERE type = 'MENTIONS' AND "
+                           "properties LIKE '%\"syntax\":\"bare_path\"%'"),
+              0);
+    th_cleanup(tmp);
+    PASS();
+}
+
+/* A held-out finding: a spec template's combined field `Supersedes / Depends
+ * on: [Spec 2](...)` states no supersession (the record depended on the one it
+ * named); the plain statement next to it still does. */
+TEST(doc_links_md_adr_label_choice) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dladrl_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    th_write_file(TH_PATH(tmp, "docs/adr/0001-base.md"),
+                  "# Base\n\n## Status\n\nAccepted\n\n## Decision\n\nWe use A.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0002-next.md"),
+                  "# Next\n\n## Status\n\nAccepted\n\n"
+                  "Supersedes / Depends on: [ADR-0001](0001-base.md)\n\n"
+                  "## Decision\n\nWe add B.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0003-last.md"), "# Last\n\n## Status\n\nAccepted\n\n"
+                                                         "Supersedes [ADR-0001](0001-base.md).\n\n"
+                                                         "## Decision\n\nWe use C.\n");
+    char db[512];
+    snprintf(db, sizeof(db), "%s/adr.db", tmp);
+    ASSERT_EQ(dm_index(tmp, db, NULL), 0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id = e.source_id "
+                           "WHERE e.type = 'SUPERSEDES' AND s.file_path = 'docs/adr/0002-next.md'"),
+              0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id = e.source_id "
+                           "WHERE e.type = 'SUPERSEDES' AND s.file_path = 'docs/adr/0003-last.md'"),
+              1);
+    th_cleanup(tmp);
+    PASS();
+}
+
+static int md_supersedes_from(const char *db, const char *file, const char *target) {
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id = e.source_id "
+             "JOIN nodes t ON t.id = e.target_id WHERE e.type = 'SUPERSEDES' "
+             "AND s.file_path = 'docs/adr/%s' AND t.file_path LIKE 'docs/adr/%s'",
+             file, target);
+    return dm_count(db, sql);
+}
+
+static int md_supersedes_syntax(const char *db, const char *file, const char *syntax) {
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id = e.source_id "
+             "WHERE e.type = 'SUPERSEDES' AND s.file_path = 'docs/adr/%s' "
+             "AND e.properties LIKE '%%\"syntax\":\"%s\"%%'",
+             file, syntax);
+    return dm_count(db, sql);
+}
+
+/* Held-out findings: a field whose value is "none" goes on to name records it
+ * extends; a record reports another record's supersession (`ADR 0002
+ * supersedes ...`, a table cell `0002 (supersedes ...)`); the record after a
+ * statement's full stop is no target. The record's own number as the subject
+ * is its own statement. */
+TEST(doc_links_md_adr_reported) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dladrr_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    th_write_file(TH_PATH(tmp, "docs/adr/0001-base.md"),
+                  "# Base\n\n## Status\n\nAccepted\n\n## Decision\n\nWe use A.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0002-next.md"),
+                  "# Next\n\n## Status\n\nAccepted\n\n## Decision\n\nWe use B.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0003-none.md"),
+                  "# None\n\n- Status: Accepted\n"
+                  "- Supersedes: none (it extends [ADR 0001](0001-base.md))\n\n"
+                  "## Decision\n\nWe add C.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0004-na.md"),
+                  "# NA\n\n- Status: Accepted\n- Supersedes: **N/A** -- refines ADR-0002\n\n"
+                  "## Decision\n\nWe add D.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0005-report.md"),
+                  "# Report\n\n## Status\n\nAccepted\n\n## Context\n\n"
+                  "ADR 0002 supersedes ADR 0001's first decision.\n\n"
+                  "| Row | Owner |\n|---|---|\n| retries | 0002 (supersedes ADR 0001's rule) |\n\n"
+                  "[ADR 0002](0002-next.md) supersedes ADR 0001 too.\n\n"
+                  "## Decision\n\nWe audit.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0006-own.md"),
+                  "# Own\n\n## Status\n\nAccepted\n\n## Decision\n\n"
+                  "ADR 0006 supersedes ADR 0001.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0007-stop.md"),
+                  "# Stop\n\n## Status\n\nAccepted\n\n## Decision\n\n"
+                  "> This record supersedes ADR-0001. ADR 0002 is an orthogonal decision.\n");
+    /* adr-tools' own form: the link text holds the record's number and title */
+    th_write_file(TH_PATH(tmp, "docs/adr/0008-tools.md"),
+                  "# 8. Tools\n\n## Status\n\nAccepted\n\n"
+                  "Supersedes [2. Next](0002-next.md)\n\n## Decision\n\nWe use E.\n");
+    /* statements in a field table and a bold field */
+    th_write_file(TH_PATH(tmp, "docs/adr/0009-table.md"),
+                  "# Table\n\n| Field | Value |\n|---|---|\n| Status | Accepted |\n"
+                  "| Supersedes | [ADR 0001](0001-base.md) |\n\n## Decision\n\nWe use F.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0010-field.md"),
+                  "# Field\n\n- Status: Accepted\n- **Supersedes:** ADR-0002\n\n"
+                  "## Decision\n\nWe use G.\n");
+    char db[512];
+    snprintf(db, sizeof(db), "%s/adr.db", tmp);
+    ASSERT_EQ(dm_index(tmp, db, NULL), 0);
+    ASSERT_EQ(md_supersedes_from(db, "0003-none.md", "%"), 0);
+    ASSERT_EQ(md_supersedes_from(db, "0004-na.md", "%"), 0);
+    ASSERT_EQ(md_supersedes_from(db, "0005-report.md", "%"), 0);
+    ASSERT_EQ(md_supersedes_from(db, "0006-own.md", "0001-base.md"), 1);
+    ASSERT_EQ(md_supersedes_from(db, "0007-stop.md", "0001-base.md"), 1);
+    ASSERT_EQ(md_supersedes_from(db, "0007-stop.md", "0002-next.md"), 0);
+    ASSERT_EQ(md_supersedes_from(db, "0008-tools.md", "0002-next.md"), 1);
+    ASSERT_EQ(md_supersedes_from(db, "0009-table.md", "0001-base.md"), 1);
+    ASSERT_EQ(md_supersedes_from(db, "0010-field.md", "0002-next.md"), 1);
+    /* a statement opens its line or field and names a record directly; the
+     * same words in running prose are the held family supersedes_prose */
+    ASSERT_EQ(md_supersedes_syntax(db, "0006-own.md", "supersedes_prose"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0007-stop.md", "supersedes_prose"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0008-tools.md", "supersedes"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0009-table.md", "supersedes"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0010-field.md", "supersedes"), 1);
     th_cleanup(tmp);
     PASS();
 }
@@ -609,6 +750,8 @@ SUITE(doc_links_md) {
     RUN_TEST(doc_links_md_resolve);
     RUN_TEST(doc_links_md_incremental);
     RUN_TEST(doc_links_md_adr);
+    RUN_TEST(doc_links_md_adr_label_choice);
+    RUN_TEST(doc_links_md_adr_reported);
     cbm_doclink_test_reset_ships();
     RUN_TEST(doc_links_md_ship_gate);
 }

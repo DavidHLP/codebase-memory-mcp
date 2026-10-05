@@ -1085,29 +1085,35 @@ TEST(pdf_links_pipeline) {
     ASSERT_NOT_NULL(strstr(props, "\"syntax\":\"pdf_path\""));
     ASSERT_NOT_NULL(strstr(props, "\"tier\":\"exact\""));
     ASSERT_NOT_NULL(strstr(props, "\"line\":1"));
-    /* qualified names (pdf_qn) did not pass the held-out audit (77 of 80 correct,
-     * Wilson 95 % low 0.896 < 0.90): no edge, a below_bar_tier row each */
-    const char *const qns[] = {"server.Handler.Serve", "app.models.User.save", "server.NewHandler",
-                               "app.models"};
-    for (size_t i = 0; i < sizeof(qns) / sizeof(qns[0]); i++) {
-        char qreason[64];
-        char qsyntax[32];
-        dm_row(db, "docs/design.pdf", qns[i], qreason, sizeof(qreason), qsyntax, sizeof(qsyntax));
-        ASSERT_STR_EQ(qreason, "below_bar_tier");
-        ASSERT_STR_EQ(qsyntax, "pdf_qn");
-    }
+    /* qualified names (pdf_qn) passed a second held-out audit (97 of 99
+     * correct, Wilson 95 % low 0.929) once a member whose QN leaves its owner
+     * out binds only through the owner. A Go method through its receiver: */
     dm_edge(db, "docs.design.page_1", "pkg.server.Serve", props, sizeof(props), &n);
-    ASSERT_EQ(n, 0);
+    ASSERT_EQ(n, 1);
+    ASSERT_NOT_NULL(strstr(props, "\"syntax\":\"pdf_qn\""));
+    ASSERT_NOT_NULL(strstr(props, "\"tier\":\"unique\""));
+    /* qn-exact */
     dm_edge(db, "docs.design.page_1", "app.models.User.save", props, sizeof(props), &n);
-    ASSERT_EQ(n, 0);
-    /* page 2: a file name */
+    ASSERT_EQ(n, 1);
+    ASSERT_NOT_NULL(strstr(props, "\"tier\":\"exact\""));
+    ASSERT_NOT_NULL(strstr(props, "\"line\":2"));
+    /* page 2: a Go function, a file name */
+    dm_edge(db, "docs.design.page_2", "pkg.server.NewHandler", props, sizeof(props), &n);
+    ASSERT_EQ(n, 1);
     dm_edge(db, "docs.design.page_2", "app.models.py.__file__", props, sizeof(props), &n);
     ASSERT_EQ(n, 1);
     ASSERT_NOT_NULL(strstr(props, "\"syntax\":\"pdf_file\""));
-    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id=e.source_id WHERE "
-                           "e.type='MENTIONS' AND s.file_path='docs/design.pdf' AND "
-                           "e.properties LIKE '%\"syntax\":\"pdf_qn\"%'"),
-              0);
+    /* a module by its qualified name (a Module node is named by its path) */
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id=e.source_id JOIN "
+                           "nodes t ON t.id=e.target_id WHERE e.type='MENTIONS' AND "
+                           "t.label='Module' AND t.file_path='app/models.py' AND s.name='page 2' "
+                           "AND e.properties LIKE '%\"tier\":\"exact\"%'"),
+              1);
+    /* back navigation: the method knows the page that names it */
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes s ON s.id=e.source_id JOIN "
+                           "nodes t ON t.id=e.target_id WHERE e.type='MENTIONS' AND t.name='Serve' "
+                           "AND s.name='page 1'"),
+              1);
     /* hygiene: a test target is a row, a data file nothing; a fixture PDF links nothing */
     char reason[64];
     dm_row(db, "docs/design.pdf", "tests/test_api.py", reason, sizeof(reason), NULL, 0);
@@ -1133,6 +1139,43 @@ TEST(pdf_links_pipeline) {
                            "s.name='page 1'"),
               1);
     th_cleanup(tmp);
+    PASS();
+}
+
+/* A held-out finding of the PDF audit: a Go method's QN has no receiver, so
+ * `time.Now` (the standard library's function, in a spec) matched the method
+ * Now of a type that the repository's own package time declares. A method is
+ * named through its owner: `time.Provider.Now` still binds it. */
+TEST(pdf_qn_method_through_owner) {
+    cbm_doclink_test_set_ships(CBM_DOCLINK_PDF_QN, true);
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlpdfq_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[512];
+    char db[512];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    snprintf(db, sizeof(db), "%s/g.db", tmp);
+    th_write_file(TH_PATH(repo, "pkg/time/provider.go"),
+                  "package time\n"
+                  "\n"
+                  "type Provider struct{}\n"
+                  "\n"
+                  "func (p *Provider) Now() int { return 0 }\n");
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/docs/spec.pdf", repo);
+    const char *pages[2] = {"Go's clock: time.Now is the standard library's.",
+                            "Our clock: time.Provider.Now wraps it."};
+    tp_write_pdf(path, pages, 2);
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    char props[512];
+    int n;
+    dm_edge(db, "docs.spec.page_1", "pkg.time.Now", props, sizeof(props), &n);
+    ASSERT_EQ(n, 0);
+    dm_edge(db, "docs.spec.page_2", "pkg.time.Now", props, sizeof(props), &n);
+    ASSERT_EQ(n, 1);
+    ASSERT_NOT_NULL(strstr(props, "\"syntax\":\"pdf_qn\""));
+    th_cleanup(tmp);
+    cbm_doclink_test_reset_ships();
     PASS();
 }
 
@@ -1267,6 +1310,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_scan_mentions);
     RUN_TEST(pdf_scan_join_linear);
     RUN_TEST(pdf_links_pipeline);
+    RUN_TEST(pdf_qn_method_through_owner);
     RUN_TEST(pdf_page_doc_bounded);
     RUN_TEST(pdf_snippet_is_page_text);
     RUN_TEST(pdf_links_incremental);

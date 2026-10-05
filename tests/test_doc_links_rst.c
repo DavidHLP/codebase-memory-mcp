@@ -445,11 +445,56 @@ TEST(rst_links_incremental) {
     PASS();
 }
 
+/* Two held-out findings (supplementary audit): `.. py:function:: autofit` on a
+ * page without a module bound the example script module examples/autofit.py
+ * (an object directive declares a definition, never a module), and
+ * `:lines: 5-` (line 5 to the file's end) was read as line 5 alone. */
+TEST(rst_object_and_open_lines) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlrsto_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[512];
+    char db[512];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    snprintf(db, sizeof(db), "%s/g.db", tmp);
+    th_write_file(TH_PATH(repo, "examples/autofit.py"), "print('autofit example')\n");
+    th_write_file(TH_PATH(repo, "examples/tail.py"), "import os\n"          /* 1 */
+                                                     "\n"                   /* 2 */
+                                                     "\n"                   /* 3 */
+                                                     "class Tail:\n"        /* 4 */
+                                                     "    def a(self):\n"   /* 5 */
+                                                     "        return 1\n"   /* 6 */
+                                                     "\n"                   /* 7 */
+                                                     "    def b(self):\n"   /* 8 */
+                                                     "        return 2\n"); /* 9 */
+    th_write_file(TH_PATH(repo, "docs/conf.py"), "project = 'x'\n");
+    th_write_file(TH_PATH(repo, "docs/worksheet.rst"), "Worksheet\n"
+                                                       "=========\n"
+                                                       "\n"
+                                                       ".. py:function:: autofit()\n"
+                                                       "\n"
+                                                       "   Fit the columns.\n"
+                                                       "\n"
+                                                       ".. literalinclude:: ../examples/tail.py\n"
+                                                       "   :lines: 5-\n");
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges e JOIN nodes t ON t.id=e.target_id WHERE "
+                           "e.type='MENTIONS' AND t.file_path='examples/autofit.py'"),
+              0);
+    ASSERT_EQ(rst_rows(db, ".. py:function:: autofit", "missing"), 1);
+    /* lines 5 to 9 lie in class Tail; line 5 alone lies in method a */
+    ASSERT_TRUE(
+        rst_edge(db, "docs.worksheet.Worksheet", "examples.tail.Tail", "\"target_lines\":[5,9]"));
+    th_cleanup(tmp);
+    PASS();
+}
+
 SUITE(doc_links_rst) {
     dm_ship_held_families();
     RUN_TEST(rst_scan_structure);
     RUN_TEST(rst_python_scope_blob);
     RUN_TEST(rst_links_pipeline);
+    RUN_TEST(rst_object_and_open_lines);
     RUN_TEST(rst_adr_record);
     RUN_TEST(rst_links_incremental);
     cbm_doclink_test_reset_ships();

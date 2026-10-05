@@ -190,6 +190,17 @@ static int mdr_def_cmp(const void *a, const void *b) {
 /* Every code definition of the graph, sorted by file. False when memory ran
  * out. */
 static bool mdr_build_defs(mdr_index_t *x, const cbm_gbuf_t *graph) {
+    /* the ADR records first: a repository of documents alone has records but
+     * no code definitions, and its supersedes links still need them */
+    const cbm_gbuf_node_t **adrs = NULL;
+    int nadr = 0;
+    if (cbm_gbuf_find_by_label(graph, "ADR", &adrs, &nadr) == 0) {
+        for (int i = 0; i < nadr; i++) {
+            if (adrs[i]->file_path && adrs[i]->file_path[0]) {
+                cbm_ht_set(x->adr_by_file, adrs[i]->file_path, (void *)adrs[i]);
+            }
+        }
+    }
     int total = 0;
     for (size_t l = 0; MDR_CODE_LABELS[l]; l++) {
         const cbm_gbuf_node_t **nodes = NULL;
@@ -218,15 +229,6 @@ static bool mdr_build_defs(mdr_index_t *x, const cbm_gbuf_t *graph) {
         }
     }
     qsort(x->defs, (size_t)x->ndefs, sizeof(*x->defs), mdr_def_cmp);
-    const cbm_gbuf_node_t **adrs = NULL;
-    int nadr = 0;
-    if (cbm_gbuf_find_by_label(graph, "ADR", &adrs, &nadr) == 0) {
-        for (int i = 0; i < nadr; i++) {
-            if (adrs[i]->file_path && adrs[i]->file_path[0]) {
-                cbm_ht_set(x->adr_by_file, adrs[i]->file_path, (void *)adrs[i]);
-            }
-        }
-    }
     return true;
 }
 
@@ -1142,6 +1144,7 @@ static void mdr_resolve(const void *index, void *state, int run_file, const CBMD
     mdr_ref_t r = {0};
     switch (link->syntax) {
     case CBM_DOCLINK_MD_SUPERSEDES:
+    case CBM_DOCLINK_MD_SUPERSEDES_PROSE:
         mdr_resolve_adr(x, graph, doc, link->raw, out);
         return;
     case CBM_DOCLINK_MD_LINK:
@@ -1169,6 +1172,7 @@ static void mdr_resolve(const void *index, void *state, int run_file, const CBMD
         }
         break;
     }
+    case CBM_DOCLINK_MD_BARE_PATH:
     case CBM_DOCLINK_MD_CODE_PATH: {
         CBMDocLinkMdPath p;
         if (!cbm_doclink_md_classify_span(link->raw, strlen(link->raw), buf, sizeof(buf), &p) ||

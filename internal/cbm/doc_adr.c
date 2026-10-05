@@ -38,14 +38,15 @@
 #include <string.h>
 
 enum {
-    ADR_ID_DIGITS = 5,   /* an ADR number has at most this many digits */
-    ADR_PREFIX_MIN = 2,  /* `DEC-5`: a prefix of 2 ... */
-    ADR_PREFIX_MAX = 12, /* ... to 12 letters */
-    ADR_DOC_MAX = 500,   /* the node's docstring: the decision, collapsed */
-    ADR_FIELD_MAX = 256, /* a fact value is cut at a character boundary */
-    ADR_FM_SCAN = 400,   /* front matter ends within this many lines */
-    ADR_HEAD_SCAN = 40,  /* header fields within this many lines when there is no heading */
-    ADR_NAME_MAX = 64,   /* canonical id buffer */
+    ADR_ID_DIGITS = 5,     /* an ADR number has at most this many digits */
+    ADR_PADDED_DIGITS = 3, /* a bare number names a record when padded: `0259`, `012` */
+    ADR_PREFIX_MIN = 2,    /* `DEC-5`: a prefix of 2 ... */
+    ADR_PREFIX_MAX = 12,   /* ... to 12 letters */
+    ADR_DOC_MAX = 500,     /* the node's docstring: the decision, collapsed */
+    ADR_FIELD_MAX = 256,   /* a fact value is cut at a character boundary */
+    ADR_FM_SCAN = 400,     /* front matter ends within this many lines */
+    ADR_HEAD_SCAN = 40,    /* header fields within this many lines when there is no heading */
+    ADR_NAME_MAX = 64,     /* canonical id buffer */
     ADR_YEAR_MIN = 1900,
     ADR_YEAR_MAX = 2099,
     ADR_MONTHS = 12,
@@ -869,7 +870,9 @@ typedef struct {
     adr_lines_t L;
     adr_head_t *heads;
     int nheads;
-    int title_head; /* index into heads, or -1 */
+    int title_head;  /* index into heads, or -1 */
+    bool numbered;   /* the file name gives the record a number: */
+    unsigned number; /* this one */
 } adr_doc_t;
 
 /* The paragraph after heading h (its first non-blank text lines). */
@@ -969,7 +972,7 @@ static bool adr_id_ref(const char *s, size_t n, unsigned *number, size_t *len) {
 }
 
 static void adr_push_relation(adr_doc_t *d, const char *adr_qn, const char *raw, size_t n,
-                              uint32_t line) {
+                              uint32_t line, uint16_t syntax) {
     CBMArena *a = d->ctx->arena;
     char *text = cbm_arena_strndup(a, raw, n);
     if (!text) {
@@ -980,21 +983,33 @@ static void adr_push_relation(adr_doc_t *d, const char *adr_qn, const char *raw,
                        .raw = text,
                        .line = line,
                        .def_line = SKIP_ONE,
-                       .syntax = (uint16_t)CBM_DOCLINK_MD_SUPERSEDES,
+                       .syntax = syntax,
                        .flags = 0};
     cbm_doclinks_push(&d->ctx->result->doc_links, a, link);
 }
 
 /* The targets after a relation phrase, up to the end of its sentence: link
- * destinations and ADR ids. Forward relations become tokens; for a backward
- * one ("superseded by") the targets are joined into `*joined`. */
+ * destinations and ADR ids. Forward relations become tokens of family
+ * `syntax`; for a backward one ("superseded by") the targets are joined into
+ * `*joined`. */
 static void adr_targets(adr_doc_t *d, const char *adr_qn, const char *s, size_t n, uint32_t line,
-                        bool forward, char *joined, size_t jcap) {
+                        bool forward, uint16_t syntax, char *joined, size_t jcap) {
     size_t end = n < ADR_RELATION_SPAN ? n : ADR_RELATION_SPAN;
     for (size_t i = 0; i + SKIP_ONE < end; i++) {
-        if ((s[i] == '.' && (i + SKIP_ONE == end || adr_blank(s[i + SKIP_ONE])) &&
-             !(i > 0 && adr_digit(s[i - SKIP_ONE]))) ||
-            s[i] == ';') {
+        /* a link is one reference whatever its text holds (adr-tools writes
+         * `Supersedes [3. Show links](0003-show-links.md)`) */
+        const char *rb = s[i] == '[' ? memchr(s + i, ']', end - i) : NULL;
+        const char *close = rb && rb + SKIP_ONE < s + end && rb[SKIP_ONE] == '('
+                                ? memchr(rb, ')', (size_t)(s + end - rb))
+                                : NULL;
+        if (close) {
+            i = (size_t)(close - s);
+            continue;
+        }
+        /* a full stop after a number ends the sentence too (`supersedes 0092
+         * and 0094. ADR 0202 is ...`: in a held-out audit the next sentence's
+         * record was taken for a target) */
+        if ((s[i] == '.' && (i + SKIP_ONE == end || adr_blank(s[i + SKIP_ONE]))) || s[i] == ';') {
             end = i;
             break;
         }
@@ -1026,7 +1041,7 @@ static void adr_targets(adr_doc_t *d, const char *adr_qn, const char *s, size_t 
             continue;
         }
         if (forward) {
-            adr_push_relation(d, adr_qn, target, tn, line);
+            adr_push_relation(d, adr_qn, target, tn, line, syntax);
         } else if (joined) {
             size_t w = strlen(joined);
             bool seen = false;
@@ -1058,6 +1073,97 @@ static bool adr_line_head(const adr_line_t *l, int i) {
     return true;
 }
 
+/* A relation word joined to another by a slash, `Supersedes / Depends on:`:
+ * a template's combined field label, which states neither relation (in a
+ * held-out audit the record depended on the one it named). */
+static bool adr_label_choice(const adr_line_t *l, int a, int b) {
+    while (b < l->n && (l->s[b] == ' ' || l->s[b] == '\t')) {
+        b++;
+    }
+    while (a > 0 && (l->s[a - SKIP_ONE] == ' ' || l->s[a - SKIP_ONE] == '\t')) {
+        a--;
+    }
+    return (b < l->n && l->s[b] == '/') || (a > 0 && l->s[a - SKIP_ONE] == '/');
+}
+
+/* The field's value is "none" or "n/a" (`Supersedes: none (it extends ADR
+ * 0031)`): the record states no relation, and the records it goes on to name
+ * are extended or refined (a held-out audit's most frequent error). */
+static bool adr_none_value(const char *s, size_t n) {
+    size_t i = 0;
+    while (i < n && (adr_blank(s[i]) || s[i] == ':' || s[i] == '*' || s[i] == '_')) {
+        i++;
+    }
+    static const char *const none[] = {"none", "n/a", NULL};
+    for (size_t k = 0; none[k]; k++) {
+        size_t w = strlen(none[k]);
+        if (adr_starts_ci(s + i, n - i, none[k]) && (i + w == n || !adr_alpha(s[i + w]))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Another record is the phrase's subject (`ADR 0239 supersedes ADR 0203`, a
+ * table cell `0259 (supersedes ADR 0114's ...)`, a link to a record before
+ * it): this record reports that record's relation and states none of its
+ * own. Its own number as the subject is its own statement. */
+static bool adr_reported(const adr_doc_t *d, const adr_line_t *l, int i) {
+    int k = i;
+    while (k > 0 &&
+           (adr_blank(l->s[k - SKIP_ONE]) || l->s[k - SKIP_ONE] == '(' ||
+            l->s[k - SKIP_ONE] == '*' || l->s[k - SKIP_ONE] == '_' || l->s[k - SKIP_ONE] == '`')) {
+        k--;
+    }
+    if (k >= PAIR_LEN && l->s[k - SKIP_ONE] == ')') {
+        for (int o = k - PAIR_LEN; o > 0; o--) { /* `[text](destination)` */
+            if (l->s[o] == '(') {
+                return l->s[o - SKIP_ONE] == ']';
+            }
+            if (l->s[o] == ')' || adr_blank(l->s[o])) {
+                break;
+            }
+        }
+        return false;
+    }
+    int e = k;
+    while (k > 0 && adr_digit(l->s[k - SKIP_ONE])) {
+        k--;
+    }
+    if (e == k || (k > 0 && adr_alpha(l->s[k - SKIP_ONE]))) {
+        return false;
+    }
+    size_t used = 0;
+    unsigned v = 0;
+    if (!adr_number_at(l->s + k, (size_t)(e - k), &used, &v)) {
+        return false;
+    }
+    unsigned ref = 0;
+    size_t len = 0;
+    bool id = k >= PAIR_LEN * PAIR_LEN &&
+              adr_id_ref(l->s + k - PAIR_LEN * PAIR_LEN, (size_t)(e - k) + PAIR_LEN * PAIR_LEN,
+                         &ref, &len) &&
+              len == (size_t)(e - k) + PAIR_LEN * PAIR_LEN;
+    /* a bare number is a record's only when padded like one (`0259`) */
+    if (!id && e - k < ADR_PADDED_DIGITS) {
+        return false;
+    }
+    return !(d->numbered && v == d->number);
+}
+
+/* A record reference right after the phrase (past a colon, a table bar and
+ * emphasis): a link or an ADR id, `Supersedes: [ADR-3](0003-x.md)`,
+ * `| Supersedes | ADR-0003 |`. */
+static bool adr_direct_ref(const char *s, size_t n) {
+    size_t i = 0;
+    while (i < n && (adr_blank(s[i]) || s[i] == ':' || s[i] == '|' || s[i] == '*' || s[i] == '_')) {
+        i++;
+    }
+    unsigned number = 0;
+    size_t len = 0;
+    return i < n && (s[i] == '[' || adr_id_ref(s + i, n - i, &number, &len));
+}
+
 /* "supersedes" and "superseded by" are ADR words wherever they stand;
  * "replaces" and "replaced by" are ordinary verbs of technical prose ("this
  * middleware replaces the recovery described in ADR-22") and state a relation
@@ -1084,9 +1190,22 @@ static void adr_relations(adr_doc_t *d, const char *adr_qn, char *superseded_by,
                 size_t pl = strlen(phrases[p].phrase);
                 if (adr_starts_ci(l->s + i, (size_t)(l->n - i), phrases[p].phrase) &&
                     (i + (int)pl == l->n || !adr_alpha(l->s[i + (int)pl])) &&
-                    (!phrases[p].line_head || adr_line_head(l, i))) {
-                    adr_targets(d, adr_qn, l->s + i + pl, (size_t)(l->n - i - (int)pl),
-                                (uint32_t)(k + SKIP_ONE), phrases[p].forward, superseded_by, cap);
+                    (!phrases[p].line_head || adr_line_head(l, i)) &&
+                    !adr_label_choice(l, i, i + (int)pl)) {
+                    if (!adr_none_value(l->s + i + pl, (size_t)(l->n - i - (int)pl)) &&
+                        !adr_reported(d, l, i)) {
+                        /* a statement opens its line or field and names a
+                         * record directly; the same words in running prose
+                         * are their own family (held-out audits: prose 38 of
+                         * 42 correct, statements 44 of 45) */
+                        const char *v = l->s + i + pl;
+                        size_t vn = (size_t)(l->n - i - (int)pl);
+                        uint16_t syntax = adr_line_head(l, i) && adr_direct_ref(v, vn)
+                                              ? (uint16_t)CBM_DOCLINK_MD_SUPERSEDES
+                                              : (uint16_t)CBM_DOCLINK_MD_SUPERSEDES_PROSE;
+                        adr_targets(d, adr_qn, v, vn, (uint32_t)(k + SKIP_ONE), phrases[p].forward,
+                                    syntax, superseded_by, cap);
+                    }
                     i += (int)pl - SKIP_ONE;
                     break;
                 }
@@ -1177,7 +1296,11 @@ void cbm_adr_extract(CBMExtractCtx *ctx) {
     }
     CBMArena *scratch = ctx->scratch ? ctx->scratch : ctx->arena;
     CBMArena *a = ctx->arena;
-    adr_doc_t d = {.ctx = ctx, .title_head = CBM_NOT_FOUND};
+    adr_doc_t d = {.ctx = ctx,
+                   .title_head = CBM_NOT_FOUND,
+                   .numbered = id.kind == ADR_ID_ADR || id.kind == ADR_ID_NUMBER ||
+                               id.kind == ADR_ID_PREFIX,
+                   .number = id.number};
     if (!adr_split_lines(scratch, ctx->source, ctx->source_len, &d.L)) {
         ctx->result->doc_links.failed = true;
         return;

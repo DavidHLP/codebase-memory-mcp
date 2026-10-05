@@ -493,6 +493,13 @@ static bool md_classify_path(char *s, size_t n, CBMDocLinkMdPath *out) {
     if (n == 0) {
         return false;
     }
+    bool named = false;
+    for (size_t i = 0; i < n && !named; i++) {
+        named = md_word((unsigned char)s[i]);
+    }
+    if (!named) {
+        return false; /* `../`, `./`, `/`: a traversal or a root, naming no directory */
+    }
     /* an import path (`github.com/x/y`, `k8s.io/client-go`): a host-like first
      * segment -- dot-separated word groups -- and a last segment (as written,
      * a trailing slash leaves it empty) without a file extension */
@@ -1090,13 +1097,28 @@ static void md_emit(md_scan_t *s, int syntax, const char *text, int n) {
     cbm_doclinks_push(&s->ctx->result->doc_links, s->ctx->arena, link);
 }
 
-/* A code span's text: a reference when it names a path or a qualified name. */
+/* A directory written as one name (`doc/`, `/docs`): no parent says whose it is. */
+static bool md_one_dir(const CBMDocLinkMdPath *p) {
+    if (p->shape != CBM_DOCLINK_MD_DIR || !p->path) {
+        return false;
+    }
+    const char *s = p->path + (p->path[0] == '/');
+    const char *slash = strchr(s, '/');
+    return !slash || !slash[SKIP_ONE];
+}
+
+/* A code span's text: a reference when it names a path or a qualified name.
+ * A name alone -- a file (`config.yaml`) or a directory (`doc/`) -- is its own
+ * family: in the held-out audits it was the reader's own file or another
+ * project's directory as often as this repository's. */
 static void md_emit_span(md_scan_t *s, const char *text, int n) {
     CBMDocLinkMdPath p;
     if (n > 0 &&
         cbm_doclink_md_classify_span(text, (size_t)n, s->span_buf, MD_SPAN_MAX + SKIP_ONE, &p)) {
+        bool bare = p.shape == CBM_DOCLINK_MD_FILENAME || md_one_dir(&p);
         md_emit(s,
                 p.shape == CBM_DOCLINK_MD_QUALIFIED ? CBM_DOCLINK_MD_CODE_NAME
+                : bare                              ? CBM_DOCLINK_MD_BARE_PATH
                                                     : CBM_DOCLINK_MD_CODE_PATH,
                 text, n);
     }

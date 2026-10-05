@@ -57,10 +57,18 @@
  *             row with reason below_bar_tier (an unresolved one keeps its own
  *             reason). Nothing else about the family changes. A document
  *             family ships once a held-out audit passed it: below the bar
- *             (pdf_qn; Markdown and AsciiDoc code spans naming paths, AsciiDoc
- *             code names, reST code paths, supersedes) or not yet audited for
- *             want of held-out occurrences (reST object, include,
- *             literalinclude, kernel_doc; AsciiDoc attribute) means false.
+ *             (AsciiDoc code spans naming paths, AsciiDoc code names, reST
+ *             object directives; Markdown code spans naming a file or one
+ *             directory alone, split off the Markdown code-path tier after
+ *             its held-out failure; ADR supersedes words in running prose,
+ *             split off after three held-out censuses failed on them), short
+ *             of a new census after held-out misses were fixed (supersedes
+ *             statements), or not yet audited for want of
+ *             held-out occurrences (reST include, kernel_doc; AsciiDoc
+ *             attribute) means false. Markdown code paths without the bare
+ *             part, reST literalinclude and code paths, and PDF qualified
+ *             names after the owner rule passed supplementary held-out
+ *             audits.
  *   edge      the type of the edge a resolved reference becomes: MENTIONS
  *             (documentation names code), SUPERSEDES (an ADR states that it
  *             supersedes another). The edge's source is always the
@@ -69,40 +77,46 @@
  *
  * The enum below and the family table (doclink.c) are both generated from this
  * list, so a value cannot exist without its name and its gate. */
-#define CBM_DOCLINK_FAMILY_LIST(X)                                                              \
-    /* csharp */                                                                                \
-    X(CBM_DOCLINK_CS_SEE, CBM_LANG_CSHARP, "see", false, true, "MENTIONS")                      \
-    X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true, "MENTIONS")              \
-    X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true, "MENTIONS")          \
-    X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true, "MENTIONS")        \
-    /* markdown (doclink_md.c): what a document's text names explicitly */                      \
-    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true, "MENTIONS")                  \
-    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true, "MENTIONS")                  \
-    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, false, "MENTIONS")       \
-    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")        \
-    /* an ADR's own "supersedes" / "replaces" statement (doc_adr.c): ADR -> ADR */              \
-    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, false, "SUPERSEDES")   \
-    /* pdf (doc_pdf.c): structural mentions in a page's text; pdf_name (bare      */            \
-    /* names) only decides which line fragments a cross-line join replaces        */            \
-    X(CBM_DOCLINK_PDF_PATH, CBM_LANG_PDF, "pdf_path", false, true, "MENTIONS")                  \
-    X(CBM_DOCLINK_PDF_FILE, CBM_LANG_PDF, "pdf_file", false, true, "MENTIONS")                  \
-    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, false, "MENTIONS")                     \
-    X(CBM_DOCLINK_PDF_NAME, CBM_LANG_PDF, "pdf_name", false, false, "MENTIONS")                 \
-    /* restructuredtext (doclink_rst.c): Sphinx domain markup, directives, inline literals */   \
-    X(CBM_DOCLINK_RST_ROLE, CBM_LANG_RST, "role", false, true, "MENTIONS")                      \
-    X(CBM_DOCLINK_RST_OBJECT, CBM_LANG_RST, "object", false, false, "MENTIONS")                 \
-    X(CBM_DOCLINK_RST_AUTODOC, CBM_LANG_RST, "autodoc", false, true, "MENTIONS")                \
-    X(CBM_DOCLINK_RST_INCLUDE, CBM_LANG_RST, "include", false, false, "MENTIONS")               \
-    X(CBM_DOCLINK_RST_LITERALINCLUDE, CBM_LANG_RST, "literalinclude", false, false, "MENTIONS") \
-    X(CBM_DOCLINK_RST_KERNEL_DOC, CBM_LANG_RST, "kernel_doc", false, false, "MENTIONS")         \
-    X(CBM_DOCLINK_RST_CODE_PATH, CBM_LANG_RST, "code_path", false, false, "MENTIONS")           \
-    X(CBM_DOCLINK_RST_CODE_NAME, CBM_LANG_RST, "code_name", false, true, "MENTIONS")            \
-    /* asciidoc (doc_adoc.c): includes, Antora API attributes, monospace spans */               \
-    X(CBM_DOCLINK_ADOC_INCLUDE, CBM_LANG_ASCIIDOC, "include", false, true, "MENTIONS")          \
-    X(CBM_DOCLINK_ADOC_ATTRIBUTE, CBM_LANG_ASCIIDOC, "attribute", false, false, "MENTIONS")     \
-    X(CBM_DOCLINK_ADOC_CODE_PATH, CBM_LANG_ASCIIDOC, "code_path", false, false, "MENTIONS")     \
-    X(CBM_DOCLINK_ADOC_CODE_NAME, CBM_LANG_ASCIIDOC, "code_name", false, false, "MENTIONS")     \
-    /* any language (CBM_LANG_COUNT): a URL is never an edge */                                 \
+#define CBM_DOCLINK_FAMILY_LIST(X)                                                             \
+    /* csharp */                                                                               \
+    X(CBM_DOCLINK_CS_SEE, CBM_LANG_CSHARP, "see", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_CS_SEEALSO, CBM_LANG_CSHARP, "seealso", false, true, "MENTIONS")             \
+    X(CBM_DOCLINK_CS_EXCEPTION, CBM_LANG_CSHARP, "exception", false, true, "MENTIONS")         \
+    X(CBM_DOCLINK_CS_INHERITDOC, CBM_LANG_CSHARP, "inheritdoc", false, true, "MENTIONS")       \
+    /* markdown (doclink_md.c): what a document's text names explicitly */                     \
+    X(CBM_DOCLINK_MD_LINK, CBM_LANG_MARKDOWN, "link", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_MD_PATH, CBM_LANG_MARKDOWN, "path", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_MD_CODE_PATH, CBM_LANG_MARKDOWN, "code_path", false, true, "MENTIONS")       \
+    /* a code span naming a file or directory alone (`config.yaml`, `doc/`) */                 \
+    X(CBM_DOCLINK_MD_BARE_PATH, CBM_LANG_MARKDOWN, "bare_path", false, false, "MENTIONS")      \
+    X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")       \
+    /* an ADR's own "supersedes" / "replaces" statement, opening its line or field */          \
+    /* and naming a record directly (doc_adr.c): ADR -> ADR */                                 \
+    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, false, "SUPERSEDES")  \
+    /* the same words in running prose ("this record supersedes ADR-3") */                     \
+    X(CBM_DOCLINK_MD_SUPERSEDES_PROSE, CBM_LANG_MARKDOWN, "supersedes_prose", false, false,    \
+      "SUPERSEDES")                                                                            \
+    /* pdf (doc_pdf.c): structural mentions in a page's text; pdf_name (bare      */           \
+    /* names) only decides which line fragments a cross-line join replaces        */           \
+    X(CBM_DOCLINK_PDF_PATH, CBM_LANG_PDF, "pdf_path", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_PDF_FILE, CBM_LANG_PDF, "pdf_file", false, true, "MENTIONS")                 \
+    X(CBM_DOCLINK_PDF_QN, CBM_LANG_PDF, "pdf_qn", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_PDF_NAME, CBM_LANG_PDF, "pdf_name", false, false, "MENTIONS")                \
+    /* restructuredtext (doclink_rst.c): Sphinx domain markup, directives, inline literals */  \
+    X(CBM_DOCLINK_RST_ROLE, CBM_LANG_RST, "role", false, true, "MENTIONS")                     \
+    X(CBM_DOCLINK_RST_OBJECT, CBM_LANG_RST, "object", false, false, "MENTIONS")                \
+    X(CBM_DOCLINK_RST_AUTODOC, CBM_LANG_RST, "autodoc", false, true, "MENTIONS")               \
+    X(CBM_DOCLINK_RST_INCLUDE, CBM_LANG_RST, "include", false, false, "MENTIONS")              \
+    X(CBM_DOCLINK_RST_LITERALINCLUDE, CBM_LANG_RST, "literalinclude", false, true, "MENTIONS") \
+    X(CBM_DOCLINK_RST_KERNEL_DOC, CBM_LANG_RST, "kernel_doc", false, false, "MENTIONS")        \
+    X(CBM_DOCLINK_RST_CODE_PATH, CBM_LANG_RST, "code_path", false, true, "MENTIONS")           \
+    X(CBM_DOCLINK_RST_CODE_NAME, CBM_LANG_RST, "code_name", false, true, "MENTIONS")           \
+    /* asciidoc (doc_adoc.c): includes, Antora API attributes, monospace spans */              \
+    X(CBM_DOCLINK_ADOC_INCLUDE, CBM_LANG_ASCIIDOC, "include", false, true, "MENTIONS")         \
+    X(CBM_DOCLINK_ADOC_ATTRIBUTE, CBM_LANG_ASCIIDOC, "attribute", false, false, "MENTIONS")    \
+    X(CBM_DOCLINK_ADOC_CODE_PATH, CBM_LANG_ASCIIDOC, "code_path", false, false, "MENTIONS")    \
+    X(CBM_DOCLINK_ADOC_CODE_NAME, CBM_LANG_ASCIIDOC, "code_name", false, false, "MENTIONS")    \
+    /* any language (CBM_LANG_COUNT): a URL is never an edge */                                \
     X(CBM_DOCLINK_HREF, CBM_LANG_COUNT, "href", true, false, "MENTIONS")
 
 typedef enum {

@@ -327,9 +327,13 @@ static void qn_candidate(const pdfr_index_t *x, const cbm_gbuf_node_t *n, const 
     }
     const char *rel = rel_qn(x, n->qualified_name);
     char alt[PDFR_KEY_CAP];
-    bool via_rel = comp_suffix(rel, s);
-    bool via_alt = !via_rel && owner_name(x, n, alt, sizeof(alt)) && strcmp(alt, rel) != 0 &&
-                   comp_suffix(alt, s);
+    bool owned = owner_name(x, n, alt, sizeof(alt));
+    /* A member whose QN leaves its owner out (a Go method's has no receiver)
+     * is named through the owner: `time.Now` is package time's function,
+     * never the method Now of a type that package time declares. */
+    bool ownerless_qn = owned && !comp_suffix(rel, alt);
+    bool via_rel = !ownerless_qn && comp_suffix(rel, s);
+    bool via_alt = !via_rel && owned && strcmp(alt, rel) != 0 && comp_suffix(alt, s);
     if (via_rel || via_alt) {
         ns_add(out, n);
         if (via_rel && strcmp(rel, s) == 0) {

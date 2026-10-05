@@ -38,6 +38,7 @@
 
 #include "doclink.h"
 #include "foundation/arena.h"
+#include "foundation/compat_fs.h" /* cbm_fopen */
 #include "foundation/constants.h"
 #include "foundation/hash_table.h"
 #include "foundation/mem_core.h"
@@ -49,11 +50,12 @@
 #include <string.h>
 
 enum {
-    RR_PATH_CAP = 1024,  /* the longest path or dotted name looked up */
-    RR_RAW_CAP = 4096,   /* the longest token record read */
-    RR_FIELDS = 8,       /* fields of a token record */
-    RR_PIECES = 64,      /* pieces of a dotted name */
-    RR_ALIAS_DEPTH = 12, /* re-exports followed (H3) */
+    RR_PATH_CAP = 1024,                    /* the longest path or dotted name looked up */
+    RR_INCLUDE_FILE_MAX = 8 * 1024 * 1024, /* an included file read for an open line range */
+    RR_RAW_CAP = 4096,                     /* the longest token record read */
+    RR_FIELDS = 8,                         /* fields of a token record */
+    RR_PIECES = 64,                        /* pieces of a dotted name */
+    RR_ALIAS_DEPTH = 12,                   /* re-exports followed (H3) */
     RR_TABLE_INIT = 1024,
 };
 
@@ -89,7 +91,8 @@ typedef struct {
 typedef struct {
     const char *project;
     size_t project_len;
-    void *md; /* the Markdown resolver's index: code spans, segments, folders */
+    const char *repo; /* the repository root: an open line range reads its file */
+    void *md;         /* the Markdown resolver's index: code spans, segments, folders */
     const char **run_paths;
     int run_count;
     CBMArena arena;
@@ -345,6 +348,7 @@ static void *rr_build(const cbm_doclink_build_in_t *in) {
     cbm_arena_init(&x->arena);
     x->project = in->ctx ? in->ctx->project_name : NULL;
     x->project_len = x->project ? strlen(x->project) : 0;
+    x->repo = in->ctx ? in->ctx->repo_path : NULL;
     x->run_count = in->run_file_count;
     x->run_paths = in->run_file_count > 0
                        ? (const char **)cbm_calloc(CBM_MEM_CLASS_OTHER,
@@ -1366,6 +1370,65 @@ static bool rr_doc_path(const rr_index_t *x, const char *doc, const char *arg, c
     return rr_norm(dir, arg, out, cap);
 }
 
+/* An included file's text, read from the indexed file on disk (at most
+ * RR_INCLUDE_FILE_MAX bytes). NULL when it cannot be read; the caller frees
+ * it (cbm_free, OTHER). */
+static char *rr_read(const rr_index_t *x, const char *rel, size_t *n) {
+    *n = 0;
+    if (!x->repo) {
+        return NULL;
+    }
+    char abs[RR_PATH_CAP * PAIR_LEN];
+    snprintf(abs, sizeof(abs), "%s/%s", x->repo, rel);
+    FILE *f = cbm_fopen(abs, "rb");
+    if (!f) {
+        return NULL;
+    }
+    char *buf = (char *)cbm_alloc(CBM_MEM_CLASS_OTHER, RR_INCLUDE_FILE_MAX);
+    *n = buf ? fread(buf, SKIP_ONE, RR_INCLUDE_FILE_MAX, f) : 0;
+    (void)fclose(f);
+    return buf;
+}
+
+static uint32_t rr_number(const char **pp) {
+    uint32_t v = 0;
+    const char *p = *pp;
+    while (*p >= '0' && *p <= '9') {
+        v = v < UINT32_MAX / 10 ? v * 10 + (uint32_t)(*p - '0') : UINT32_MAX;
+        p++;
+    }
+    *pp = p;
+    return v;
+}
+
+/* `:lines: 1,3,5-10,20-`: the span of all its ranges. `N-` runs to the file's
+ * end (*b = UINT32_MAX) and `-N` from its start. 0 and 0 when it holds none. */
+static void rr_lines(const char *v, uint32_t *a, uint32_t *b) {
+    *a = 0;
+    *b = 0;
+    for (const char *p = v; *p;) {
+        if (*p == ',' || *p == ' ') {
+            p++;
+            continue;
+        }
+        bool has_start = *p >= '0' && *p <= '9';
+        uint32_t s = has_start ? rr_number(&p) : 0;
+        uint32_t e = s;
+        if (*p == '-') {
+            p++;
+            e = *p >= '0' && *p <= '9' ? rr_number(&p) : UINT32_MAX;
+            s = has_start ? s : SKIP_ONE;
+        } else if (!has_start) {
+            p++; /* not a range: skip the character */
+            continue;
+        }
+        if (s > 0 && e >= s) {
+            *a = (*a == 0 || s < *a) ? s : *a;
+            *b = e > *b ? e : *b;
+        }
+    }
+}
+
 static void rr_literalinclude(const rr_index_t *x, const cbm_gbuf_t *graph, const char *doc,
                               const rr_rec_t *r, cbm_doclink_outcome_t *out) {
     const char *arg = r->f[1];
@@ -1410,22 +1473,25 @@ static void rr_literalinclude(const rr_index_t *x, const cbm_gbuf_t *graph, cons
     }
     uint32_t a = 0;
     uint32_t b = 0;
-    for (const char *p = lines; *p;) {
-        if (*p >= '0' && *p <= '9') {
-            uint32_t v = 0;
-            while (*p >= '0' && *p <= '9') {
-                v = v < UINT32_MAX / 10 ? v * 10 + (uint32_t)(*p - '0') : UINT32_MAX;
-                p++;
-            }
-            a = (a == 0 || v < a) ? v : a;
-            b = v > b ? v : b;
-        } else {
-            p++;
-        }
-    }
+    rr_lines(lines, &a, &b);
     if (a > 0) {
-        const cbm_gbuf_node_t *seg = cbm_doclink_md_segment(x->md, rel, a, b, NULL);
-        rr_edge(out, seg ? seg : file, true, a, b);
+        if (b == UINT32_MAX) {
+            /* `N-`: to the file's end, which only its text knows */
+            size_t tn = 0;
+            char *text = rr_read(x, rel, &tn);
+            if (text) {
+                uint32_t nl = 0;
+                for (size_t i = 0; i < tn; i++) {
+                    nl += text[i] == '\n';
+                }
+                nl += tn > 0 && text[tn - SKIP_ONE] != '\n';
+                b = nl >= a ? nl : a;
+                cbm_free(CBM_MEM_CLASS_OTHER, text);
+            }
+        }
+        const cbm_gbuf_node_t *seg =
+            b == UINT32_MAX ? NULL : cbm_doclink_md_segment(x->md, rel, a, b, NULL);
+        rr_edge(out, seg ? seg : file, true, a, b == UINT32_MAX ? 0 : b);
         return;
     }
     rr_edge(out, file, true, 0, 0);
@@ -1525,6 +1591,13 @@ static void rr_py_object(const rr_index_t *x, const cbm_gbuf_t *graph, const cha
     char full[RR_PATH_CAP];
     snprintf(full, sizeof(full), "%s%s%s", m, m[0] ? "." : "", fullname);
     rr_res_t res = rr_dotted(x, graph, full);
+    /* `.. py:function:: autofit` declares a definition inside a module: a
+     * module, folder or file of that name is another entity of the name */
+    if (res.kind == RR_HIT && res.node &&
+        (strcmp(res.node->label, "Module") == 0 || strcmp(res.node->label, "Folder") == 0 ||
+         strcmp(res.node->label, "File") == 0)) {
+        res = (rr_res_t){RR_NONE, NULL, false};
+    }
     if (res.kind != RR_HIT) {
         res = rr_py_resolve(x, graph, fullname, dname, m, NULL, false, true);
     }
@@ -1601,7 +1674,8 @@ static void rr_resolve(const void *index, void *state, int run_file, const CBMDo
         rr_unresolved(out, CBM_DOCLINK_REASON_UNPARSEABLE);
         return;
     }
-    if (link->syntax == CBM_DOCLINK_MD_SUPERSEDES) {
+    if (link->syntax == CBM_DOCLINK_MD_SUPERSEDES ||
+        link->syntax == CBM_DOCLINK_MD_SUPERSEDES_PROSE) {
         /* a reST ADR's own supersedes statement (doc_adr.c) */
         cbm_doclink_md_resolver.resolve(x->md, NULL, run_file, link, graph, out);
         return;
