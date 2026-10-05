@@ -12,6 +12,8 @@
 #include "foundation/constants.h"
 
 enum { PC_RING = 4, PC_RING_MASK = 3, PC_SIG_SCAN = 15, PC_REGEX_GRP = 2 };
+static const double PC_SWIFT_SINGLE_CONF = 0.90;
+static const double PC_SWIFT_AMBIGUOUS_CONF = 0.55;
 /* Confidence for a service-pattern HTTP/ASYNC edge emitted when registry
  * resolution is empty (external, unindexed client library) — see #523. */
 #define PC_SVC_PATTERN_CONF 0.5
@@ -760,7 +762,9 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call, const CBM
                 if (target && target->id != source_node->id) {
                     cbm_resolution_t selected = {.qualified_name = candidates[i],
                                                  .strategy = "swift_labels",
-                                                 .confidence = swift_candidates == 1 ? 0.90 : 0.55,
+                                                 .confidence = swift_candidates == SKIP_ONE
+                                                                   ? PC_SWIFT_SINGLE_CONF
+                                                                   : PC_SWIFT_AMBIGUOUS_CONF,
                                                  .candidate_count = swift_candidates};
                     emit_classified_edge(ctx, call, source_node, target, &selected, module_qn,
                                          imp_keys, imp_vals, imp_count, false, route_mount);

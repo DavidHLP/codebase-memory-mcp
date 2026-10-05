@@ -2191,8 +2191,8 @@ static void extract_call_args(CBMExtractCtx *ctx, TSNode args, CBMCall *call) {
                 ca->keyword = cbm_node_text(ctx->arena, label, ctx->source);
                 if (ca->keyword) {
                     size_t n = strlen(ca->keyword);
-                    if (n > 0 && ca->keyword[n - 1] == ':') {
-                        ca->keyword = cbm_arena_strndup(ctx->arena, ca->keyword, n - 1);
+                    if (n > 0 && ca->keyword[n - SKIP_ONE] == ':') {
+                        ca->keyword = cbm_arena_strndup(ctx->arena, ca->keyword, n - SKIP_ONE);
                     }
                 }
             }

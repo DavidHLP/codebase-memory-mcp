@@ -21,6 +21,7 @@ enum {
     /* Fixed bytes around a serialized JSON field: ,"key":"value" / ,"key":[...]
      * -> comma + 2 key quotes + colon + 2 value quotes (resp. brackets). */
     PP_JSON_FIELD_OVERHEAD = 6,
+    PP_SWIFT_PROPS_MARGIN = 80,
     PP_ARGS_MARGIN = 20,
     /* ,"line":<int> -> comma + key (7) + colon + up to 10 digits + NUL. */
     PP_LINE_MARGIN = 24,
@@ -39,6 +40,8 @@ enum {
 #define PP_NSEC_PER_SEC 1000000000ULL
 #define PP_USEC_PER_MS 1000000ULL
 #define PP_HALF_CONF 0.5
+static const double PP_SWIFT_SINGLE_CONF = 0.90;
+static const double PP_SWIFT_AMBIGUOUS_CONF = 0.55;
 #define PP_FIELD_HINT_CONF 0.85
 enum { PP_CSHARP_M_PREFIX_LEN = 2 };
 
@@ -513,7 +516,7 @@ static void build_def_props(char *buf, size_t bufsize, const CBMDefinition *def)
         return;
     }
     size_t pos = (size_t)n;
-    if (def->qn_sig_off && bufsize - pos > 80) {
+    if (def->qn_sig_off && bufsize - pos > PP_SWIFT_PROPS_MARGIN) {
         pos += (size_t)snprintf(
             buf + pos, bufsize - pos, ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
             (unsigned long long)def->swift_default_mask, (unsigned)def->swift_param_count);
@@ -3235,7 +3238,9 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
                     }
                     cbm_resolution_t selected = {.qualified_name = candidates[i],
                                                  .strategy = "swift_labels",
-                                                 .confidence = count == 1 ? 0.90 : 0.55,
+                                                 .confidence = count == SKIP_ONE
+                                                                   ? PP_SWIFT_SINGLE_CONF
+                                                                   : PP_SWIFT_AMBIGUOUS_CONF,
                                                  .candidate_count = count};
                     emit_service_edge(ws->local_edge_buf, source_node, target, call, &selected,
                                       module_qn, rc->registry, rc->main_gbuf, imp_keys, imp_vals,

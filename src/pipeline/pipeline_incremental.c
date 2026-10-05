@@ -1069,9 +1069,9 @@ static void registry_visitor(const cbm_gbuf_node_t *node, void *userdata) {
             count += strlen("\"swift_params\":");
             char *mask_end = NULL;
             char *count_end = NULL;
-            unsigned long long defaults = strtoull(mask, &mask_end, 16);
-            unsigned long params = strtoul(count, &count_end, 10);
-            if (mask_end == mask + 16 && *mask_end == '"' && count_end != count &&
+            unsigned long long defaults = strtoull(mask, &mask_end, CBM_HEX_BASE);
+            unsigned long params = strtoul(count, &count_end, CBM_DECIMAL_BASE);
+            if (mask_end == mask + CBM_SZ_16 && *mask_end == '"' && count_end != count &&
                 params <= UINT8_MAX) {
                 cbm_registry_set_swift_signature(r, node->qualified_name, (uint64_t)defaults,
                                                  (uint8_t)params);

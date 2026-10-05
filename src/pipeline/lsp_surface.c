@@ -17,6 +17,7 @@
  *     bytes is the early-cutoff key: a body edit reserializes identically.
  */
 #include "pipeline/lsp_surface.h"
+#include "foundation/constants.h"
 #include "pipeline/pipeline_internal.h"
 
 #include <stdio.h>
@@ -137,8 +138,9 @@ static char *surface_file_to_json(const CBMFileResult *result, const CBMLSPDef *
         }
         yyjson_mut_val *o = yyjson_mut_obj(doc);
         yyjson_mut_obj_add_str(doc, o, "q", d->qualified_name);
-        char defaults[17];
-        snprintf(defaults, sizeof(defaults), "%016llx", (unsigned long long)d->swift_default_mask);
+        char defaults[CBM_SZ_16 + SKIP_ONE];
+        (void)snprintf(defaults, sizeof(defaults), "%016llx",
+                       (unsigned long long)d->swift_default_mask);
         yyjson_mut_obj_add_strcpy(doc, o, "d", defaults);
         yyjson_mut_obj_add_int(doc, o, "p", d->swift_param_count);
         yyjson_mut_arr_add_val(swift, o);

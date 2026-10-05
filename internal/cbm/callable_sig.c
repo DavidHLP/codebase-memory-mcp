@@ -7,6 +7,7 @@
  * would misread: such a suffix degrades to its hashed form.
  */
 #include "callable_sig.h"
+#include "cbm.h"
 #include "helpers.h"
 #include <ctype.h>
 #include <stdbool.h>
@@ -24,6 +25,7 @@ enum {
     SIG_CONST_LEN = 5,                      /* strlen("const") */
     SIG_ASYNC_LEN = 5,                      /* strlen("async") */
     SIG_CHAR_LEN = 1,
+    SIG_SWIFT_DEFAULT_BITS = 64,
     SIG_VOLATILE_LEN = 8,                   /* strlen("volatile") */
     SIG_ARITY_DIGITS = 16,                  /* "(%d)" scratch */
     SIG_CAPPED_TAIL = 1 + SIG_HASH_HEX + 1, /* "#" hex ")" */
@@ -811,29 +813,32 @@ static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
     }
 }
 
+static bool sig_swift_parameter_has_default(TSNode parameter) {
+    uint32_t children = ts_node_child_count(parameter);
+    for (uint32_t i = 0; i < children; i++) {
+        const char *kind = ts_node_type(ts_node_child(parameter, i));
+        if (strcmp(kind, "=") == 0 || strstr(kind, "default_value") != NULL) {
+            return true;
+        }
+    }
+    return false;
+}
+
 uint64_t cbm_swift_default_mask(TSNode node, const char *source, uint8_t *count) {
     (void)source;
     uint64_t defaults = 0;
     unsigned parameters = 0;
-    int last = -1;
+    int last = -SIG_CHAR_LEN;
     uint32_t children = ts_node_child_count(node);
     for (uint32_t i = 0; i < children; i++) {
         TSNode ch = ts_node_child(node, i);
         const char *kind = ts_node_type(ch);
         if (strcmp(kind, "parameter") == 0) {
             last = (int)parameters++;
-            if (last < 64) {
-                uint32_t pc = ts_node_child_count(ch);
-                for (uint32_t j = 0; j < pc; j++) {
-                    TSNode part = ts_node_child(ch, j);
-                    const char *pk = ts_node_type(part);
-                    if (strcmp(pk, "=") == 0 || strstr(pk, "default_value") != NULL) {
-                        defaults |= UINT64_C(1) << last;
-                        break;
-                    }
-                }
+            if (last < SIG_SWIFT_DEFAULT_BITS && sig_swift_parameter_has_default(ch)) {
+                defaults |= UINT64_C(1) << last;
             }
-        } else if (last >= 0 && last < 64 && strcmp(kind, "=") == 0) {
+        } else if (last >= 0 && last < SIG_SWIFT_DEFAULT_BITS && strcmp(kind, "=") == 0) {
             defaults |= UINT64_C(1) << last;
         } else if (last >= 0 && (strcmp(kind, ")") == 0 || strcmp(kind, "function_body") == 0)) {
             break;
@@ -842,7 +847,7 @@ uint64_t cbm_swift_default_mask(TSNode node, const char *source, uint8_t *count)
     if (count) {
         /* ponytail: >64 parameters have no bitmask; use a dynamic mask if Swift
          * code with that many parameters needs overload call resolution. */
-        *count = parameters > 64 ? UINT8_MAX : (uint8_t)parameters;
+        *count = parameters > SIG_SWIFT_DEFAULT_BITS ? UINT8_MAX : (uint8_t)parameters;
     }
     return defaults;
 }

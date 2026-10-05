@@ -12,6 +12,7 @@
  */
 #include "service_patterns.h"
 #include "callable_sig.h"
+#include "foundation/constants.h"
 #include "foundation/mem_core.h"
 
 #include <stdbool.h>
@@ -1072,7 +1073,7 @@ cbm_svc_kind_t cbm_service_pattern_match(const char *resolved_qn) {
     char *base_qn = NULL;
     const char *match_qn_text = resolved_qn;
     if (base_len < strlen(resolved_qn)) {
-        base_qn = cbm_alloc(CBM_MEM_CLASS_EXTRACT, base_len + 1);
+        base_qn = cbm_alloc(CBM_MEM_CLASS_EXTRACT, base_len + SKIP_ONE);
         if (!base_qn) {
             return CBM_SVC_NONE;
         }

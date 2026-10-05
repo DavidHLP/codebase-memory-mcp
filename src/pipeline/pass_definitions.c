@@ -16,6 +16,7 @@ enum { PD_RING = 4, PD_RING_MASK = 3, PD_JSON_MARGIN = 10, PD_ESC_MARGIN = 3, PD
 /* Fixed bytes around a serialized JSON field: ,"key":"value" / ,"key":[...]
  * -> comma + 2 key quotes + colon + 2 value quotes (resp. brackets). */
 enum { PD_JSON_FIELD_OVERHEAD = 6 };
+enum { PD_SWIFT_PROPS_MARGIN = 80 };
 #include "pipeline/pipeline.h"
 #include <stdint.h>
 #include <ctype.h>
@@ -285,7 +286,7 @@ static void build_def_props(char *buf, size_t bufsize, const CBMDefinition *def)
         return;
     }
     size_t pos = (size_t)n;
-    if (def->qn_sig_off && bufsize - pos > 80) {
+    if (def->qn_sig_off && bufsize - pos > PD_SWIFT_PROPS_MARGIN) {
         pos += (size_t)snprintf(
             buf + pos, bufsize - pos, ",\"swift_defaults\":\"%016llx\",\"swift_params\":%u",
             (unsigned long long)def->swift_default_mask, (unsigned)def->swift_param_count);
