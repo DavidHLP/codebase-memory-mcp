@@ -1479,60 +1479,80 @@ cbm_resolution_t cbm_registry_resolve(const cbm_registry_t *r, const char *calle
 /* Read labels from the signature-qualified QN. Types may contain commas in
  * tuples, generic arguments or function types, so only top-level commas split
  * parameters. The type text is used only to recognize a trailing closure. */
+typedef struct {
+    int parens;
+    int brackets;
+    int angles;
+} swift_parameter_depth_t;
+
+static void swift_parameter_depth_step(swift_parameter_depth_t *depth, char ch, char previous) {
+    switch (ch) {
+    case '(':
+        depth->parens++;
+        break;
+    case ')':
+        if (depth->parens > 0) {
+            depth->parens--;
+        }
+        break;
+    case '[':
+        depth->brackets++;
+        break;
+    case ']':
+        if (depth->brackets > 0) {
+            depth->brackets--;
+        }
+        break;
+    case '<':
+        depth->angles++;
+        break;
+    case '>':
+        if (depth->angles > 0 && previous != '=') {
+            depth->angles--;
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+static bool swift_type_wraps(const char *start, const char *end) {
+    if (*start != '(') {
+        return false;
+    }
+    swift_parameter_depth_t depth = {0};
+    bool comma = false;
+    for (const char *p = start; p < end; p++) {
+        swift_parameter_depth_step(&depth, *p, p == start ? '\0' : p[-SKIP_ONE]);
+        if (*p == ')' && depth.parens == 0) {
+            return p == end - SKIP_ONE && !comma;
+        }
+        if (*p == ',' && depth.parens == SKIP_ONE && depth.brackets == 0 && depth.angles == 0) {
+            comma = true;
+        }
+    }
+    return false;
+}
+
 static bool swift_type_is_closure(const char *start, const char *end) {
     while (start < end) {
-        if (end[-1] == '?') {
+        if (end[-SKIP_ONE] == '?') {
             end--;
             continue;
         }
-        if (*start != '(') {
-            break;
-        }
-        int depth = 0, brackets = 0, angles = 0;
-        bool wraps = false;
-        bool comma = false;
-        for (const char *p = start; p < end; p++) {
-            if (*p == '(') {
-                depth++;
-            } else if (*p == ')' && --depth == 0) {
-                wraps = p == end - 1;
-                break;
-            } else if (*p == '[') {
-                brackets++;
-            } else if (*p == ']' && brackets > 0) {
-                brackets--;
-            } else if (*p == '<') {
-                angles++;
-            } else if (*p == '>' && angles > 0 && p[-1] != '=') {
-                angles--;
-            } else if (*p == ',' && depth == 1 && brackets == 0 && angles == 0) {
-                comma = true;
-            }
-        }
-        if (!wraps || comma) {
+        if (!swift_type_wraps(start, end)) {
             break;
         }
         start++;
         end--;
     }
-    int parens = 0, brackets = 0, angles = 0;
-    for (const char *p = start; p + 1 < end; p++) {
-        if (*p == '=' && p[1] == '>' && parens == 0 && brackets == 0 && angles == 0) {
+    swift_parameter_depth_t depth = {0};
+    for (const char *p = start; p + SKIP_ONE < end; p++) {
+        if (*p == '=' && p[SKIP_ONE] == '>' && depth.parens == 0 && depth.brackets == 0 &&
+            depth.angles == 0) {
             return true;
         }
-        if (*p == '(') {
-            parens++;
-        } else if (*p == ')' && parens > 0) {
-            parens--;
-        } else if (*p == '[') {
-            brackets++;
-        } else if (*p == ']' && brackets > 0) {
-            brackets--;
-        } else if (*p == '<') {
-            angles++;
-        } else if (*p == '>' && angles > 0 && (p == start || p[-1] != '=')) {
-            angles--;
-        }
+        swift_parameter_depth_step(&depth, *p, p == start ? '\0' : p[-SKIP_ONE]);
     }
     return false;
 }
@@ -1546,12 +1566,6 @@ typedef struct {
     bool variadics[SWIFT_MAX_PARAMETERS];
     unsigned count;
 } swift_parameters_t;
-
-typedef struct {
-    int parens;
-    int brackets;
-    int angles;
-} swift_parameter_depth_t;
 
 /* Exact match for a later trailing closure's label. NULL and empty labels
  * never match, so a call with no captured label binds nothing by label. */
@@ -1605,37 +1619,6 @@ static bool swift_parameter_add(swift_parameters_t *params, const char *entry, c
     params->closures[i] = swift_type_is_closure(colon + SKIP_ONE, type_end);
     params->count++;
     return true;
-}
-
-static void swift_parameter_depth_step(swift_parameter_depth_t *depth, char ch, char previous) {
-    switch (ch) {
-    case '(':
-        depth->parens++;
-        break;
-    case ')':
-        if (depth->parens > 0) {
-            depth->parens--;
-        }
-        break;
-    case '[':
-        depth->brackets++;
-        break;
-    case ']':
-        if (depth->brackets > 0) {
-            depth->brackets--;
-        }
-        break;
-    case '<':
-        depth->angles++;
-        break;
-    case '>':
-        if (depth->angles > 0 && previous != '=') {
-            depth->angles--;
-        }
-        break;
-    default:
-        break;
-    }
 }
 
 /* Split only at top-level commas; preserve the closure/variadic spelling rules. */
