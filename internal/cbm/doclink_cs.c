@@ -3707,8 +3707,8 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
         return blob;
     }
     /* a *.csproj marks its directory as a C# project even when it cannot be
-     * read; a *.props or *.targets file has a blob only as an MSBuild
-     * <Project> */
+     * read; a *.props or *.targets file has no blob only when it parses up to
+     * a root element that is not an MSBuild <Project> */
     csx_scan_t p = {
         .x = {.src = ctx->source, .n = ctx->source_len > 0 ? (uint32_t)ctx->source_len : 0},
         .out = {.a = ctx->arena},
@@ -3719,6 +3719,7 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
         p.x.i = 3;
     }
     bool is_project = false;
+    bool other_root = false; /* XML whose root element is not <Project> */
     bool bad = false;
     csx_tok_t t;
     for (;;) {
@@ -3751,6 +3752,7 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
             break;
         }
         if (!csx_is(&p.x, t.name, "Project")) {
+            other_root = true;
             break; /* XML, but no MSBuild file */
         }
         is_project = true;
@@ -3762,7 +3764,12 @@ const char *cbm_doclink_cs_project_scan_scope(CBMExtractCtx *ctx) {
         }
     }
     cs_cost_add(p.x.i, 0);
-    if ((bad && (is_project || named_project)) || (!is_project && named_project)) {
+    /* What the scan could not read is unknown, not absent: a file malformed
+     * anywhere or ending before its root, and a *.csproj that is no MSBuild
+     * <Project>. With no blob, an import of such a file would count as one
+     * outside the repository, and as the nearest Directory.Build.* it would
+     * be passed over for the one above, which MSBuild does not read. */
+    if (bad || (!is_project && (named_project || !other_root))) {
         p.out.len = 0;
         sb_puts(&p.out, CBM_DOCLINK_CS_SCOPE_TAG "\nP\t\t!\n");
     } else if (!is_project) {

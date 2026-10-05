@@ -9698,6 +9698,45 @@ TEST(doc_mentions_msbuild_unread_project_opens) {
     PASS();
 }
 
+/* R6: a *.props or *.targets file that does not parse up to its root is not
+ * read either: what it holds is unknown. As the nearest Directory.Build.props
+ * it is the one MSBuild reads, so the scope of its project is open (a simple
+ * name found nowhere is external) and the usable file further up is not
+ * applied (its `Using Include="Lib"` imports nothing here). Decoy: a project
+ * with no nearer file reads the upper one (Gadget binds through it, a name
+ * found nowhere is missing). */
+TEST(doc_mentions_msbuild_malformed_props_opens) {
+    const dm_source_t files[] = {
+        {"Directory.Build.props", "<Project><ItemGroup><Using Include=\"Lib\"/></ItemGroup>"
+                                  "</Project>\n"},
+        {"a/Directory.Build.props", "<\n<Project><ItemGroup><Using Include=\"Hidden\"/>"
+                                    "</ItemGroup></Project>\n"},
+        {"a/A.csproj", DM_EMPTY_PROJECT},
+        {"a/Thing.cs", "namespace Lib\n{\n    public class Thing { }\n}\n"},
+        {"a/UsesA.cs", "namespace App\n"
+                       "{\n"
+                       "    /// <summary><see cref=\"Thing\"/> <see cref=\"NowhereA\"/></summary>\n"
+                       "    public class UsesA { }\n"
+                       "}\n"},
+        {"c/C.csproj", DM_EMPTY_PROJECT},
+        {"c/Gadget.cs", "namespace Lib\n{\n    public class Gadget { }\n}\n"},
+        {"c/UsesC.cs",
+         "namespace App\n"
+         "{\n"
+         "    /// <summary><see cref=\"Gadget\"/> <see cref=\"NowhereC\"/></summary>\n"
+         "    public class UsesC { }\n"
+         "}\n"},
+    };
+    static const dm_want_t wants[] = {
+        {"a/UsesA.cs", "NowhereA", "UsesA.UsesA", NULL, "external", NULL, NULL},
+        {"a/UsesA.cs", "Thing", "UsesA.UsesA", NULL, "external", "Thing.Thing", NULL},
+        {"c/UsesC.cs", "Gadget", "UsesC.UsesC", "Gadget.Gadget", NULL, NULL, NULL},
+        {"c/UsesC.cs", "NowhereC", "UsesC.UsesC", NULL, "missing", NULL, NULL},
+    };
+    ASSERT_EQ(dm_check_repo("malformed_props", files, DM_COUNT(files), wants, DM_COUNT(wants)), 0);
+    PASS();
+}
+
 enum { DM_BIG_MEMBERS = 20000, DM_SMALL_FILES = 200 };
 
 /* What the resolver looks at to build its index over one file of
@@ -10275,6 +10314,7 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_stored_scope_nesting);
     RUN_TEST(doc_mentions_index_status_unknown_reason);
     RUN_TEST(doc_mentions_msbuild_unread_project_opens);
+    RUN_TEST(doc_mentions_msbuild_malformed_props_opens);
     RUN_TEST(doc_mentions_cs_scratch_table_work);
     RUN_TEST(doc_mentions_incremental_non_ascii_name);
     RUN_TEST(doc_mentions_alloc_failure_status);
