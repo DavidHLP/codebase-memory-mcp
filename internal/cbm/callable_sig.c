@@ -24,11 +24,11 @@ enum {
     SIG_OPERATOR_LEN = 8,                   /* strlen("operator") */
     SIG_CONST_LEN = 5,                      /* strlen("const") */
     SIG_ASYNC_LEN = 5,                      /* strlen("async") */
-    SIG_CHAR_LEN = 1,
-    SIG_SWIFT_DEFAULT_BITS = 64,
     SIG_VOLATILE_LEN = 8,                   /* strlen("volatile") */
     SIG_ARITY_DIGITS = 16,                  /* "(%d)" scratch */
     SIG_CAPPED_TAIL = 1 + SIG_HASH_HEX + 1, /* "#" hex ")" */
+    SIG_CHAR_LEN = 1,
+    SIG_SWIFT_DEFAULT_BITS = 64,
 };
 
 static const uint64_t SIG_FNV_OFFSET = 0xcbf29ce484222325ULL; /* FNV-1a 64 basis */
