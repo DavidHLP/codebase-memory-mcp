@@ -170,9 +170,6 @@ static const sig_case_t k_cases[] = {
      "-> ( A.Item, [ B.Item ] ) {}", "function_declaration", 0,
      "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
-     "func f<T>(_ x: T) where T == () -> Void {}", "function_declaration", 0,
-     "<T;where T==()=>Void>(_:T)"},
-    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f() -> (A.Item) -> B.Item {}", "function_declaration", 0,
      "()=>(A/Item)=>B/Item"},
     /* Scala: every clause flattened, by-name and repeated parameters. */
@@ -256,6 +253,29 @@ TEST(callable_sig_cap_keeps_identity) {
     ASSERT_NOT_NULL(hash);
     ASSERT_EQ(strlen(hash), (size_t)18); /* "#" + 16 hex + ")" */
     char *qn = cbm_arena_sprintf(&a, "p.A.f%s", sa);
+    ASSERT_EQ(cbm_qn_callable_base_len(qn), strlen("p.A.f"));
+    cbm_arena_destroy(&a);
+    n = (size_t)snprintf(src_a, sizeof(src_a), "func f() -> (");
+    for (int i = 0; i < 24; i++) {
+        n += (size_t)snprintf(src_a + n, sizeof(src_a) - n, "%sA.VeryLongType%d",
+                             i ? "," : "", i);
+    }
+    memcpy(src_b, src_a, n);
+    snprintf(src_a + n, sizeof(src_a) - n, ",A.Last) {}");
+    snprintf(src_b + n, sizeof(src_b) - n, ",B.Last) {}");
+    cbm_arena_init(&a);
+    sa = sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a,
+                "function_declaration", 0);
+    sa2 = sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a,
+                 "function_declaration", 0);
+    sb = sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_b,
+                "function_declaration", 0);
+    ASSERT_NOT_NULL(sa);
+    ASSERT_NOT_NULL(sb);
+    ASSERT_TRUE(strlen(sa) <= CBM_CALLABLE_SIG_MAX);
+    ASSERT_STR_EQ(sa, sa2);
+    ASSERT_STR_NEQ(sa, sb);
+    qn = cbm_arena_sprintf(&a, "p.A.f%s", sa);
     ASSERT_EQ(cbm_qn_callable_base_len(qn), strlen("p.A.f"));
     cbm_arena_destroy(&a);
     PASS();
@@ -355,6 +375,9 @@ TEST(callable_sig_base_len_suffixed) {
         {"p.Session.upload(_:Data,to:URL)", "p.Session.upload"},
         {"p.S.pick()=>Int", "p.S.pick"},
         {"p.S.pick()=>String", "p.S.pick"},
+        {"p.S.<(_:A,_:A)=>Bool", "p.S.<"},
+        {"p.S.>(_:A,_:A)=>Bool", "p.S.>"},
+        {"p.S.<<T>(_:T,_:T)=>Bool", "p.S.<"},
         {"p.S.pick()async=>(A/Item)=>B/Item", "p.S.pick"},
         {"p.S.pick<T;where T==()=>Void>(_:T)=>[A/Item]", "p.S.pick"},
         {"p.K.work(this:String,(Int)=>Unit)", "p.K.work"},

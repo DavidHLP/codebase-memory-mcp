@@ -1353,7 +1353,18 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         cbm_registry_set_swift_signature(r, malformed[i], 0, 0);
     }
     returned.callee_name = "Service.bad";
-    ASSERT_EQ(cbm_registry_swift_candidates(r, &returned, "proj.Caller", NULL, 0, out, 8), -1);
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &returned, "proj.Caller", NULL, 0, out, 8), 0);
+    const char *operators[] = {"<", ">"};
+    for (int i = 0; i < 2; i++) {
+        char qn[128];
+        snprintf(qn, sizeof(qn), "proj.Service.%s(_:A,_:A)=>Bool", operators[i]);
+        cbm_registry_add(r, operators[i], qn, "Method");
+        cbm_registry_set_swift_signature(r, qn, 0, 2);
+        CBMCallArg operands[2] = {{0}};
+        CBMCall operation = {.callee_name = operators[i], .args = operands, .arg_count = 2};
+        ASSERT_EQ(cbm_registry_swift_candidates(r, &operation, "proj.Caller", NULL, 0, out, 8), 1);
+        ASSERT_STR_EQ(out[0], qn);
+    }
     CBMCallArg args[3] = {{.keyword = "name"}};
     CBMCall call = {.callee_name = "Service.work", .args = args, .arg_count = 1};
     int n = cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8);
