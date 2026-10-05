@@ -2,19 +2,33 @@
 
 Scope: issue #2061 / PR #2436, Swift callable identity and conservative CALLS
 candidates only. Bare stored names remain unchanged. Generic declarations,
-constraints, where requirements and function-level async distinguish identities;
+constraints, where requirements, qualified parameter paths, explicit return types
+and function-level async distinguish identities;
 they do not provide Swift compiler type inference. Whitespace/comments normalize;
 generic parameter renaming, reordered constraints and inline/where semantic
 equivalence are not canonicalized. Existing signature/argument limits remain
 fail-closed. Callable identity modes for other languages remain disabled.
 
-Format 3 rebuilds format 1/2 indexes once because generic/async identities change
+Swift keeps qualified types as `A/Item` (rather than collapsing to `Item`) and
+spells explicit returns as `pick()=>Int` or `pick()async=>String`. This records
+declaration syntax; it does not resolve aliases, infer implicit returns or claim
+to distinguish every legal overload. Absent returns keep the existing suffix.
+
+Format 4 rebuilds format 1/2/3 indexes once because these identities change
 persisted QNs and old CALLS edges cannot safely be updated in place. The Swift
 migration regression fabricates collided nodes and an incompatible edge, verifies
 source positions and candidate counts after rebuilding, then no repeat migration.
 The TS/HTML/SCSS rebuild regression remains.
 
-## Current repair evidence
+## P2 repair evidence
+
+Review checkpoint: `500707c5b853da75a0a4fc7f1ae3b9364c04792e`. The previous
+generic/where/async, negative-target, migration and documentation findings remain
+resolved. New qualified-type and return-only collisions require independent
+RED/GREEN and final-source verification; the historical passes below do not
+establish acceptance of this repair.
+
+## Previous repair evidence (historical)
 
 Review checkpoint: `39d5db48a83f94641fccbb44c8cbc0233b5e2a51`, upstream base
 `268a9d8886642eb7f9b2ce45f5ce27cdecf0f519`. Regression-only RED checkpoint:

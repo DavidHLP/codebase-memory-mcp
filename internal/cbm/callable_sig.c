@@ -24,6 +24,7 @@ enum {
     SIG_OPERATOR_LEN = 8,                   /* strlen("operator") */
     SIG_CONST_LEN = 5,                      /* strlen("const") */
     SIG_ASYNC_LEN = 5,                      /* strlen("async") */
+    SIG_ARROW_LEN = 2,                      /* strlen("=>") */
     SIG_VOLATILE_LEN = 8,                   /* strlen("volatile") */
     SIG_ARITY_DIGITS = 16,                  /* "(%d)" scratch */
     SIG_CAPPED_TAIL = 1 + SIG_HASH_HEX + 1, /* "#" hex ")" */
@@ -933,10 +934,11 @@ static void sig_generic_params(sig_ctx_t *c, TSNode node) {
 
 /* ── Spelling pass ─────────────────────────────────────────────── */
 
-/* Qualified type paths keep their last segment; "->" becomes "=>"; any other
+/* Swift qualified paths use '/'; other type paths keep their last segment.
+ * "->" becomes "=>"; any other
  * '.' or "::" (a receiver function type, a leading global scope) is dropped,
  * so the suffix contract holds whatever the grammar produced. */
-static size_t sig_spell(char *s, size_t n) {
+static size_t sig_spell(char *s, size_t n, CBMLanguage lang) {
     size_t out = 0;
     size_t i = 0;
     while (i < n) {
@@ -947,6 +949,11 @@ static size_t sig_spell(char *s, size_t n) {
             sep = 2;
         }
         if (sep) {
+            if (lang == CBM_LANG_SWIFT) {
+                s[out++] = '/';
+                i += sep;
+                continue;
+            }
             bool ident_before = out > 0 && sig_ident_char((unsigned char)s[out - 1]);
             bool ident_after = i + sep < n && sig_ident_char((unsigned char)s[i + sep]);
             if (ident_before && ident_after) {
@@ -1079,6 +1086,11 @@ static void sig_render(sig_ctx_t *c, TSNode node) {
                 break;
             }
         }
+        TSNode result = sig_field(node, "return_type");
+        if (!ts_node_is_null(result) && sig_writes_types(c)) {
+            sig_raw_str(c, "=>");
+            sig_type_tokens(c, result);
+        }
     }
 }
 
@@ -1129,7 +1141,7 @@ const char *cbm_callable_sig_mode(CBMArena *a, TSNode func_node, const char *sou
     if (!spelled) {
         return NULL;
     }
-    size_t n = sig_spell(spelled, full);
+    size_t n = sig_spell(spelled, full, lang);
     if (n <= CBM_CALLABLE_SIG_MAX) {
         return sig_roundtrips(spelled, n) ? spelled : sig_hashed(a, spelled, n);
     }
@@ -1140,12 +1152,12 @@ const char *cbm_callable_sig_mode(CBMArena *a, TSNode func_node, const char *sou
     int limit = c.too_many ? SIG_MAX_ENTRIES : c.entries;
     for (int i = 0; i < limit; i++) {
         char *prefix = cbm_arena_strndup(a, c.buf, c.entry_end[i]);
-        c.entry_end[i] = prefix ? sig_spell(prefix, c.entry_end[i]) : 0;
+        c.entry_end[i] = prefix ? sig_spell(prefix, c.entry_end[i], lang) : 0;
     }
     char *open_prefix = cbm_arena_strndup(a, c.buf, c.open_off);
     char *close_prefix = cbm_arena_strndup(a, c.buf, c.close_off);
-    c.open_off = open_prefix ? sig_spell(open_prefix, c.open_off) : 0;
-    c.close_off = close_prefix ? sig_spell(close_prefix, c.close_off) : 0;
+    c.open_off = open_prefix ? sig_spell(open_prefix, c.open_off, lang) : 0;
+    c.close_off = close_prefix ? sig_spell(close_prefix, c.close_off, lang) : 0;
     c.buf = spelled;
     c.len = n;
     const char *capped = sig_capped(a, &c, spelled, n);
@@ -1213,13 +1225,70 @@ size_t cbm_qn_callable_base_len_named(const char *qn, const char *name) {
     return anchored ? base : len;
 }
 
+/* Locate only a declaration's return marker, never a nested closure arrow or
+ * an arrow in generic requirements. Shared by inverse and Swift registry. */
+static bool sig_return_type_valid(const char *type) {
+    char stack[SIG_DEPTH_LIMIT];
+    unsigned depth = 0;
+    if (!type[0] || strpbrk(type, ".#;{}") || strstr(type, "::") || strstr(type, "->")) {
+        return false;
+    }
+    for (size_t i = 0; type[i]; i++) {
+        char ch = type[i];
+        if (strchr("([<", ch)) {
+            if (depth == SIG_DEPTH_LIMIT) {
+                return false;
+            }
+            stack[depth++] = ch;
+        } else if (strchr(")]>", ch) && !(ch == '>' && i > 0 && type[i - 1] == '=')) {
+            char open = ch == ')' ? '(' : (ch == ']' ? '[' : '<');
+            if (!depth || stack[--depth] != open) {
+                return false;
+            }
+        }
+    }
+    return depth == 0;
+}
+
+size_t cbm_callable_return_offset(const char *suffix) {
+    size_t len = strlen(suffix);
+    if (!strstr(suffix, "=>")) {
+        return len;
+    }
+    int parens = 0, brackets = 0, angles = 0;
+    for (size_t i = 0; i + 1 < len; i++) {
+        char ch = suffix[i];
+        bool arrow = ch == '=' && suffix[i + 1] == '>';
+        bool after_params = i && (suffix[i - 1] == ')' ||
+                                   (i >= SIG_ASYNC_LEN &&
+                                    memcmp(suffix + i - SIG_ASYNC_LEN, "async", SIG_ASYNC_LEN) == 0));
+        if (arrow && after_params && parens == 0 && brackets == 0 && angles == 0) {
+            return sig_return_type_valid(suffix + i + SIG_ARROW_LEN) ? i : 0;
+        }
+        if (ch == '(') {
+            parens++;
+        } else if (ch == ')') {
+            parens--;
+        } else if (ch == '[') {
+            brackets++;
+        } else if (ch == ']') {
+            brackets--;
+        } else if (ch == '<' && (angles > 0 || sig_ident_char((unsigned char)suffix[i + 1]))) {
+            angles++;
+        } else if (ch == '>' && angles > 0 && (i == 0 || suffix[i - 1] != '=')) {
+            angles--;
+        }
+    }
+    return len;
+}
+
 size_t cbm_qn_callable_base_len(const char *qn) {
     if (!qn) {
         return 0;
     }
     size_t len = strlen(qn);
     /* Trailing cvref (C++): const / volatile / & / && after the ')'. */
-    size_t t = len;
+    size_t t = cbm_callable_return_offset(qn);
     if (t >= SIG_ASYNC_LEN && memcmp(qn + t - SIG_ASYNC_LEN, "async", SIG_ASYNC_LEN) == 0) {
         t -= SIG_ASYNC_LEN;
     }

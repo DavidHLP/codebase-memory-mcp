@@ -1644,7 +1644,7 @@ static bool swift_parameters_read(const char *qn, const char *name, const swift_
                                   swift_parameters_t *params) {
     size_t base_len = cbm_qn_callable_base_len_named(qn, name);
     const char *sig = qn + base_len;
-    size_t n = strlen(sig);
+    size_t n = cbm_callable_return_offset(sig);
     const size_t async_len = sizeof("async") - SKIP_ONE;
     if (n >= async_len && memcmp(sig + n - async_len, "async", async_len) == 0) {
         n -= async_len;

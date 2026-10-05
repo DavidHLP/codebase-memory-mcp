@@ -3,10 +3,12 @@
  *
  * A callable's graph identity is
  *
- *     callable_qn := base_qn [<tparams>] (params) [cvref]
+ *     callable_qn := base_qn [<tparams>] (params) [cvref/async] [=>return_type]
  * Swift includes generic declarations and where requirements in <tparams>
  * (associated-type paths use '/' instead of '.') and appends function-level
- * async after params. These distinguish declarations, not call applicability.
+ * async after params and an explicit return type after "=>". Swift preserves
+ * qualified type paths using '/'. These distinguish declarations, not call
+ * applicability.
  *
  * so overloads that share a base QN (Java/C#/C++/Kotlin/Swift/Scala/ObjC)
  * become distinct nodes instead of merging into one node that collects every
@@ -25,8 +27,8 @@
  *   - it is whitespace-normalized: one space only between two identifier
  *     characters ("unsigned long", "const T&"), none elsewhere;
  *   - type spelling: comments, annotations and attributes are dropped;
- *     qualified type paths keep their last segment (java.util.List -> List,
- *     std::vector -> vector); "->" in function types is spelled "=>"; a
+ *     except Swift, qualified paths keep their last segment (java.util.List
+ *     -> List, std::vector -> vector); "->" in function types is spelled "=>"; a
  *     variadic/rest marker is "[]" for Java (the JVM array it is) and "~"
  *     everywhere else; C++ top-level cv-qualifiers are dropped and array
  *     parameters decay to pointers, as the language itself does;
@@ -79,6 +81,9 @@ const char *cbm_callable_sig_mode(CBMArena *a, TSNode func_node, const char *sou
  * builder's contract above); a bare C++ `operator()` leaf is recognised as a
  * name, not a suffix. NULL -> 0. */
 size_t cbm_qn_callable_base_len(const char *qn);
+
+/* Top-level declaration return marker; strlen(suffix) if absent, 0 if malformed. */
+size_t cbm_callable_return_offset(const char *suffix);
 
 /* The inverse anchored to the callable's bare `name` (the node's name
  * column): the suffix is stripped only when the base QN is `name` or ends in
