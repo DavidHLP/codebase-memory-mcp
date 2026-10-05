@@ -1,0 +1,20 @@
+src/pipeline/registry.c
+  s_369d103dcf82b9::t_a4e2011b7356a4 1706-1710
+  s_369d103dcf82b9::t_1c93117833e6de 1711-1725,1736,1743
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "997cb1e8716c791c8f2f2091e11ca7057e207311",
+  "prompts": {},
+  "sessions": {
+    "s_369d103dcf82b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a109ac-f7a8-7950-979d-39c4def6d337",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
