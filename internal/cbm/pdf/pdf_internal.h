@@ -208,6 +208,7 @@ typedef struct {
     pdf_val_t *obj;
     bool cached;
     bool loading;
+    bool not_length;   /* read as a stream's /Length, it was a stream: no length */
     pdf_objstm_t *stm; /* this object as a decoded object stream */
 } pdf_xent_t;
 
@@ -248,6 +249,7 @@ struct pdf_doc {
     pdf_xref_t xref;
     pdf_val_t *trailer; /* a dict */
     bool reconstructed;
+    int objstm_opening; /* object streams being opened, one inside the other */
     /* every "N G obj" in file order, built on first need */
     pdf_hdr_t *hdrs;
     int nhdrs;

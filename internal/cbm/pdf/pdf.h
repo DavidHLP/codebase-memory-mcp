@@ -38,6 +38,7 @@ typedef struct {
     int xref_reconstructed;      /* cross-reference rebuilt from a scan of the file */
     int xref_offset_fixed;       /* an xref section found near a wrong offset */
     int stream_length_recovered; /* a stream's /Length was wrong */
+    int objstm_nested;           /* opening an object stream needed an object of one */
     int flate_recovered;         /* a damaged Flate stream decoded in part */
     int stream_guard_hits;       /* a decoded stream cut at 512 MiB */
     int filters_unsupported;     /* a stream with a filter this reader does not decode */

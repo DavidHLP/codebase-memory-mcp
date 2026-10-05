@@ -1072,10 +1072,13 @@ static bool endstream_follows(const pdf_doc_t *d, size_t q) {
     return false;
 }
 
-/* The object at off (or off + hdr). NULL: no matching header there. */
-static pdf_val_t *parse_indirect_at(pdf_doc_t *d, int64_t off, bool has_expect, int64_t expect,
-                                    bool *ok) {
+/* The value of the object at off (or off + hdr), without its stream; *stream_at
+ * is where a "stream" keyword after the value starts, 0 when none follows. NULL:
+ * no matching header there. */
+static pdf_val_t *indirect_value_at(pdf_doc_t *d, int64_t off, bool has_expect, int64_t expect,
+                                    bool *ok, size_t *stream_at) {
     *ok = false;
+    *stream_at = 0;
     size_t at = 0;
     bool found = false;
     int64_t num = 0;
@@ -1106,20 +1109,75 @@ static pdf_val_t *parse_indirect_at(pdf_doc_t *d, int64_t off, bool has_expect, 
     size_t p2 = p;
     pdf_tok_t t2;
     lex_peek(d, s, len, &p2, &t2);
-    if (!(pdf_kw_is(&t2, "stream") && val->kind == PV_DICT)) {
+    if (pdf_kw_is(&t2, "stream") && val->kind == PV_DICT) {
+        *stream_at = p2;
+    }
+    return val;
+}
+
+static int64_t hdr_first_exact(pdf_doc_t *d, int64_t num, int64_t gen);
+
+/* An object a stream's /Length names, read as a value only and cached as
+ * pdf_get caches it. An object that is a stream there gives no length and is
+ * marked: loading it would read ITS /Length first, one nested call per stream
+ * of a chain of such streams. */
+static pdf_val_t *length_object(pdf_doc_t *d, int64_t num) {
+    pdf_xent_t *e = xent(d, num);
+    bool ok;
+    size_t stream_at;
+    pdf_val_t *v = indirect_value_at(d, e->a, true, num, &ok, &stream_at);
+    if (!ok && !d->reconstructed) {
+        int64_t off = hdr_first_exact(d, num, e->b);
+        if (off >= 0) {
+            v = indirect_value_at(d, off, true, num, &ok, &stream_at);
+        }
+    }
+    e = xent(d, num);
+    if (ok && stream_at) {
+        e->not_length = true;
+        return NULL;
+    }
+    e->cached = true;
+    e->obj = ok ? v : NULL;
+    return e->obj;
+}
+
+/* A stream's /Length through its references (at most PDF_MAX_RESOLVE, as
+ * pdf_resolve). */
+static pdf_val_t *length_value(pdf_doc_t *d, pdf_val_t *v) {
+    for (int depth = 0; v && v->kind == PV_REF; depth++) {
+        pdf_xent_t *e = xent(d, v->ref_num);
+        if (depth >= PDF_MAX_RESOLVE || !e || e->loading || e->not_length) {
+            return NULL;
+        }
+        if (e->cached) {
+            v = e->obj;
+        } else if (e->type == 1) {
+            v = length_object(d, v->ref_num);
+        } else {
+            v = pdf_get(d, v->ref_num);
+        }
+    }
+    return v;
+}
+
+/* The object at off (or off + hdr), a stream with its raw bytes when one
+ * follows. NULL: no matching header there. */
+static pdf_val_t *parse_indirect_at(pdf_doc_t *d, int64_t off, bool has_expect, int64_t expect,
+                                    bool *ok) {
+    size_t st;
+    pdf_val_t *val = indirect_value_at(d, off, has_expect, expect, ok, &st);
+    if (!val || !st) {
         return val;
     }
-    size_t st = p2;
+    const unsigned char *s = d->data;
+    size_t len = d->len;
     if (st + 1 < len && s[st] == '\r' && s[st + 1] == '\n') {
         st += 2;
     } else if (st < len && (s[st] == '\n' || s[st] == '\r')) {
         st += 1;
     }
-    pdf_val_t *ln = pdf_dget_raw(val, "Length");
-    if (ln && ln->kind == PV_REF) {
-        pdf_xent_t *e = xent(d, ln->ref_num);
-        ln = (e && e->loading) ? NULL : pdf_resolve(d, ln);
-    }
+    pdf_val_t *ln = length_value(d, pdf_dget_raw(val, "Length"));
     const unsigned char *raw = NULL;
     size_t raw_len = 0;
     if (ln && ln->kind == PV_NUM && ln->is_int && ln->inum >= 0 &&
@@ -1318,6 +1376,14 @@ pdf_val_t *pdf_get(pdf_doc_t *d, int64_t num) {
     if (e->loading) {
         return NULL;
     }
+    if (e->type == 2 && d->objstm_opening > 0) {
+        /* The objects that open an object stream (its /Length, its filters) are
+         * no objects of an object stream (ISO 32000-1, 7.5.7): one that is would
+         * open the next stream inside this one, one nested call per stream of a
+         * chain. */
+        d->counts->objstm_nested++;
+        return NULL;
+    }
     e->loading = true;
     uint8_t type = e->type;
     int64_t a = e->a;
@@ -1366,7 +1432,7 @@ pdf_val_t *pdf_resolve(pdf_doc_t *d, pdf_val_t *v) {
     return v;
 }
 
-static pdf_objstm_t *objstm(pdf_doc_t *d, int64_t stmnum) {
+static pdf_objstm_t *objstm_open(pdf_doc_t *d, int64_t stmnum) {
     pdf_xent_t *e = xent(d, stmnum);
     if (e && e->stm) {
         return e->stm;
@@ -1418,6 +1484,13 @@ static pdf_objstm_t *objstm(pdf_doc_t *d, int64_t stmnum) {
     if (e) {
         e->stm = sm;
     }
+    return sm;
+}
+
+static pdf_objstm_t *objstm(pdf_doc_t *d, int64_t stmnum) {
+    d->objstm_opening++;
+    pdf_objstm_t *sm = objstm_open(d, stmnum);
+    d->objstm_opening--;
     return sm;
 }
 

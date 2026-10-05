@@ -16,6 +16,7 @@
 
 #include "cbm.h"
 #include "doclink.h"
+#include "foundation/compat_thread.h"
 #include "mcp/mcp.h"
 #include "pdf/pdf.h"
 #include "pipeline/pipeline.h"
@@ -132,6 +133,177 @@ typedef struct {
 static bool tp_extract(const unsigned char *pdf, size_t len, tp_text_t *t) {
     cbm_arena_init(&t->arena);
     return cbm_pdf_extract(pdf, len, &t->arena, &t->r);
+}
+
+/* The smallest stack a thread of this program runs on (the daemon's). */
+#define TP_SMALL_STACK (256 * 1024)
+
+typedef struct {
+    const unsigned char *pdf;
+    size_t len;
+    tp_text_t *t;
+    bool ok;
+} tp_job_t;
+
+static void *tp_extract_job(void *arg) {
+    tp_job_t *j = (tp_job_t *)arg;
+    j->ok = tp_extract(j->pdf, j->len, j->t);
+    return NULL;
+}
+
+/* tp_extract on a thread with the smallest stack: an input that nests calls
+ * per object crashes here long before it would on a worker's 8 MiB. */
+static bool tp_extract_small_stack(const unsigned char *pdf, size_t len, tp_text_t *t) {
+    tp_job_t j = {pdf, len, t, false};
+    cbm_thread_t th;
+    if (cbm_thread_create(&th, TP_SMALL_STACK, tp_extract_job, &j) != 0) {
+        return false;
+    }
+    cbm_thread_join(&th);
+    return j.ok;
+}
+
+/* "N 0 obj\n" for object n at the end of b; records its offset. */
+static void tp_obj_head(tp_buf_t *b, size_t *off, int n) {
+    char line[64];
+    off[n] = b->n;
+    snprintf(line, sizeof(line), "%d 0 obj\n", n);
+    tp_puts(b, line);
+}
+
+/* A classic xref table for objects 1..n at off[] and the trailer. */
+static void tp_classic_tail(tp_buf_t *b, const size_t *off, int n) {
+    char line[128];
+    size_t xref = b->n;
+    snprintf(line, sizeof(line), "xref\n0 %d\n0000000000 65535 f \n", n + 1);
+    tp_puts(b, line);
+    for (int i = 1; i <= n; i++) {
+        snprintf(line, sizeof(line), "%010zu 00000 n \n", off[i]);
+        tp_puts(b, line);
+    }
+    snprintf(line, sizeof(line), "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%zu\n%%%%EOF\n",
+             n + 1, xref);
+    tp_puts(b, line);
+}
+
+#define TP_PAGE_F1_5 \
+    "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
+
+/* A page whose content stream's /Length names a stream whose /Length names
+ * the next one, `depth` streams deep (the last one's /Length is a number). */
+static unsigned char *tp_length_chain(int depth, size_t *out_len) {
+    int n = 4 + depth;
+    size_t *off = (size_t *)calloc((size_t)n + 1, sizeof(size_t));
+    tp_buf_t b = {0};
+    tp_puts(&b, "%PDF-1.7\n");
+    const char *head[4] = {TP_CATALOG, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", TP_PAGE_F1_5,
+                           TP_HELV};
+    for (int i = 1; i <= 4; i++) {
+        tp_obj_head(&b, off, i);
+        tp_puts(&b, head[i - 1]);
+        tp_puts(&b, "\nendobj\n");
+    }
+    char line[96];
+    for (int i = 5; i <= n; i++) {
+        tp_obj_head(&b, off, i);
+        if (i < n) {
+            snprintf(line, sizeof(line), "<< /Length %d 0 R >>\nstream\n", i + 1);
+        } else {
+            snprintf(line, sizeof(line), "<< /Length 1 >>\nstream\n");
+        }
+        tp_puts(&b, line);
+        tp_puts(&b, i == 5 ? "BT /F1 12 Tf 72 700 Td (chain) Tj ET" : "x");
+        tp_puts(&b, "\nendstream\nendobj\n");
+    }
+    tp_classic_tail(&b, off, n);
+    free(off);
+    *out_len = b.n;
+    return b.p;
+}
+
+/* The page object lies in object stream C1, whose /Length lies in object
+ * stream C2, whose /Length lies in C3, ... `depth` streams deep; a
+ * cross-reference stream places them. Objects: 1-5 as tp_simple (3 in C1),
+ * C_i = 5 + i, L_i (C_i's length, in C_{i+1}) = 5 + depth + i, the xref stream
+ * last. */
+static unsigned char *tp_objstm_chain(int depth, size_t *out_len) {
+    int x = 5 + 2 * depth; /* the xref stream */
+    size_t *off = (size_t *)calloc((size_t)x + 1, sizeof(size_t));
+    size_t *data_len = (size_t *)calloc((size_t)depth + 1, sizeof(size_t));
+    tp_buf_t b = {0};
+    tp_puts(&b, "%PDF-1.7\n");
+    const char *plain[5] = {TP_CATALOG, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", NULL, TP_HELV,
+                            NULL};
+    char line[160];
+    for (int i = 1; i <= 5; i++) {
+        if (i == 3) {
+            continue;
+        }
+        tp_obj_head(&b, off, i);
+        if (i == 5) {
+            const char *content = "BT /F1 12 Tf 72 700 Td (objstm chain) Tj ET";
+            snprintf(line, sizeof(line), "<< /Length %zu >>\nstream\n", strlen(content));
+            tp_puts(&b, line);
+            tp_puts(&b, content);
+            tp_puts(&b, "\nendstream");
+        } else {
+            tp_puts(&b, plain[i - 1]);
+        }
+        tp_puts(&b, "\nendobj\n");
+    }
+    for (int i = 1; i <= depth; i++) {
+        char hdr[48];
+        char body[160];
+        if (i == 1) {
+            snprintf(hdr, sizeof(hdr), "3 0 ");
+            snprintf(body, sizeof(body), "%s", TP_PAGE_F1_5);
+        } else {
+            snprintf(hdr, sizeof(hdr), "%d 0 ", 5 + depth + i - 1);
+            snprintf(body, sizeof(body), "%zu", data_len[i - 1]);
+        }
+        data_len[i] = strlen(hdr) + strlen(body);
+        tp_obj_head(&b, off, 5 + i);
+        if (i < depth) {
+            snprintf(line, sizeof(line),
+                     "<< /Type /ObjStm /N 1 /First %zu /Length %d 0 R >>\nstream\n", strlen(hdr),
+                     5 + depth + i);
+        } else {
+            snprintf(line, sizeof(line),
+                     "<< /Type /ObjStm /N 1 /First %zu /Length %zu >>\nstream\n", strlen(hdr),
+                     data_len[i]);
+        }
+        tp_puts(&b, line);
+        tp_puts(&b, hdr);
+        tp_puts(&b, body);
+        tp_puts(&b, "\nendstream\nendobj\n");
+    }
+    off[x] = b.n;
+    /* rows W [1 4 2]: type, offset or containing stream, generation or index */
+    size_t nrows = (size_t)x + 1;
+    unsigned char *rows = (unsigned char *)calloc(nrows, 7);
+    for (int i = 1; i <= x; i++) {
+        unsigned char *r = rows + (size_t)i * 7;
+        bool in_stm = i == 3 || (i > 5 + depth && i < x);
+        uint32_t f2 = in_stm ? (uint32_t)(i == 3 ? 6 : i - depth + 1) : (uint32_t)off[i];
+        r[0] = in_stm ? 2 : 1;
+        r[1] = (unsigned char)(f2 >> 24);
+        r[2] = (unsigned char)(f2 >> 16);
+        r[3] = (unsigned char)(f2 >> 8);
+        r[4] = (unsigned char)f2;
+    }
+    snprintf(line, sizeof(line),
+             "%d 0 obj\n<< /Type /XRef /Size %d /W [1 4 2] /Root 1 0 R /Length %zu >>\nstream\n", x,
+             x + 1, nrows * 7);
+    tp_puts(&b, line);
+    tp_put(&b, rows, nrows * 7);
+    tp_puts(&b, "\nendstream\nendobj\n");
+    snprintf(line, sizeof(line), "startxref\n%zu\n%%%%EOF\n", off[x]);
+    tp_puts(&b, line);
+    free(rows);
+    free(data_len);
+    free(off);
+    *out_len = b.n;
+    return b.p;
 }
 
 /* ── extractor ───────────────────────────────────────────────────── */
@@ -478,6 +650,32 @@ TEST(pdf_extract_filters_and_hostile) {
     PASS();
 }
 
+/* A chain of objects, each needed to load the one before, costs no stack per
+ * object: a stream's /Length is read as a value (a stream there is no length),
+ * and the objects that open an object stream are no objects of one. Run on the
+ * smallest stack in the program. */
+TEST(pdf_extract_object_chains) {
+    size_t len;
+    tp_text_t t;
+    unsigned char *pdf = tp_length_chain(20000, &len);
+    ASSERT_TRUE(tp_extract_small_stack(pdf, len, &t));
+    ASSERT_EQ(t.r.status, CBM_PDF_OK);
+    ASSERT_EQ(t.r.npages, 1);
+    ASSERT_STR_EQ(t.r.pages[0].text, "chain");
+    ASSERT_TRUE(t.r.counts.stream_length_recovered >= 1);
+    cbm_arena_destroy(&t.arena);
+    free(pdf);
+    pdf = tp_objstm_chain(3000, &len);
+    ASSERT_TRUE(tp_extract_small_stack(pdf, len, &t));
+    ASSERT_EQ(t.r.status, CBM_PDF_OK);
+    ASSERT_EQ(t.r.npages, 1);
+    ASSERT_STR_EQ(t.r.pages[0].text, "objstm chain");
+    ASSERT_TRUE(t.r.counts.objstm_nested >= 1);
+    cbm_arena_destroy(&t.arena);
+    free(pdf);
+    PASS();
+}
+
 /* ── scanner (expected: the field-test scanner on the same text) ─── */
 
 TEST(pdf_scan_mentions) {
@@ -786,6 +984,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_extract_fonts);
     RUN_TEST(pdf_extract_structure);
     RUN_TEST(pdf_extract_filters_and_hostile);
+    RUN_TEST(pdf_extract_object_chains);
     RUN_TEST(pdf_scan_mentions);
     RUN_TEST(pdf_links_pipeline);
     RUN_TEST(pdf_snippet_is_page_text);
