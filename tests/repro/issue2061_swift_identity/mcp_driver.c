@@ -159,6 +159,8 @@ static void request(cbm_mcp_server_t *srv, const char *project, int id, const ch
 }
 
 int main(int argc, char **argv) {
+    /* Preserve every observation if sanitizer teardown fails before exit flush. */
+    setvbuf(stdout, NULL, _IOLBF, 0);
     if (argc != 2 || strcmp(argv[1], "issue2061-swift-identity") != 0 || !getenv("CBM_CACHE_DIR") ||
         !getenv("CBM_ALLOWED_ROOT")) {
         fprintf(stderr, "usage: mcp-driver issue2061-swift-identity; set isolated "
