@@ -242,6 +242,10 @@ void cbm_doclinks_test_fail_edge_insert_after(int nth);
 /* Test seam (doc_links_cs.c): ask the reader whether it takes a scope blob.
  * (The scope of one file is spoiled where it is written: doclink.h.) */
 bool cbm_doclink_cs_test_scope_parses(const char *scope);
+/* Test seam (doc_links_cs.c): false builds the C# indexes from now on without
+ * the run's memo of the units' using steps (every unit step walks its
+ * directives), so a run can be held against one with it; true restores it. */
+void cbm_doclink_cs_test_unit_memo(bool on);
 #endif
 
 /* True when `rel_path` is a scope input of some language (scope_input). */

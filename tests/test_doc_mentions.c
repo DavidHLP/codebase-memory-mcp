@@ -8794,6 +8794,161 @@ TEST(doc_mentions_cs_lookup_repeated_name_work) {
     PASS();
 }
 
+/* R1: `Shared` is declared in k namespaces nobody imports; the project has k
+ * global usings of other namespaces, and f files each name `Shared` once, so
+ * each of them would walk the k directives of the unit. The resolver's work
+ * and the number of `missing` rows for `Shared` (f when all are resolved; -1
+ * when the repository cannot be indexed). */
+static uint64_t dm_unit_usings_work(int k, int f, int *rows) {
+    enum { CAP = 256 * 1024 };
+    char *src = malloc(CAP);
+    char tmp[256] = "/tmp/cbm_dm_unit_usings_XXXXXX";
+    *rows = -1;
+    if (!src || !cbm_mkdtemp(tmp)) {
+        free(src);
+        return 0;
+    }
+    th_write_file(TH_PATH(tmp, "src/App.csproj"), DM_EMPTY_PROJECT);
+    size_t w = 0;
+    for (int i = 0; i < k; i++) {
+        w += (size_t)snprintf(src + w, CAP - w,
+                              "namespace P%d { public class Shared { } }\n"
+                              "namespace In.U%d { public class Other%d { } }\n",
+                              i, i, i);
+    }
+    th_write_file(TH_PATH(tmp, "src/Far.cs"), src);
+    w = 0;
+    for (int i = 0; i < k; i++) {
+        w += (size_t)snprintf(src + w, CAP - w, "global using In.U%d;\n", i);
+    }
+    th_write_file(TH_PATH(tmp, "src/GlobalUsings.cs"), src);
+    for (int j = 0; j < f; j++) {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/src/Uses%d.cs", tmp, j);
+        snprintf(src, CAP,
+                 "namespace N0\n{\n"
+                 "    /// <summary><see cref=\"Shared\"/></summary>\n"
+                 "    public class L%d { }\n"
+                 "}\n",
+                 j);
+        th_write_file(path, src);
+    }
+    free(src);
+    char db[512];
+    snprintf(db, sizeof(db), "%s/unit_usings.db", tmp);
+    cbm_doclink_cs_test_work_reset();
+    uint64_t work = dm_index(tmp, db, NULL) == 0 ? cbm_doclink_cs_test_work() : 0;
+    *rows = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved "
+                         "WHERE raw = 'Shared' AND reason = 'missing'");
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    return work;
+}
+
+/* R1: what the unit's directives give a query is the same for every file of
+ * the unit that asks it: with k and f both twice as large the work about
+ * doubles (the input does), not f x k (4 x). */
+TEST(doc_mentions_cs_unit_usings_across_files_work) {
+    int rows[2] = {0};
+    uint64_t small = dm_unit_usings_work(150, 100, &rows[0]);
+    uint64_t large = dm_unit_usings_work(300, 200, &rows[1]);
+    double ratio = small ? (double)large / (double)small : 0.0;
+    printf("  unit usings, k 150 -> 300 and f 100 -> 200: %llu -> %llu steps, %.2f times the "
+           "work, want at most 2.6\n",
+           (unsigned long long)small, (unsigned long long)large, ratio);
+    ASSERT_EQ(rows[0], 100);
+    ASSERT_EQ(rows[1], 200);
+    ASSERT_GT(small, 0);
+    ASSERT_LTE(large * 5, small * 13);
+    PASS();
+}
+
+/* R1: a file asks only the unit directives that give its query anything, and
+ * stops where the walk of all of them would: the edges and rows are those of
+ * a run without the unit memo. The unit imports A (X, Y), B (X), D (Z) and the
+ * test-only T (W). Cases: nothing from the file and two unit candidates (U1);
+ * one from the file, another from the unit (U2); the same one from both (U3);
+ * the same one, then another (U4); one from the unit only (U5); test code
+ * only (U6 product, UT test code); a unit without global usings (UO). */
+TEST(doc_mentions_cs_unit_usings_unchanged) {
+    static const dm_source_t files[] = {
+        {"src/App.csproj", DM_EMPTY_PROJECT},
+        {"src/A.cs", "namespace A\n{\n    public class X { }\n    public class Y { }\n}\n"},
+        {"src/B.cs", "namespace B\n{\n    public class X { }\n}\n"},
+        {"src/C.cs", "namespace C\n{\n    public class X { }\n}\n"},
+        {"src/D.cs", "namespace D\n{\n    public class Z { }\n}\n"},
+        {"src/tests/T.cs", "namespace T\n{\n    public class W { }\n}\n"},
+        {"src/GlobalUsings.cs", "global using A;\nglobal using B;\nglobal using D;\n"
+                                "global using T;\n"},
+        {"src/U1.cs", "namespace N\n{\n    /// <summary><see cref=\"X\"/></summary>\n"
+                      "    public class U1 { }\n}\n"},
+        {"src/U2.cs", "using C;\nnamespace N\n{\n    /// <summary><see cref=\"X\"/></summary>\n"
+                      "    public class U2 { }\n}\n"},
+        {"src/U3.cs", "using A;\nnamespace N\n{\n    /// <summary><see cref=\"Y\"/></summary>\n"
+                      "    public class U3 { }\n}\n"},
+        {"src/U4.cs", "using A;\nnamespace N\n{\n    /// <summary><see cref=\"X\"/></summary>\n"
+                      "    public class U4 { }\n}\n"},
+        {"src/U5.cs", "namespace N\n{\n    /// <summary><see cref=\"Z\"/></summary>\n"
+                      "    public class U5 { }\n}\n"},
+        {"src/U6.cs", "namespace N\n{\n    /// <summary><see cref=\"W\"/></summary>\n"
+                      "    public class U6 { }\n}\n"},
+        {"src/tests/UT.cs", "namespace N\n{\n    /// <summary><see cref=\"W\"/> <see cref=\"X\"/>"
+                            "</summary>\n    public class UT { }\n}\n"},
+        {"other/Other.csproj", DM_EMPTY_PROJECT},
+        {"other/UO.cs", "namespace N\n{\n    /// <summary><see cref=\"X\"/> <see cref=\"Z\"/>"
+                        "</summary>\n    public class UO { }\n}\n"},
+    };
+    static const dm_want_t wants[] = {
+        {"src/U1.cs", "X", "U1.U1", NULL, "ambiguous", NULL, NULL},
+        {"src/U2.cs", "X", "U2.U2", NULL, "ambiguous", NULL, NULL},
+        {"src/U3.cs", "Y", "U3.U3", "A.Y", NULL, NULL, NULL},
+        {"src/U4.cs", "X", "U4.U4", NULL, "ambiguous", NULL, NULL},
+        {"src/U5.cs", "Z", "U5.U5", "D.Z", NULL, NULL, NULL},
+        {"src/U6.cs", "W", "U6.U6", NULL, "test_only_target", NULL, NULL},
+        {"src/tests/UT.cs", "W", "UT.UT", "T.W", NULL, NULL, NULL},
+        {"src/tests/UT.cs", "X", "UT.UT", NULL, "ambiguous", NULL, NULL},
+        {"other/UO.cs", "X", "UO.UO", NULL, "missing", NULL, NULL},
+        {"other/UO.cs", "Z", "UO.UO", NULL, "missing", NULL, NULL},
+    };
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_unit_same_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[400];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    for (int i = 0; i < DM_COUNT(files); i++) {
+        th_write_file(TH_PATH(repo, files[i].path), files[i].text);
+    }
+    char with_db[512];
+    char without_db[512];
+    snprintf(with_db, sizeof(with_db), "%s/with.db", tmp);
+    snprintf(without_db, sizeof(without_db), "%s/without.db", tmp);
+    int with_rc = dm_index(repo, with_db, NULL);
+    cbm_doclink_cs_test_unit_memo(false);
+    int without_rc = dm_index(repo, without_db, NULL);
+    cbm_doclink_cs_test_unit_memo(true);
+    char *with = dm_doclink_state(with_db);
+    char *without = dm_doclink_state(without_db);
+    bool same = with && without && strcmp(with, without) == 0;
+    if (!same) {
+        printf("  with the unit memo\n%s  without it\n%s", with ? with : "(null)",
+               without ? without : "(null)");
+    }
+    int bad = 0;
+    for (int i = 0; i < DM_COUNT(wants); i++) {
+        bad += dm_want_failed(with_db, &wants[i]);
+    }
+    free(with);
+    free(without);
+    dm_unlink_db(with_db);
+    dm_unlink_db(without_db);
+    th_rmtree(tmp);
+    ASSERT_EQ(with_rc, 0);
+    ASSERT_EQ(without_rc, 0);
+    ASSERT_TRUE(same);
+    ASSERT_EQ(bad, 0);
+    PASS();
+}
+
 /* S5: k namespaces all declare `Shared` and one file imports all of them;
  * `refs` documented classes name it (0 or 1). The resolver's lookup work and
  * the reason of the row (empty when there is none). */
@@ -10403,6 +10558,8 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_lookup_cost);
     RUN_TEST(doc_mentions_cs_import_lookup_cost);
     RUN_TEST(doc_mentions_cs_lookup_repeated_name_work);
+    RUN_TEST(doc_mentions_cs_unit_usings_across_files_work);
+    RUN_TEST(doc_mentions_cs_unit_usings_unchanged);
     RUN_TEST(doc_mentions_cs_lookup_ambiguous_stops);
     RUN_TEST(doc_mentions_cs_import_stage_aliases);
     RUN_TEST(doc_mentions_cs_import_static_parts);

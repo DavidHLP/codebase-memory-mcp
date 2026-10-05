@@ -155,6 +155,7 @@
 #include "helpers.h" /* cbm_fqn_module_source_lang */
 #include "pipeline/doc_links_msbuild.h"
 #include "foundation/arena.h"
+#include "foundation/compat_thread.h"
 #include "foundation/constants.h"
 #include "foundation/hash_table.h"
 #include "foundation/log.h"
@@ -547,6 +548,9 @@ typedef struct {
     bool bind_inherited; /* CS_BIND_INHERITED */
     cs_undo_t undo;      /* of the file being parsed */
     int rejected;        /* files whose scope, written in this run, was refused */
+    /* the unit part of the using steps, shared by the resolve workers; made
+     * once the index is complete (NULL before, and when memory ran out) */
+    struct cs_unit_memo *unit_memo;
 } cs_index_t;
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
@@ -4597,8 +4601,53 @@ static int candidate_id_cmp(const void *a, const void *b) {
     return int_cmp(a, b);
 }
 
+/* The directives of a using step that give a query anything, in order (R1):
+ * noted while the step is walked, for the unit memo. */
+typedef struct {
+    int *ids;
+    int n;
+    int cap;
+    bool failed; /* memory ran out: the list is not whole */
+} cs_active_rec_t;
+
+static void active_add(cs_active_rec_t *rec, int id) {
+    if (rec->n == rec->cap) {
+        int cap = rec->cap ? rec->cap * PAIR_LEN : CBM_SZ_16;
+        int *grown = (int *)cbm_alloc(CBM_MEM_CLASS_OTHER, (size_t)cap * sizeof(int));
+        if (!grown) {
+            rec->failed = true;
+            return;
+        }
+        if (rec->n > 0) {
+            memcpy(grown, rec->ids, (size_t)rec->n * sizeof(int));
+        }
+        cbm_free(CBM_MEM_CLASS_OTHER, rec->ids);
+        rec->ids = grown;
+        rec->cap = cap;
+    }
+    rec->ids[rec->n++] = id;
+}
+
+/* Directive `id` of a step, for the query. With `rec`, it is noted when it
+ * gives the query anything at all: one that leaves an empty step empty adds
+ * no candidate and sets no flag whatever the step holds, so leaving it out
+ * changes no lookup. */
+static void using_visit(const cs_ctx_t *c, const cs_using_t *us, int id, const cs_query_t *q,
+                        bool a_type_name, cs_found_t *fd, cs_active_rec_t *rec) {
+    if (rec) {
+        cs_found_t probe = {0};
+        level_using(c, &us[id], q, a_type_name, &probe);
+        if (probe.n == 0 && !probe.invisible && !probe.joined && probe.why == CS_WHY_SCOPE) {
+            return;
+        }
+        active_add(rec, id);
+    }
+    level_using(c, &us[id], q, a_type_name, fd);
+}
+
 static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
-                         const cs_using_index_t *index, const cs_query_t *q, cs_found_t *fd) {
+                         const cs_using_index_t *index, const cs_query_t *q, cs_found_t *fd,
+                         cs_active_rec_t *rec) {
     if (!n) {
         return;
     }
@@ -4613,7 +4662,7 @@ static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
      * more postings than it has directives. The baseline scan stays cheap. */
     if (!indexed || hi - lo >= (size_t)n) {
         for (int i = 0; i < n && !found_decided(fd); i++) {
-            level_using(c, &us[i], q, a_type_name, fd);
+            using_visit(c, us, i, q, a_type_name, fd, rec);
         }
         return;
     }
@@ -4636,7 +4685,7 @@ static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
             /* Own and twin postings may select the SAME directive twice.
              * Distinct directive IDs must still be resolved separately. */
             if (!i || ids.ids[i] != ids.ids[i - SKIP_ONE]) {
-                level_using(c, &us[ids.ids[i]], q, a_type_name, fd);
+                using_visit(c, us, ids.ids[i], q, a_type_name, fd, rec);
             }
         }
     }
@@ -4645,7 +4694,7 @@ static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
     }
     if (!complete) {
         for (int i = 0; i < n && !found_decided(fd); i++) {
-            level_using(c, &us[i], q, a_type_name, fd);
+            using_visit(c, us, i, q, a_type_name, fd, rec);
         }
     }
 }
@@ -4715,6 +4764,139 @@ static void memo_put(cs_memo_t *m, const char *key, const cs_found_t *step) {
     m->off = cbm_ht_get(m->steps, k) != v; /* an insert that did not take */
 }
 
+/* The unit part of a using step (R1): which of a unit's directives give a
+ * query anything, in order, up to where they alone decide it. What a
+ * directive gives reads only the context's unit, assembly and product flag
+ * (level_using), so the list is the same for every file of the unit that
+ * asks the query: it is found once per run, shared by the resolve workers
+ * (guarded), and each file then asks only those directives after its own --
+ * stopping where the walk of all of them would, which is never later than
+ * where they alone are decided. Each list is found once: by the first
+ * worker that asks for it, while the others that ask for the same key hold
+ * on until it is there (a step's cost never depends on the scheduling). A
+ * memo that ran out of memory stops remembering; the lookups stay exact. */
+typedef struct cs_unit_step {
+    cbm_mutex_t mu; /* held by the worker that finds the list, until it is there */
+    int *ids;       /* the directives, in order (memory-core block, or NULL) */
+    int n;
+    bool failed;               /* memory ran out finding it: askers walk all directives */
+    struct cs_unit_step *next; /* every step, for the memo's release */
+} cs_unit_step_t;
+
+typedef struct cs_unit_memo {
+    cbm_mutex_t mu;      /* guards steps, arena, all and off */
+    CBMHashTable *steps; /* key -> cs_unit_step_t in `arena` */
+    CBMArena arena;
+    cs_unit_step_t *all;
+    bool off;
+} cs_unit_memo_t;
+
+static cs_unit_memo_t *unit_memo_new(void) {
+    cs_unit_memo_t *m = (cs_unit_memo_t *)cbm_calloc(CBM_MEM_CLASS_OTHER, sizeof(*m));
+    if (!m) {
+        return NULL;
+    }
+    cbm_mutex_init(&m->mu);
+    cbm_arena_init_lazy(&m->arena, CBM_ARENA_APPEND_BLOCK);
+    return m;
+}
+
+static void unit_memo_free(cs_unit_memo_t *m) {
+    if (!m) {
+        return;
+    }
+    for (cs_unit_step_t *e = m->all; e; e = e->next) {
+        cbm_mutex_destroy(&e->mu);
+        cbm_free(CBM_MEM_CLASS_OTHER, e->ids);
+    }
+    cbm_ht_free(m->steps);
+    cbm_arena_destroy(&m->arena);
+    cbm_mutex_destroy(&m->mu);
+    cbm_free(CBM_MEM_CLASS_OTHER, m);
+}
+
+/* The key of one unit step: everything it reads. false when it does not fit. */
+static bool unit_key(char *buf, size_t cap, const cs_ctx_t *c, const cs_query_t *q) {
+    int n = snprintf(buf, cap, "%d|%d|%d|%d|%d%d%d%c|%s", c->unit, c->group, (int)c->prod, q->arity,
+                     (int)q->types_only, (int)q->statics, (int)q->ctors, q->kind ? q->kind : '-',
+                     q->name);
+    return n > 0 && (size_t)n < cap;
+}
+
+/* The step under `key` (the caller holds the memo's lock); a new one is
+ * added with its lock held, and *mine set: the caller finds its list. NULL
+ * when memory ran out. */
+static cs_unit_step_t *unit_step_at(cs_unit_memo_t *m, const char *key, bool *mine) {
+    *mine = false;
+    if (!m->steps) {
+        m->steps = cbm_ht_create(CBM_SZ_64);
+        if (!m->steps) {
+            return NULL;
+        }
+    }
+    cs_unit_step_t *had = (cs_unit_step_t *)cbm_ht_get(m->steps, key);
+    if (had) {
+        return had;
+    }
+    char *k = cbm_arena_strdup(&m->arena, key);
+    cs_unit_step_t *e = (cs_unit_step_t *)cbm_arena_alloc(&m->arena, sizeof(*e));
+    if (!k || !e) {
+        return NULL;
+    }
+    memset(e, 0, sizeof(*e));
+    cbm_mutex_init(&e->mu);
+    cbm_mutex_lock(&e->mu);
+    e->next = m->all;
+    m->all = e;
+    cbm_ht_set(m->steps, k, e);
+    if (cbm_ht_get(m->steps, k) != e) {
+        e->failed = true; /* an insert that did not take: kept for release only */
+        cbm_mutex_unlock(&e->mu);
+        return NULL;
+    }
+    *mine = true;
+    return e;
+}
+
+/* What the unit's directives give the query after the region's (`fd`). */
+static void unit_usings(const cs_ctx_t *c, const cs_unit_t *unit, const cs_query_t *q,
+                        cs_found_t *fd) {
+    cs_unit_memo_t *m = c->ix->unit_memo;
+    char key[CS_MEMO_KEY];
+    cs_unit_step_t *e = NULL;
+    bool mine = false;
+    if (m && unit_key(key, sizeof(key), c, q)) {
+        cs_work(SKIP_ONE);
+        cbm_mutex_lock(&m->mu);
+        e = m->off ? NULL : unit_step_at(m, key, &mine);
+        m->off = m->off || !e;
+        cbm_mutex_unlock(&m->mu);
+    }
+    if (e && mine) {
+        cs_active_rec_t rec = {0};
+        cs_found_t alone = {0};
+        level_usings(c, unit->usings, unit->nusings, &unit->using_index, q, &alone, &rec);
+        e->failed = rec.failed;
+        e->ids = rec.failed ? NULL : rec.ids;
+        e->n = rec.failed ? 0 : rec.n;
+        if (rec.failed) {
+            cbm_free(CBM_MEM_CLASS_OTHER, rec.ids);
+        }
+        cbm_mutex_unlock(&e->mu);
+    } else if (e) {
+        cbm_mutex_lock(&e->mu); /* the list is there once its finder lets go */
+        cbm_mutex_unlock(&e->mu);
+    }
+    if (!e || e->failed) {
+        level_usings(c, unit->usings, unit->nusings, &unit->using_index, q, fd, NULL);
+        return;
+    }
+    bool a_type_name = cbm_ht_get(c->ix->type_names, q->name) != NULL;
+    for (int i = 0; i < e->n && !found_decided(fd); i++) {
+        level_using(c, &unit->usings[e->ids[i]], q, a_type_name, fd);
+    }
+}
+
 /* What the directives of this scope level give the query: the region's own
  * (`us`, when asked) and, at the global namespace, the unit's. Asked once per
  * key when the context has a memo. */
@@ -4727,9 +4909,9 @@ static void using_step(const cs_ctx_t *c, int region, const cs_using_t *us, int 
     if (keyed && memo_get(c->memo, key, step)) {
         return;
     }
-    level_usings(c, us, nus, usi, q, step);
+    level_usings(c, us, nus, usi, q, step, NULL);
     if (unit && !found_decided(step)) {
-        level_usings(c, unit->usings, unit->nusings, &unit->using_index, q, step);
+        unit_usings(c, unit, q, step);
     }
     if (keyed) {
         memo_put(c->memo, key, step);
@@ -5826,6 +6008,7 @@ static void cs_destroy(void *index) {
                  (unsigned long long)(ix->stats ? atomic_load(&ix->stats->rejected) : 0));
         cbm_log_warn("doc_links.cs.rejected_scopes", "files", files, "references", refs);
     }
+    unit_memo_free(ix->unit_memo);
     cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.flags);
     cbm_free(CBM_MEM_CLASS_OTHER, ix->undo.marks);
     cbm_free(CBM_MEM_CLASS_OTHER, ix->stats);
@@ -6096,6 +6279,13 @@ static int cs_scope_accepted(const char *scope) {
 bool cbm_doclink_cs_test_scope_parses(const char *scope) {
     return cs_scope_accepted(scope) == SKIP_ONE;
 }
+
+/* Test seam: set, the indexes are built without the unit memo. */
+static atomic_bool cs_test_no_unit_memo;
+
+void cbm_doclink_cs_test_unit_memo(bool on) {
+    atomic_store(&cs_test_no_unit_memo, !on);
+}
 #endif
 
 /* Every file of the index with what its scope declares. A scope read back
@@ -6243,6 +6433,14 @@ static void *cs_build(const cbm_doclink_build_in_t *in) {
     }
     if (!resolve_bases(ix) || !spread_open(ix) || ix->oom) {
         return build_failed(ix, "bases", "alloc", NULL);
+    }
+    /* only now: what the build's own lookups saw of the units' directives
+     * was not yet the whole index (NULL when memory ran out: no memo) */
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    if (!atomic_load(&cs_test_no_unit_memo))
+#endif
+    {
+        ix->unit_memo = unit_memo_new();
     }
     log_index(ix, &msb);
     return ix;
