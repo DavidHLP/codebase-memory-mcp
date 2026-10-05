@@ -9396,14 +9396,17 @@ static int dm_exec(const char *db, const char *sql) {
     return changed;
 }
 
-/* A stored scope this code did not write -- a damaged row -- is not read
- * around: the file's declarations would silently be missing from every
- * lookup, and references to them would be reported `missing`. The layer
- * fails for that run, visibly, and the next index rebuilds from the files. */
-TEST(doc_mentions_cs_damaged_stored_scope) {
+/* One damaged stored scope (A's row, `find` replaced by `put`): 0 when the
+ * run that reads it fails visibly and the next one rebuilds; else the step
+ * that went wrong (1 setup, 2 the damaged run, 3 the rebuild), with the
+ * damaged run's error rows in *errors. */
+static int dm_damaged_scope_run(const char *find, const char *put, int *errors) {
+    *errors = -1;
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_dmg_XXXXXX");
-    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    if (!cbm_mkdtemp(tmp)) {
+        return 1;
+    }
     char repo[400];
     snprintf(repo, sizeof(repo), "%s/repo", tmp);
     th_write_file(TH_PATH(repo, "src/A.cs"), "namespace N\n{\n    public class Target { }\n}\n");
@@ -9414,35 +9417,73 @@ TEST(doc_mentions_cs_damaged_stored_scope) {
                                              "}\n");
     char db[512];
     snprintf(db, sizeof(db), "%s/dmg.db", tmp);
-    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "UPDATE lsp_surface SET defs_json = replace(defs_json, '%s', '%s') "
+             "WHERE rel_path = 'src/A.cs' AND instr(defs_json, '%s') > 0",
+             find, put, find);
     char props[512];
     int n = 0;
-    dm_edge(db, "B.Uses", "A.Target", props, sizeof(props), &n);
-    ASSERT_EQ(n, 1);
-    /* one field too many in A's type record: no record this code writes */
-    ASSERT_EQ(dm_exec(db, "UPDATE lsp_surface SET defs_json = "
-                          "replace(defs_json, '\\nT\\t', '\\nT\\tX\\t') "
-                          "WHERE rel_path = 'src/A.cs' AND instr(defs_json, '\\nT\\t') > 0"),
-              1);
-    th_write_file(TH_PATH(repo, "src/B.cs"),
-                  "namespace N\n"
-                  "{\n"
-                  "    /// <summary>Again <see cref=\"Target\"/></summary>\n"
-                  "    public class Uses { }\n"
-                  "}\n");
-    cbm_pipeline_incremental_test_reset_faults();
-    ASSERT_EQ(dm_index(repo, db, NULL), 0);
-    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'"), 1);
-    /* never the row an index without A's declarations would write */
-    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE raw = 'Target'"), 0);
-    /* the next run rebuilds everything, and the edge is back */
-    ASSERT_EQ(dm_index(repo, db, NULL), 0);
-    ASSERT_EQ(cbm_pipeline_incremental_test_last_route(), CBM_INCREMENTAL_ROUTE_FORCED_FULL);
-    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'"), 0);
-    dm_edge(db, "B.Uses", "A.Target", props, sizeof(props), &n);
-    ASSERT_EQ(n, 1);
+    int step = 1;
+    bool ok = dm_index(repo, db, NULL) == 0;
+    if (ok) {
+        dm_edge(db, "B.Uses", "A.Target", props, sizeof(props), &n);
+        ok = n == 1 && dm_exec(db, sql) == 1;
+    }
+    if (ok) {
+        step = 2;
+        th_write_file(TH_PATH(repo, "src/B.cs"),
+                      "namespace N\n"
+                      "{\n"
+                      "    /// <summary>Again <see cref=\"Target\"/></summary>\n"
+                      "    public class Uses { }\n"
+                      "}\n");
+        cbm_pipeline_incremental_test_reset_faults();
+        ok = dm_index(repo, db, NULL) == 0;
+        *errors = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'");
+        /* never the row an index without A's declarations would write */
+        ok = ok && *errors == 1 &&
+             dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE raw = 'Target'") == 0;
+    }
+    if (ok) {
+        /* the next run rebuilds everything, and the edge is back */
+        step = 3;
+        ok = dm_index(repo, db, NULL) == 0 &&
+             cbm_pipeline_incremental_test_last_route() == CBM_INCREMENTAL_ROUTE_FORCED_FULL &&
+             dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'") == 0;
+        if (ok) {
+            dm_edge(db, "B.Uses", "A.Target", props, sizeof(props), &n);
+            ok = n == 1;
+        }
+    }
     dm_unlink_db(db);
     th_rmtree(tmp);
+    return ok ? 0 : step;
+}
+
+/* A stored scope this code did not write -- a damaged row -- is not read
+ * around: the file's declarations would silently be missing from every
+ * lookup, and references to them would be reported `missing`. The layer
+ * fails for that run, visibly, and the next index rebuilds from the files.
+ * R8: a region with an empty name is such a record (the scanner never writes
+ * one); read, it would nest a region without deepening the namespace. */
+TEST(doc_mentions_cs_damaged_stored_scope) {
+    static const struct {
+        const char *what, *find, *put;
+    } damages[] = {
+        {"one field too many in A's type record", "\\nT\\t", "\\nT\\tX\\t"},
+        {"A's region without a name", "\\nR\\t1\\t0\\t0\\t0\\tN\\n", "\\nR\\t1\\t0\\t0\\t0\\t\\n"},
+    };
+    bool ok = true;
+    for (size_t i = 0; i < sizeof(damages) / sizeof(damages[0]); i++) {
+        int errors = -1;
+        int step = dm_damaged_scope_run(damages[i].find, damages[i].put, &errors);
+        if (step != 0) {
+            printf("  %s: step %d went wrong (%d error rows)\n", damages[i].what, step, errors);
+            ok = false;
+        }
+    }
+    ASSERT_TRUE(ok);
     PASS();
 }
 

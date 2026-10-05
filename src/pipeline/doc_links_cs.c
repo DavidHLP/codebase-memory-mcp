@@ -1002,8 +1002,9 @@ static void add_tparams(cs_file_t *f, int owner, char *list) {
 
 static bool parse_region(cs_index_t *ix, cs_file_t *f, char **fld, int n, int *next_region) {
     /* R id parent start end name */
-    if (n != 6) {
-        return false;
+    if (n != 6 || !fld[5][0]) {
+        return false; /* the scanner names every region: an empty name would
+                       * nest one without deepening the namespace */
     }
     int id = field_index(fld[1], f->nregions);
     int parent = field_index(fld[2], f->nregions);
