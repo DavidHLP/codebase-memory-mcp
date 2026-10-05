@@ -10179,6 +10179,83 @@ TEST(doc_mentions_cs_rejected_scope_across_runs) {
     PASS();
 }
 
+enum { DM_DIRECTIVE_FILLERS = 60 }; /* with the C# file: above MIN_FILES_FOR_PARALLEL */
+
+static const char DM_DIRECTIVES_ONLY[] = "global using System;\nglobal using System.IO;\n";
+
+/* Error rows of one index of a repository whose only C# file holds nothing
+ * but global usings, its scope scan failing when `fail`. `workers` "4" runs
+ * the worker pipeline, "1" the sequential passes (CBM_WORKERS is restored).
+ * -1 when the repository cannot be indexed. */
+static int dm_directives_only_errors(const char *workers, bool fail) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dm_r7_XXXXXX");
+    if (!cbm_mkdtemp(tmp)) {
+        return -1;
+    }
+    char repo[400];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    th_write_file(TH_PATH(repo, "src/App.csproj"), DM_EMPTY_PROJECT);
+    th_write_file(TH_PATH(repo, "src/Usings.cs"), DM_DIRECTIVES_ONLY);
+    for (int i = 0; i < DM_DIRECTIVE_FILLERS; i++) {
+        char path[512];
+        snprintf(path, sizeof(path), "%s/py/m%02d.py", repo, i);
+        th_write_file(path, "def f():\n    return 1\n");
+    }
+    const char *saved = getenv("CBM_WORKERS");
+    char *saved_copy = saved ? strdup(saved) : NULL;
+    cbm_setenv("CBM_WORKERS", workers, 1);
+    if (fail) {
+        cbm_doclink_test_fail_alloc_after(CBM_DOCLINK_ALLOC_SCOPE, 1); /* the one C# file */
+    }
+    char db[512];
+    snprintf(db, sizeof(db), "%s/r7.db", tmp);
+    int errors =
+        dm_index(repo, db, NULL) == 0
+            ? dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'")
+            : -1;
+    cbm_doclink_test_reset_alloc();
+    if (saved_copy) {
+        cbm_setenv("CBM_WORKERS", saved_copy, 1);
+        free(saved_copy);
+    } else {
+        cbm_unsetenv("CBM_WORKERS");
+    }
+    dm_unlink_db(db);
+    th_rmtree(tmp);
+    return errors;
+}
+
+/* R7: a C# file of nothing but global usings has no call, usage, throw,
+ * read/write or impl trait; its one definition is the Module every
+ * extraction pushes first. That keeps it out of the worker pipeline's skip
+ * of files with nothing to resolve, so its doc-link failure flag is read
+ * there: its scope scan running out of memory fails the layer in both
+ * routes. The fixture holds only while the file has nothing but the Module. */
+TEST(doc_mentions_directives_only_failure) {
+    CBMFileResult *r = dm_extract(DM_DIRECTIVES_ONLY, CBM_LANG_CSHARP, "src/Usings.cs");
+    ASSERT_NOT_NULL(r);
+    bool module_only = r->calls.count == 0 && r->usages.count == 0 && r->throws.count == 0 &&
+                       r->rw.count == 0 && r->impl_traits.count == 0 && r->defs.count == 1 &&
+                       strcmp(r->defs.items[0].label, "Module") == 0;
+    cbm_free_result(r);
+    ASSERT_TRUE(module_only);
+    static const char *const routes[] = {"4", "1"};
+    bool ok = true;
+    for (size_t k = 0; k < sizeof(routes) / sizeof(routes[0]); k++) {
+        int clean = dm_directives_only_errors(routes[k], false);
+        int failed = dm_directives_only_errors(routes[k], true);
+        if (clean != 0 || failed != 1) {
+            printf("  %s worker(s): %d error rows without a failure (want 0), %d with one (want "
+                   "1)\n",
+                   routes[k], clean, failed);
+            ok = false;
+        }
+    }
+    ASSERT_TRUE(ok);
+    PASS();
+}
+
 TEST(doc_mentions_alloc_failure_status) {
     static const struct {
         int point;
@@ -10318,6 +10395,7 @@ SUITE(doc_mentions) {
     RUN_TEST(doc_mentions_cs_scratch_table_work);
     RUN_TEST(doc_mentions_incremental_non_ascii_name);
     RUN_TEST(doc_mentions_alloc_failure_status);
+    RUN_TEST(doc_mentions_directives_only_failure);
     RUN_TEST(doc_mentions_cs_scanner_output_reads_back);
     RUN_TEST(doc_mentions_cs_rejected_scope_contained);
     RUN_TEST(doc_mentions_cs_rejected_scope_across_runs);
