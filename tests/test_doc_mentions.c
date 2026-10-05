@@ -10041,8 +10041,13 @@ TEST(doc_mentions_cs_scanner_output_reads_back) {
  * file. The status stays ok and the other file's edges are there; the file's
  * own reference is a graph gap; and nothing its parse set before the refusal
  * stays -- a namespace it declares does not stand beside a type of that name
- * (Shadow, Good.Lurker), and a name it quarantined does not block another
- * file's declaration (Hidden2). */
+ * (Shadow, Good.Lurker).
+ * R4: the type names its T and Q records carry are quarantined, as the names
+ * of declarations no scope is known for are: a reference to one, from any
+ * file, is a graph gap -- never a binding to another type of that name the
+ * full picture would not choose (Widget: Good.Widget of Bad.cs comes before
+ * the imported Lib.Widget), nor to one the unplaced declaration would make
+ * uncertain (Hidden2, as when the scope is taken). */
 /* S8: Bad.cs declares what would shadow and hide Healthy.cs's names; its
  * scope is spoiled where it is written (cbm_doclink_cs_test_spoil_scope). */
 static const dm_source_t dm_rejected_files[] = {
@@ -10056,12 +10061,14 @@ static const dm_source_t dm_rejected_files[] = {
                "\n"
                "    /// <summary><see cref=\"Target\"/></summary>\n"
                "    public class FromBad { }\n"
+               "    public class Widget { }\n"
                "}\n"
                "namespace .Broken\n"
                "{\n"
                "    public class Hidden2 { }\n"
                "}\n"},
-    {"Healthy.cs", "public class Shadow { }\n"
+    {"Healthy.cs", "using Lib;\n"
+                   "public class Shadow { }\n"
                    "namespace Good\n"
                    "{\n"
                    "    public class Target { }\n"
@@ -10069,16 +10076,22 @@ static const dm_source_t dm_rejected_files[] = {
                    "    public class Hidden2 { }\n"
                    "\n"
                    "    /// <summary><see cref=\"Target\"/> <see cref=\"Shadow\"/>\n"
-                   "    /// <see cref=\"Lurker\"/> <see cref=\"Hidden2\"/></summary>\n"
+                   "    /// <see cref=\"Lurker\"/> <see cref=\"Hidden2\"/>\n"
+                   "    /// <see cref=\"Widget\"/></summary>\n"
                    "    public class Uses { }\n"
                    "}\n"},
+    {"Lib.cs", "namespace Lib\n"
+               "{\n"
+               "    public class Widget { }\n"
+               "}\n"},
 };
 
 static const dm_want_t dm_rejected_wants[] = {
     {"Healthy.cs", "Target", "Healthy.Uses", "Healthy.Target", NULL, NULL, NULL},
     {"Healthy.cs", "Shadow", "Healthy.Uses", "Healthy.Shadow", NULL, NULL, NULL},
     {"Healthy.cs", "Lurker", "Healthy.Uses", "Healthy.Lurker", NULL, NULL, NULL},
-    {"Healthy.cs", "Hidden2", "Healthy.Uses", "Healthy.Hidden2", NULL, NULL, NULL},
+    {"Healthy.cs", "Hidden2", "Healthy.Uses", NULL, "graph_gap", "Healthy.Hidden2", NULL},
+    {"Healthy.cs", "Widget", "Healthy.Uses", NULL, "graph_gap", "Lib.Widget", NULL},
     {"Bad.cs", "Target", "Bad.FromBad", NULL, "graph_gap", "Healthy.Target", NULL},
 };
 
@@ -10151,7 +10164,21 @@ TEST(doc_mentions_cs_rejected_scope_across_runs) {
     int indexed = dm_index(repo, db, NULL);
     char stored[256];
     dm_stored_scope(db, "Bad.cs", stored, sizeof(stored));
-    bool marked = strcmp(stored, CBM_DOCLINK_CS_SCOPE_TAG "\n!\trejected\n") == 0;
+    /* the marker, then one Q record per type name of the refused blob (R4) */
+    static const char *const names[] = {"Inner", "Deep", "FromBad", "Widget", "Hidden2"};
+    static const char marker[] = CBM_DOCLINK_CS_SCOPE_TAG "\n!\trejected\n";
+    bool marked = strncmp(stored, marker, sizeof(marker) - 1) == 0;
+    size_t want_len = sizeof(marker) - 1;
+    for (size_t k = 0; k < sizeof(names) / sizeof(names[0]); k++) {
+        char q[64];
+        snprintf(q, sizeof(q), "\nQ\t%s\n", names[k]);
+        marked = marked && strstr(stored, q) != NULL;
+        want_len += strlen(q) - 1;
+    }
+    if (!marked || strlen(stored) != want_len) {
+        printf("  stored for Bad.cs: %s\n", stored);
+        marked = false;
+    }
     char edited[2048];
     snprintf(edited, sizeof(edited), "%s\n// body-only edit\n", dm_rejected_files[1].text);
     th_write_file(TH_PATH(repo, "Healthy.cs"), edited);

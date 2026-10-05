@@ -113,7 +113,8 @@ int cbm_doclinks_scope_delta(const char *stored, const char *fresh, cbm_doclink_
     return R->scope_delta(stored, fresh, removed, ud);
 }
 
-const char *cbm_doclinks_storable_scope(const char *scope) {
+const char *cbm_doclinks_storable_scope(const char *scope, char **owned) {
+    *owned = NULL;
     const cbm_doclink_resolver_t *R = resolver_of_scope(scope);
     if (!R || !R->scope_accepted || !R->rejected_scope) {
         return scope;
@@ -122,7 +123,11 @@ const char *cbm_doclinks_storable_scope(const char *scope) {
     if (accepted < 0) {
         return NULL;
     }
-    return accepted ? scope : R->rejected_scope;
+    if (accepted) {
+        return scope;
+    }
+    *owned = R->rejected_scope(scope);
+    return *owned;
 }
 
 /* ── Run state ───────────────────────────────────────────────────── */

@@ -5926,16 +5926,131 @@ static void undo_scope(cs_index_t *ix) {
     u->nmarks = 0;
 }
 
+/* Scope line fields (0-based, the tag is field 0; internal/cbm/doclink_cs.c):
+ * `U region kind alias target`, `T region start end kind outer name tparams
+ * bases`, `M start kind explicit type name tparams sig` and `Q name`. */
+enum {
+    CS_SCOPE_Q_NAME = 1,
+    CS_SCOPE_U_KIND = 2,
+    CS_SCOPE_M_NAME = 5,
+    CS_SCOPE_T_NAME = 6,
+    CS_SCOPE_T_BASES = 8
+};
+
+static const char *delta_field(const char *line, size_t len, int idx, size_t *flen) {
+    int f = 0;
+    size_t s = 0;
+    for (size_t i = 0; i <= len; i++) {
+        if (i == len || line[i] == '\t') {
+            if (f == idx) {
+                *flen = i - s;
+                return line + s;
+            }
+            f++;
+            s = i + SKIP_ONE;
+        }
+    }
+    *flen = 0;
+    return NULL;
+}
+
+/* True when s[0, n) is a name a reference can carry (ident_ok). */
+static bool cs_name_ok(const char *s, size_t n) {
+    char buf[CS_NAME_BUF];
+    if (n == 0 || n >= sizeof(buf)) {
+        return false;
+    }
+    memcpy(buf, s, n);
+    buf[n] = '\0';
+    return ident_ok(buf);
+}
+
+/* The next type name a T or Q record of a scope blob carries, read leniently
+ * (the blob is one the reader refused): a line is taken when its name field
+ * is there and is a name, however the rest of it reads. Moves *cursor past
+ * the lines it read; false at the end of the blob. */
+static bool cs_next_type_name(const char **cursor, const char **name, size_t *len) {
+    while (**cursor) {
+        const char *line = *cursor;
+        const char *nl = strchr(line, '\n');
+        size_t n = nl ? (size_t)(nl - line) : strlen(line);
+        *cursor = line + n + (nl ? SKIP_ONE : 0);
+        int idx = line[0] == 'T' ? CS_SCOPE_T_NAME : line[0] == 'Q' ? CS_SCOPE_Q_NAME : CS_NONE;
+        *name = idx > 0 && n > SKIP_ONE && line[SKIP_ONE] == '\t' ? delta_field(line, n, idx, len)
+                                                                  : NULL;
+        if (*name && cs_name_ok(*name, *len)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 /* What is stored, in place of its scope blob, for a file whose scope the
  * reader refused in the run that wrote it (cs_scope_accepted, lsp_surface.c):
- * the tag and one `!` record. A later run that reads it back treats the file
- * as that run did -- it declares nothing, its references are graph gaps --
- * where the refused blob itself would fail that run as a stored scope this
- * reader does not take. */
+ * the tag, one `!` record, and one Q record per type name the T and Q records
+ * of the refused blob carry (cs_next_type_name). A later run that reads it
+ * back treats the file as that run did -- it declares nothing, those names
+ * are quarantined, its references are graph gaps -- where the refused blob
+ * itself would fail that run as a stored scope this reader does not take. */
 static const char CS_REJECTED_SCOPE[] = CBM_DOCLINK_CS_SCOPE_TAG "\n!\trejected\n";
 
+/* The marker, followed by nothing but Q records of names. */
 static bool cs_scope_marked_rejected(const char *scope) {
-    return scope && strcmp(scope, CS_REJECTED_SCOPE) == 0;
+    size_t n = sizeof(CS_REJECTED_SCOPE) - SKIP_ONE;
+    if (!scope || strncmp(scope, CS_REJECTED_SCOPE, n) != 0) {
+        return false;
+    }
+    for (const char *line = scope + n; *line;) {
+        const char *nl = strchr(line, '\n');
+        if (!nl || line[0] != 'Q' || line[SKIP_ONE] != '\t' ||
+            !cs_name_ok(line + PAIR_LEN, (size_t)(nl - line) - PAIR_LEN)) {
+            return false;
+        }
+        line = nl + SKIP_ONE;
+    }
+    return true;
+}
+
+/* The marker stored for the refused blob `scope` (the resolver's
+ * rejected_scope): a memory-core block, NULL when memory ran out. A Q record
+ * is never longer than the line its name is read from plus a newline. */
+static char *cs_rejected_scope(const char *scope) {
+    size_t w = sizeof(CS_REJECTED_SCOPE) - SKIP_ONE;
+    char *out = (char *)cbm_alloc(CBM_MEM_CLASS_OTHER, w + strlen(scope) + PAIR_LEN);
+    if (!out) {
+        return NULL;
+    }
+    memcpy(out, CS_REJECTED_SCOPE, w);
+    const char *cursor = scope;
+    const char *name = NULL;
+    size_t len = 0;
+    while (cs_next_type_name(&cursor, &name, &len)) {
+        out[w++] = 'Q';
+        out[w++] = '\t';
+        memcpy(out + w, name, len);
+        w += len;
+        out[w++] = '\n';
+    }
+    out[w] = '\0';
+    return out;
+}
+
+/* Quarantine the type names a refused scope blob, or its stored marker,
+ * carries: what the file declares is unknown, so a reference to one of them
+ * from any file is a graph gap. false when memory ran out. */
+static bool quarantine_refused(cs_index_t *ix, const cs_file_t *f, const char *scope) {
+    const char *cursor = scope;
+    const char *name = NULL;
+    size_t len = 0;
+    while (cs_next_type_name(&cursor, &name, &len)) {
+        char buf[CS_NAME_BUF];
+        memcpy(buf, name, len); /* shorter than the buffer: cs_name_ok */
+        buf[len] = '\0';
+        if (!quarantine_name(ix, f, buf)) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /* Whether this reader takes a scope blob written in this run: its record
@@ -5989,7 +6104,10 @@ bool cbm_doclink_cs_test_scope_parses(const char *scope) {
  * that is not known), and its path is returned. A scope written in this run
  * that the reader refuses is the scanner's and this reader's disagreement,
  * which costs only its own file: what its parse set is taken back, the file
- * declares nothing, and its references are graph gaps (counted, logged).
+ * declares nothing, and its references are graph gaps (counted, logged). The
+ * names of its types are quarantined: what it declares is unknown, so a
+ * reference to one of them from any file is a graph gap too. A scope stored
+ * as the rejected marker is read as in the run that refused it.
  * Returns "" when memory ran out, NULL when all is well. */
 static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in) {
     CBMHashTable *dir_unit = cbm_ht_create(CBM_SZ_1K);
@@ -6018,6 +6136,10 @@ static const char *build_files(cs_index_t *ix, const cbm_doclink_build_in_t *in)
                              .is_test = f->is_test,
                              .rejected = true};
             ix->rejected++;
+            if (!quarantine_refused(ix, f, scope)) {
+                bad = ""; /* memory ran out */
+                break;
+            }
             scope = NULL;
         }
         if (!scope) {
@@ -6252,28 +6374,6 @@ static void cs_resolve(const void *index, void *state, int run_file, const CBMDo
 
 /* ── Incremental scope rules ─────────────────────────────────────── */
 
-/* Scope line fields (0-based, the tag is field 0; internal/cbm/doclink_cs.c):
- * `U region kind alias target`, `T region start end kind outer name tparams
- * bases` and `M start kind explicit type name tparams sig`. */
-enum { CS_SCOPE_U_KIND = 2, CS_SCOPE_M_NAME = 5, CS_SCOPE_T_BASES = 8 };
-
-static const char *delta_field(const char *line, size_t len, int idx, size_t *flen) {
-    int f = 0;
-    size_t s = 0;
-    for (size_t i = 0; i <= len; i++) {
-        if (i == len || line[i] == '\t') {
-            if (f == idx) {
-                *flen = i - s;
-                return line + s;
-            }
-            f++;
-            s = i + SKIP_ONE;
-        }
-    }
-    *flen = 0;
-    return NULL;
-}
-
 /* A using directive only its own file sees: one that is not `global`. */
 static bool delta_local_using(const char *line, size_t len) {
     if (line[0] != 'U') {
@@ -6409,5 +6509,5 @@ const cbm_doclink_resolver_t cbm_doclink_cs_resolver = {
     .resolve = cs_resolve,
     .scope_delta = cs_scope_delta,
     .scope_accepted = cs_scope_accepted,
-    .rejected_scope = CS_REJECTED_SCOPE,
+    .rejected_scope = cs_rejected_scope,
 };

@@ -165,8 +165,10 @@ static char *surface_file_to_json(const CBMFileResult *result, const CBMLSPDef *
         /* a scope this run's reader refuses is stored as its language's
          * rejected marker: a later run then treats the file as this one does
          * (doc_links.h, scope_accepted) */
-        const char *kept = cbm_doclinks_storable_scope(result->doc_scope);
+        char *marker = NULL;
+        const char *kept = cbm_doclinks_storable_scope(result->doc_scope, &marker);
         char *portable = kept ? cbm_doclink_portable_scope(kept) : NULL;
+        cbm_free(CBM_MEM_CLASS_OTHER, marker);
         if (!portable) {
             yyjson_mut_doc_free(doc);
             return NULL; /* a missing scope would diverge silently: fail the row */

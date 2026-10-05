@@ -214,13 +214,14 @@ typedef struct {
                        void *ud);
     /* Optional, together: whether the reader takes a scope blob written in
      * this run (1), refuses it (0), or could not tell for memory (-1); and
-     * what is stored instead of a refused blob. A run refuses the blob of its
-     * own file and goes on without the file's declarations; the marker makes
-     * a later run that reads the file's scope back do the same, where the
-     * blob itself would be a stored scope the reader refuses, which fails
+     * the marker stored instead of a refused blob (a memory-core block of
+     * CBM_MEM_CLASS_OTHER, NULL when memory ran out). A run refuses the blob
+     * of its own file and goes on without the file's declarations; the marker
+     * makes a later run that reads the file's scope back do the same, where
+     * the blob itself would be a stored scope the reader refuses, which fails
      * the run. */
     int (*scope_accepted)(const char *scope);
-    const char *rejected_scope;
+    char *(*rejected_scope)(const char *scope);
 } cbm_doclink_resolver_t;
 
 extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
@@ -255,8 +256,10 @@ int cbm_doclinks_scope_delta(const char *stored, const char *fresh, cbm_doclink_
 
 /* What is stored for a scope blob written in this run (the surface row's
  * `dl`, lsp_surface.c): the blob itself, or its language's rejected-scope
- * marker when that language's reader refuses it (scope_accepted). NULL when
- * memory ran out deciding. */
-const char *cbm_doclinks_storable_scope(const char *scope);
+ * marker when that language's reader refuses it (scope_accepted), made into
+ * *owned (release with cbm_free(CBM_MEM_CLASS_OTHER, *owned); NULL when the
+ * blob itself is returned). NULL when memory ran out deciding or making the
+ * marker. */
+const char *cbm_doclinks_storable_scope(const char *scope, char **owned);
 
 #endif /* CBM_PIPELINE_DOC_LINKS_H */
