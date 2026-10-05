@@ -61,14 +61,14 @@
  *             object directives; Markdown code spans naming a file or one
  *             directory alone, split off the Markdown code-path tier after
  *             its held-out failure; ADR supersedes words in running prose,
- *             split off after three held-out censuses failed on them), short
- *             of a new census after held-out misses were fixed (supersedes
- *             statements), or not yet audited for want of
- *             held-out occurrences (reST include, kernel_doc; AsciiDoc
- *             attribute) means false. Markdown code paths without the bare
- *             part, reST literalinclude and code paths, and PDF qualified
- *             names after the owner rule passed supplementary held-out
- *             audits.
+ *             split off after three held-out censuses failed on them), or
+ *             not yet audited for want of held-out occurrences (reST
+ *             include, kernel_doc; AsciiDoc attribute) means false.
+ *             Markdown code paths without the bare part, reST
+ *             literalinclude and code paths, PDF qualified names after the
+ *             owner rule, and ADR supersedes statements (the phrase opens
+ *             its line or field and names a record: 80 of 81 on a fresh
+ *             census) passed supplementary held-out audits.
  *   edge      the type of the edge a resolved reference becomes: MENTIONS
  *             (documentation names code), SUPERSEDES (an ADR states that it
  *             supersedes another). The edge's source is always the
@@ -92,7 +92,7 @@
     X(CBM_DOCLINK_MD_CODE_NAME, CBM_LANG_MARKDOWN, "code_name", false, true, "MENTIONS")       \
     /* an ADR's own "supersedes" / "replaces" statement, opening its line or field */          \
     /* and naming a record directly (doc_adr.c): ADR -> ADR */                                 \
-    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, false, "SUPERSEDES")  \
+    X(CBM_DOCLINK_MD_SUPERSEDES, CBM_LANG_MARKDOWN, "supersedes", false, true, "SUPERSEDES")   \
     /* the same words in running prose ("this record supersedes ADR-3") */                     \
     X(CBM_DOCLINK_MD_SUPERSEDES_PROSE, CBM_LANG_MARKDOWN, "supersedes_prose", false, false,    \
       "SUPERSEDES")                                                                            \

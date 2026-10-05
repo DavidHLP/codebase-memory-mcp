@@ -591,6 +591,8 @@ TEST(doc_links_md_adr) {
 
 /* The production gate (doclink.h): families held back by the held-out audit
  * write rows, not edges; the families that passed still write edges. */
+static int md_supersedes_from(const char *db, const char *file, const char *target);
+
 TEST(doc_links_md_ship_gate) {
     for (size_t i = 0; i < sizeof(DM_HELD_FAMILIES) / sizeof(DM_HELD_FAMILIES[0]); i++) {
         ASSERT_FALSE(cbm_doclink_syntax_ships(DM_HELD_FAMILIES[i]));
@@ -601,12 +603,22 @@ TEST(doc_links_md_ship_gate) {
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_LITERALINCLUDE));
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_CODE_PATH));
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_CODE_PATH));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_SUPERSEDES));
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlmdgate_XXXXXX");
     ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
     md_write_fixture(tmp);
     /* a file name alone, next to its file: it resolves, and its tier holds it */
     th_write_file(TH_PATH(tmp, "pkg/README.md"), "# Pkg\n\nSee `config.go`.\n");
+    /* an ADR's statement ships as SUPERSEDES; the same words in prose are held */
+    th_write_file(TH_PATH(tmp, "docs/adr/0001-base.md"),
+                  "# Base\n\n## Status\n\nSuperseded\n\n## Decision\n\nWe use A.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0002-next.md"),
+                  "# Next\n\n## Status\n\nAccepted\n\nSupersedes [ADR-0001](0001-base.md)\n\n"
+                  "## Decision\n\nWe use B.\n");
+    th_write_file(TH_PATH(tmp, "docs/adr/0003-last.md"),
+                  "# Last\n\n## Status\n\nAccepted\n\n## Decision\n\n"
+                  "This record also supersedes ADR-0001 for the cache.\n");
     char db[512];
     snprintf(db, sizeof(db), "%s/md.db", tmp);
     ASSERT_EQ(dm_index(tmp, db, NULL), 0);
@@ -623,6 +635,12 @@ TEST(doc_links_md_ship_gate) {
     ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges WHERE type = 'MENTIONS' AND "
                            "properties LIKE '%\"syntax\":\"bare_path\"%'"),
               0);
+    ASSERT_EQ(md_supersedes_from(db, "0002-next.md", "0001-base.md"), 1);
+    ASSERT_EQ(md_supersedes_from(db, "0003-last.md", "%"), 0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE "
+                           "reason = 'below_bar_tier' AND syntax = 'supersedes_prose' "
+                           "AND rel_path = 'docs/adr/0003-last.md'"),
+              1);
     th_cleanup(tmp);
     PASS();
 }
@@ -719,6 +737,20 @@ TEST(doc_links_md_adr_reported) {
     th_write_file(TH_PATH(tmp, "docs/adr/0010-field.md"),
                   "# Field\n\n- Status: Accepted\n- **Supersedes:** ADR-0002\n\n"
                   "## Decision\n\nWe use G.\n");
+    /* a paragraph wrapped before the phrase: its subject is the line before */
+    th_write_file(
+        TH_PATH(tmp, "docs/adr/0011-wrap.md"),
+        "# Wrap\n\n## Status\n\nAccepted\n\n## Context\n\nThe sealed store of\n"
+        "[ADR 0002](0002-next.md)\nsupersedes ADR-0001 and leaves this record standing.\n\n"
+        "## Decision\n\nWe use I.\n");
+    /* field lines one under the other: each its own statement */
+    th_write_file(TH_PATH(tmp, "docs/adr/0012-fields.md"),
+                  "# Fields\n\nStatus: Accepted\nSupersedes [ADR-0001](0001-base.md)\n\n"
+                  "## Decision\n\nWe use J.\n");
+    /* a `Supersedes:` field right under running text is still a field */
+    th_write_file(TH_PATH(tmp, "docs/adr/0013-colon.md"),
+                  "# Colon\n\n## Status\n\nAccepted after a long review of the store\n"
+                  "Supersedes: [ADR 0002](0002-next.md)\n\n## Decision\n\nWe use K.\n");
     char db[512];
     snprintf(db, sizeof(db), "%s/adr.db", tmp);
     ASSERT_EQ(dm_index(tmp, db, NULL), 0);
@@ -738,6 +770,10 @@ TEST(doc_links_md_adr_reported) {
     ASSERT_EQ(md_supersedes_syntax(db, "0008-tools.md", "supersedes"), 1);
     ASSERT_EQ(md_supersedes_syntax(db, "0009-table.md", "supersedes"), 1);
     ASSERT_EQ(md_supersedes_syntax(db, "0010-field.md", "supersedes"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0011-wrap.md", "supersedes"), 0);
+    ASSERT_EQ(md_supersedes_syntax(db, "0011-wrap.md", "supersedes_prose"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0012-fields.md", "supersedes"), 1);
+    ASSERT_EQ(md_supersedes_syntax(db, "0013-colon.md", "supersedes"), 1);
     th_cleanup(tmp);
     PASS();
 }

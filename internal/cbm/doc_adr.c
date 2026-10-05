@@ -38,15 +38,16 @@
 #include <string.h>
 
 enum {
-    ADR_ID_DIGITS = 5,     /* an ADR number has at most this many digits */
-    ADR_PADDED_DIGITS = 3, /* a bare number names a record when padded: `0259`, `012` */
-    ADR_PREFIX_MIN = 2,    /* `DEC-5`: a prefix of 2 ... */
-    ADR_PREFIX_MAX = 12,   /* ... to 12 letters */
-    ADR_DOC_MAX = 500,     /* the node's docstring: the decision, collapsed */
-    ADR_FIELD_MAX = 256,   /* a fact value is cut at a character boundary */
-    ADR_FM_SCAN = 400,     /* front matter ends within this many lines */
-    ADR_HEAD_SCAN = 40,    /* header fields within this many lines when there is no heading */
-    ADR_NAME_MAX = 64,     /* canonical id buffer */
+    ADR_ID_DIGITS = 5,      /* an ADR number has at most this many digits */
+    ADR_PADDED_DIGITS = 3,  /* a bare number names a record when padded: `0259`, `012` */
+    ADR_FIELD_KEY_MAX = 32, /* a field line key: `Status`, `Decision makers` */
+    ADR_PREFIX_MIN = 2,     /* `DEC-5`: a prefix of 2 ... */
+    ADR_PREFIX_MAX = 12,    /* ... to 12 letters */
+    ADR_DOC_MAX = 500,      /* the node's docstring: the decision, collapsed */
+    ADR_FIELD_MAX = 256,    /* a fact value is cut at a character boundary */
+    ADR_FM_SCAN = 400,      /* front matter ends within this many lines */
+    ADR_HEAD_SCAN = 40,     /* header fields within this many lines when there is no heading */
+    ADR_NAME_MAX = 64,      /* canonical id buffer */
     ADR_YEAR_MIN = 1900,
     ADR_YEAR_MAX = 2099,
     ADR_MONTHS = 12,
@@ -1154,6 +1155,61 @@ static bool adr_reported(const adr_doc_t *d, const adr_line_t *l, int i) {
 /* A record reference right after the phrase (past a colon, a table bar and
  * emphasis): a link or an ADR id, `Supersedes: [ADR-3](0003-x.md)`,
  * `| Supersedes | ADR-0003 |`. */
+/* A colon right after the phrase (past emphasis): `Supersedes: ADR-3`, a
+ * field, whatever surrounds it. */
+static bool adr_field_value(const char *s, size_t n) {
+    size_t i = 0;
+    while (i < n && (adr_blank(s[i]) || s[i] == '*' || s[i] == '_')) {
+        i++;
+    }
+    return i < n && s[i] == ':';
+}
+
+/* `Status: Accepted`, `- **Date**: 2024-01-02`: a field line. */
+static bool adr_field_line(const adr_line_t *l) {
+    int i = 0;
+    while (i < l->n && (adr_blank(l->s[i]) || l->s[i] == '-' || l->s[i] == '*' || l->s[i] == '+' ||
+                        l->s[i] == '_' || l->s[i] == '|')) {
+        i++;
+    }
+    int w = i;
+    while (i < l->n && (adr_alpha(l->s[i]) || l->s[i] == ' ' || l->s[i] == '-')) {
+        i++;
+    }
+    if (i == w || i - w > ADR_FIELD_KEY_MAX) {
+        return false;
+    }
+    while (i < l->n && (l->s[i] == '*' || l->s[i] == '_' || l->s[i] == ' ')) {
+        i++;
+    }
+    return i < l->n && (l->s[i] == ':' || l->s[i] == '|');
+}
+
+/* Line k continues a paragraph: no list, quote or table mark opens it and the
+ * line before is running text, not blank, a heading or a field
+ * (`[ADR-0240](0240-x.md)` / `supersedes ADR-0134 and ...`: in a held-out
+ * census the subject was the record on the line before). */
+static bool adr_continuation(const adr_doc_t *d, int k) {
+    const adr_line_t *l = &d->L.v[k];
+    int j = 0;
+    while (j < l->n && adr_blank(l->s[j])) {
+        j++;
+    }
+    if (j < l->n && (l->s[j] == '-' || l->s[j] == '*' || l->s[j] == '+' || l->s[j] == '>' ||
+                     l->s[j] == '|' || adr_digit(l->s[j]))) {
+        return false; /* its own list item, quote or table row */
+    }
+    if (k <= d->L.fm_end || k == 0) {
+        return false;
+    }
+    const adr_line_t *p = &d->L.v[k - SKIP_ONE];
+    int a = 0;
+    while (a < p->n && adr_blank(p->s[a])) {
+        a++;
+    }
+    return p->text && a < p->n && p->s[a] != '#' && !adr_field_line(p);
+}
+
 static bool adr_direct_ref(const char *s, size_t n) {
     size_t i = 0;
     while (i < n && (adr_blank(s[i]) || s[i] == ':' || s[i] == '|' || s[i] == '*' || s[i] == '_')) {
@@ -1200,9 +1256,10 @@ static void adr_relations(adr_doc_t *d, const char *adr_qn, char *superseded_by,
                          * 42 correct, statements 44 of 45) */
                         const char *v = l->s + i + pl;
                         size_t vn = (size_t)(l->n - i - (int)pl);
-                        uint16_t syntax = adr_line_head(l, i) && adr_direct_ref(v, vn)
-                                              ? (uint16_t)CBM_DOCLINK_MD_SUPERSEDES
-                                              : (uint16_t)CBM_DOCLINK_MD_SUPERSEDES_PROSE;
+                        bool statement = adr_line_head(l, i) && adr_direct_ref(v, vn) &&
+                                         (adr_field_value(v, vn) || !adr_continuation(d, k));
+                        uint16_t syntax = statement ? (uint16_t)CBM_DOCLINK_MD_SUPERSEDES
+                                                    : (uint16_t)CBM_DOCLINK_MD_SUPERSEDES_PROSE;
                         adr_targets(d, adr_qn, v, vn, (uint32_t)(k + SKIP_ONE), phrases[p].forward,
                                     syntax, superseded_by, cap);
                     }

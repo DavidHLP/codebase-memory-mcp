@@ -416,9 +416,9 @@ static inline int dm_reason_lines(const char *db, const char *block) {
  * so it is the resolution an audit would ship; doc_links_md_ship_gate tests
  * the production gate itself. */
 static const int DM_HELD_FAMILIES[] = {
-    CBM_DOCLINK_MD_BARE_PATH,   CBM_DOCLINK_MD_SUPERSEDES,  CBM_DOCLINK_MD_SUPERSEDES_PROSE,
-    CBM_DOCLINK_RST_OBJECT,     CBM_DOCLINK_RST_INCLUDE,    CBM_DOCLINK_RST_KERNEL_DOC,
-    CBM_DOCLINK_ADOC_ATTRIBUTE, CBM_DOCLINK_ADOC_CODE_PATH, CBM_DOCLINK_ADOC_CODE_NAME,
+    CBM_DOCLINK_MD_BARE_PATH,   CBM_DOCLINK_MD_SUPERSEDES_PROSE, CBM_DOCLINK_RST_OBJECT,
+    CBM_DOCLINK_RST_INCLUDE,    CBM_DOCLINK_RST_KERNEL_DOC,      CBM_DOCLINK_ADOC_ATTRIBUTE,
+    CBM_DOCLINK_ADOC_CODE_PATH, CBM_DOCLINK_ADOC_CODE_NAME,
 };
 
 static inline void dm_ship_held_families(void) {
