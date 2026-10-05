@@ -1,0 +1,26 @@
+tests/test_registry.c
+  s_5a43a3b5d41148::t_189bb510eed48c 1342-1356
+tests/test_index_format.c
+  s_5a43a3b5d41148::t_ab6bfcd4fc1b23 283-284,288-301,310,336,369-382,405-408
+  s_5a43a3b5d41148::t_79d3b838cd7b54 409-411
+tests/test_callable_sig.c
+  s_5a43a3b5d41148::t_ab6bfcd4fc1b23 127,135,137,165-177,330-332,356-359
+tests/test_pipeline.c
+  s_5a43a3b5d41148::t_68b92ceef72294 8641,8648-8651,18500
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "598d0681f73c6c763b2fe93d565829be18049b33",
+  "prompts": {},
+  "sessions": {
+    "s_5a43a3b5d41148": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10a8c-6fc8-7192-bf6b-f80fdaae3e59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
