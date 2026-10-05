@@ -650,6 +650,79 @@ TEST(pdf_extract_filters_and_hostile) {
     PASS();
 }
 
+/* Objects 1-5 as tp_simple placed by one cross-reference stream (object 6),
+ * then `sections` classic sections, each naming that stream as its /XRefStm,
+ * chained by /Prev. */
+static unsigned char *tp_xrefstm_sections(int sections, size_t *out_len) {
+    size_t off[7] = {0};
+    tp_buf_t b = {0};
+    tp_puts(&b, "%PDF-1.7\n");
+    const char *content = "BT /F1 12 Tf 72 700 Td (xrefstm) Tj ET";
+    const char *body[5] = {TP_CATALOG, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", TP_PAGE_F1_5,
+                           TP_HELV, NULL};
+    char line[160];
+    for (int i = 1; i <= 5; i++) {
+        tp_obj_head(&b, off, i);
+        if (i == 5) {
+            snprintf(line, sizeof(line), "<< /Length %zu >>\nstream\n", strlen(content));
+            tp_puts(&b, line);
+            tp_puts(&b, content);
+            tp_puts(&b, "\nendstream");
+        } else {
+            tp_puts(&b, body[i - 1]);
+        }
+        tp_puts(&b, "\nendobj\n");
+    }
+    off[6] = b.n;
+    unsigned char rows[7][7] = {{0}};
+    for (int i = 1; i <= 6; i++) {
+        uint32_t f2 = (uint32_t)off[i];
+        rows[i][0] = 1;
+        rows[i][1] = (unsigned char)(f2 >> 24);
+        rows[i][2] = (unsigned char)(f2 >> 16);
+        rows[i][3] = (unsigned char)(f2 >> 8);
+        rows[i][4] = (unsigned char)f2;
+    }
+    snprintf(line, sizeof(line),
+             "6 0 obj\n<< /Type /XRef /Size 7 /W [1 4 2] /Length %zu >>\nstream\n", sizeof(rows));
+    tp_puts(&b, line);
+    tp_put(&b, rows, sizeof(rows));
+    tp_puts(&b, "\nendstream\nendobj\n");
+    size_t prev = 0;
+    for (int s = 0; s < sections; s++) {
+        size_t at = b.n;
+        tp_puts(&b, "xref\n0 1\n0000000000 65535 f \ntrailer\n");
+        if (s == 0) {
+            snprintf(line, sizeof(line), "<< /Size 7 /Root 1 0 R /XRefStm %zu >>\n", off[6]);
+        } else {
+            snprintf(line, sizeof(line), "<< /Size 7 /Root 1 0 R /XRefStm %zu /Prev %zu >>\n",
+                     off[6], prev);
+        }
+        tp_puts(&b, line);
+        prev = at;
+    }
+    snprintf(line, sizeof(line), "startxref\n%zu\n%%%%EOF\n", prev);
+    tp_puts(&b, line);
+    *out_len = b.n;
+    return b.p;
+}
+
+/* A thousand sections naming one /XRefStm decode it once: a later (older)
+ * section adds nothing, and every copy used to stay until the document closed. */
+TEST(pdf_extract_xrefstm_once) {
+    size_t len;
+    tp_text_t t;
+    unsigned char *pdf = tp_xrefstm_sections(1000, &len);
+    ASSERT_TRUE(tp_extract(pdf, len, &t));
+    ASSERT_EQ(t.r.status, CBM_PDF_OK);
+    ASSERT_EQ(t.r.npages, 1);
+    ASSERT_STR_EQ(t.r.pages[0].text, "xrefstm");
+    ASSERT_EQ(t.r.counts.xref_streams, 1);
+    cbm_arena_destroy(&t.arena);
+    free(pdf);
+    PASS();
+}
+
 /* A chain of objects, each needed to load the one before, costs no stack per
  * object: a stream's /Length is read as a value (a stream there is no length),
  * and the objects that open an object stream are no objects of one. Run on the
@@ -985,6 +1058,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_extract_structure);
     RUN_TEST(pdf_extract_filters_and_hostile);
     RUN_TEST(pdf_extract_object_chains);
+    RUN_TEST(pdf_extract_xrefstm_once);
     RUN_TEST(pdf_scan_mentions);
     RUN_TEST(pdf_links_pipeline);
     RUN_TEST(pdf_snippet_is_page_text);

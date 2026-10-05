@@ -1643,49 +1643,12 @@ static bool num_to_int(const pdf_val_t *v, int64_t *out) {
     return true;
 }
 
-static bool xref_stream_at(pdf_doc_t *d, int64_t off, pdf_xref_t *sec, pdf_val_t **tr) {
-    bool ok;
-    pdf_val_t *v = parse_indirect_at(d, off, false, 0, &ok);
-    if (!v || v->kind != PV_STREAM) {
-        return false;
-    }
-    pdf_val_t *dict = v->stream->dict;
-    pdf_val_t *W = pdf_dget_raw(dict, "W");
-    if (!W || W->kind != PV_ARR || W->count != 3) {
-        return false;
-    }
-    int64_t w[3];
-    for (int i = 0; i < 3; i++) {
-        if (!num_to_int(W->items[i], &w[i]) || w[i] < 0 || w[i] > PDF_MAX_FIELD) {
-            return false;
-        }
-    }
-    pdf_val_t *size = pdf_dget_raw(dict, "Size");
-    pdf_val_t *index = pdf_dget_raw(dict, "Index");
-    bool dflt = !index || (index->kind == PV_ARR && index->count == 0) ||
-                (index->kind == PV_NUM && index->num == 0.0) ||
-                (index->kind == PV_BOOL && !index->b);
-    int64_t pairs[2];
-    pdf_val_t **items = NULL;
-    int nitems = 0;
-    if (dflt) {
-        pairs[0] = 0;
-        pairs[1] = 0;
-        if (size && !num_to_int(size, &pairs[1])) {
-            return false;
-        }
-        nitems = 2;
-    } else if (index->kind == PV_ARR) {
-        items = index->items;
-        nitems = index->count;
-    } else {
-        return false;
-    }
-    size_t rlen = 0;
-    const unsigned char *raw = pdf_stream_decode(d, v->stream, &rlen);
-    if (!raw) {
-        return false;
-    }
+static const unsigned char *decode_filters(pdf_doc_t *d, const pdf_stream_t *st, size_t *len,
+                                           pdf_buf_t *held_out);
+
+/* The rows of a cross-reference stream's decoded bytes into sec. */
+static bool xref_rows(pdf_doc_t *d, pdf_xref_t *sec, const unsigned char *raw, size_t rlen,
+                      const int64_t w[3], pdf_val_t **items, int nitems, const int64_t pairs[2]) {
     int64_t rec = w[0] + w[1] + w[2];
     if (rec == 0) {
         return false;
@@ -1725,6 +1688,62 @@ static bool xref_stream_at(pdf_doc_t *d, int64_t off, pdf_xref_t *sec, pdf_val_t
                 e->b = f3;
             }
         }
+    }
+    return true;
+}
+
+/* A cross-reference stream at off into sec. Its decoded bytes are freed once
+ * read: a stream parsed here is no cached object, and keeping them made every
+ * section that names one stream add a copy until the document closed. */
+static bool xref_stream_at(pdf_doc_t *d, int64_t off, pdf_xref_t *sec, pdf_val_t **tr) {
+    bool ok;
+    pdf_val_t *v = parse_indirect_at(d, off, false, 0, &ok);
+    if (!v || v->kind != PV_STREAM) {
+        return false;
+    }
+    pdf_val_t *dict = v->stream->dict;
+    pdf_val_t *W = pdf_dget_raw(dict, "W");
+    if (!W || W->kind != PV_ARR || W->count != 3) {
+        return false;
+    }
+    int64_t w[3];
+    for (int i = 0; i < 3; i++) {
+        if (!num_to_int(W->items[i], &w[i]) || w[i] < 0 || w[i] > PDF_MAX_FIELD) {
+            return false;
+        }
+    }
+    pdf_val_t *size = pdf_dget_raw(dict, "Size");
+    pdf_val_t *index = pdf_dget_raw(dict, "Index");
+    bool dflt = !index || (index->kind == PV_ARR && index->count == 0) ||
+                (index->kind == PV_NUM && index->num == 0.0) ||
+                (index->kind == PV_BOOL && !index->b);
+    int64_t pairs[2];
+    pdf_val_t **items = NULL;
+    int nitems = 0;
+    if (dflt) {
+        pairs[0] = 0;
+        pairs[1] = 0;
+        if (size && !num_to_int(size, &pairs[1])) {
+            return false;
+        }
+        nitems = 2;
+    } else if (index->kind == PV_ARR) {
+        items = index->items;
+        nitems = index->count;
+    } else {
+        return false;
+    }
+    size_t rlen = 0;
+    pdf_buf_t held = {0};
+    const unsigned char *raw = decode_filters(d, v->stream, &rlen, &held);
+    if (!raw) {
+        return false;
+    }
+    d->counts->xref_streams++;
+    bool rows_ok = xref_rows(d, sec, raw, rlen, w, items, nitems, pairs);
+    buf_free(&held);
+    if (!rows_ok) {
+        return false;
     }
     *tr = dict;
     return true;
@@ -1811,6 +1830,9 @@ static bool load_xref(pdf_doc_t *d) {
         return false;
     }
     pdf_map_t seen = {0};
+    /* /XRefStm targets already merged: a later (older) section naming one again
+     * adds nothing, since every number it holds is in d->xref already */
+    pdf_map_t stm_seen = {0};
     kv_list_t trail = {0};
     bool first = true;
     bool ok = true;
@@ -1842,7 +1864,14 @@ static bool load_xref(pdf_doc_t *d) {
                 break;
             }
             pdf_val_t *xs = pdf_dget_raw(tr, "XRefStm");
-            if (xs && xs->kind == PV_NUM && xs->is_int) {
+            if (xs && xs->kind == PV_NUM && xs->is_int &&
+                pdf_map_get(&stm_seen, (uint64_t)xs->inum) < 0) {
+                if (!pdf_map_put(&stm_seen, (uint64_t)xs->inum, 1)) {
+                    d->nomem = true;
+                    xref_free(&sec);
+                    ok = false;
+                    break;
+                }
                 pdf_xref_t sec2 = {0};
                 pdf_val_t *tr2 = NULL;
                 if (xref_stream_at(d, xs->inum, &sec2, &tr2)) {
@@ -1882,6 +1911,7 @@ static bool load_xref(pdf_doc_t *d) {
         off = pdf_dget_raw(tr, "Prev");
     }
     pdf_map_free(&seen);
+    pdf_map_free(&stm_seen);
     d->trailer = kl_finish_dict(d, &trail, false);
     if (!ok || d->nomem) {
         return false;
@@ -2557,14 +2587,10 @@ static pdf_filter_t filter_kind(const pdf_val_t *f) {
     return FL_UNKNOWN;
 }
 
-const unsigned char *pdf_stream_decode(pdf_doc_t *d, pdf_stream_t *st, size_t *len) {
-    if (st->done) {
-        *len = st->dec_len;
-        return st->decoded;
-    }
-    st->done = true;
-    st->decoded = NULL;
-    st->dec_len = 0;
+/* The stream's bytes through its filters: the raw bytes themselves, or a
+ * buffer in *held that the caller owns. NULL: a filter failed or is not read. */
+static const unsigned char *decode_filters(pdf_doc_t *d, const pdf_stream_t *st, size_t *len,
+                                           pdf_buf_t *held_out) {
     *len = 0;
     pdf_val_t *filters = pdf_resolve(d, pdf_dget_raw(st->dict, "Filter"));
     pdf_val_t *parms = pdf_resolve(d, pdf_dget_raw(st->dict, "DecodeParms"));
@@ -2648,6 +2674,26 @@ const unsigned char *pdf_stream_decode(pdf_doc_t *d, pdf_stream_t *st, size_t *l
         held = out;
         cur = held.p ? held.p : (const unsigned char *)"";
         cur_len = held.n;
+    }
+    *held_out = held;
+    *len = cur_len;
+    return cur;
+}
+
+const unsigned char *pdf_stream_decode(pdf_doc_t *d, pdf_stream_t *st, size_t *len) {
+    if (st->done) {
+        *len = st->dec_len;
+        return st->decoded;
+    }
+    st->done = true;
+    st->decoded = NULL;
+    st->dec_len = 0;
+    *len = 0;
+    pdf_buf_t held = {0};
+    size_t cur_len;
+    const unsigned char *cur = decode_filters(d, st, &cur_len, &held);
+    if (!cur) {
+        return NULL;
     }
     if (held.p) {
         unsigned char *fit =
