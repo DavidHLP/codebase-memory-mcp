@@ -35,6 +35,8 @@ enum {
 static const uint64_t SIG_FNV_OFFSET = 0xcbf29ce484222325ULL; /* FNV-1a 64 basis */
 static const uint64_t SIG_FNV_PRIME = 0x100000001b3ULL;
 static const char SIG_OPERATOR_CHARS[] = "+-*/%^&|~!=<>?[]";
+static const char SIG_TYPE_OPEN[] = "([<";
+static const char SIG_TYPE_CLOSE[] = ")]>";
 
 CBMCallableIdentity cbm_callable_identity(CBMLanguage lang) {
     /* Each language enables identity with its own index-format bump. */
@@ -1235,14 +1237,21 @@ static bool sig_return_type_valid(const char *type) {
     }
     for (size_t i = 0; type[i]; i++) {
         char ch = type[i];
-        if (strchr("([<", ch)) {
+        if (ch == '>' && i > 0 && type[i - SIG_CHAR_LEN] == '=') {
+            continue;
+        }
+        const char *closing = strchr(SIG_TYPE_CLOSE, ch);
+        if (strchr(SIG_TYPE_OPEN, ch)) {
             if (depth == SIG_DEPTH_LIMIT) {
                 return false;
             }
             stack[depth++] = ch;
-        } else if (strchr(")]>", ch) && !(ch == '>' && i > 0 && type[i - 1] == '=')) {
-            char open = ch == ')' ? '(' : (ch == ']' ? '[' : '<');
-            if (!depth || stack[--depth] != open) {
+        } else if (closing) {
+            if (!depth) {
+                return false;
+            }
+            depth--;
+            if (stack[depth] != SIG_TYPE_OPEN[closing - SIG_TYPE_CLOSE]) {
                 return false;
             }
         }
@@ -1255,11 +1264,13 @@ size_t cbm_callable_return_offset(const char *suffix) {
     if (!strstr(suffix, "=>")) {
         return len;
     }
-    int parens = 0, brackets = 0, angles = 0;
-    for (size_t i = 0; i + 1 < len; i++) {
+    int parens = 0;
+    int brackets = 0;
+    int angles = 0;
+    for (size_t i = 0; i + SIG_CHAR_LEN < len; i++) {
         char ch = suffix[i];
-        bool arrow = ch == '=' && suffix[i + 1] == '>';
-        bool after_params = i && (suffix[i - 1] == ')' ||
+        bool arrow = ch == '=' && suffix[i + SIG_CHAR_LEN] == '>';
+        bool after_params = i && (suffix[i - SIG_CHAR_LEN] == ')' ||
                                   (i >= SIG_ASYNC_LEN && memcmp(suffix + i - SIG_ASYNC_LEN, "async",
                                                                 SIG_ASYNC_LEN) == 0));
         if (arrow && after_params && parens == 0 && brackets == 0 && angles == 0) {
@@ -1273,9 +1284,9 @@ size_t cbm_callable_return_offset(const char *suffix) {
             brackets++;
         } else if (ch == ']') {
             brackets--;
-        } else if (ch == '<' && (angles > 0 || sig_ident_char((unsigned char)suffix[i + 1]))) {
+        } else if (ch == '<' && (angles > 0 || sig_ident_char((unsigned char)suffix[i + SIG_CHAR_LEN]))) {
             angles++;
-        } else if (ch == '>' && angles > 0 && (i == 0 || suffix[i - 1] != '=')) {
+        } else if (ch == '>' && angles > 0 && (i == 0 || suffix[i - SIG_CHAR_LEN] != '=')) {
             angles--;
         }
     }
