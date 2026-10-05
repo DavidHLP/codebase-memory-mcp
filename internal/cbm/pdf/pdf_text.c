@@ -359,6 +359,8 @@ typedef struct {
     pdf_out_t out; /* the page being read */
     pdf_formkey_t forms[PDF_MAX_FORM_DEPTH + 2];
     int nforms;
+    pdf_map_t forms_read; /* the forms the document has read once */
+    size_t reread;        /* decoded bytes of forms read again */
     pdf_glyph_out_t *gbuf;
     size_t gcap;
 } pdf_interp_t;
@@ -483,6 +485,17 @@ static bool do_xobject(pdf_interp_t *it, pdf_val_t *res, const pdf_val_t *name, 
     const unsigned char *data = pdf_stream_decode(d, xo->stream, &dlen);
     if (!data || !dlen) {
         return true;
+    }
+    uint64_t once = key.key << 1 | (key.is_ref ? 1U : 0U);
+    if (pdf_map_get(&it->forms_read, once) >= 0) {
+        if (dlen > PDF_MAX_FORM_REREAD - it->reread) {
+            d->counts->form_rereads_cut++;
+            return true;
+        }
+        it->reread += dlen;
+    } else if (!pdf_map_put(&it->forms_read, once, 1)) {
+        d->nomem = true;
+        return false;
     }
     pdf_val_t *mat = pdf_dget(d, xo->stream->dict, "Matrix");
     double m[6];
@@ -1025,6 +1038,7 @@ bool cbm_pdf_extract(const unsigned char *data, size_t len, CBMArena *out, cbm_p
         res->npages = i + 1;
     }
     cbm_free(CBM_MEM_CLASS_EXTRACT, it.gbuf);
+    pdf_map_free(&it.forms_read);
     cbm_free(CBM_MEM_CLASS_EXTRACT, pl.v);
     bool nomem = d.nomem;
     pdf_doc_close(&d);

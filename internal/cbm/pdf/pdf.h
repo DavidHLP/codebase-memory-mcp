@@ -40,6 +40,7 @@ typedef struct {
     int stream_length_recovered; /* a stream's /Length was wrong */
     int objstm_nested;           /* opening an object stream needed an object of one */
     int xref_streams;            /* cross-reference streams decoded */
+    int form_rereads_cut;        /* a form not read again: re-readings past 256 MiB */
     int flate_recovered;         /* a damaged Flate stream decoded in part */
     int stream_guard_hits;       /* a decoded stream cut at 512 MiB */
     int filters_unsupported;     /* a stream with a filter this reader does not decode */

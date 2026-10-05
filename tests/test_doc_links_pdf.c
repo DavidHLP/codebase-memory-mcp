@@ -707,6 +707,72 @@ static unsigned char *tp_xrefstm_sections(int sections, size_t *out_len) {
     return b.p;
 }
 
+/* A page drawing form 1, form k drawing form k+1 `fan` times, `depth` forms,
+ * each padded with a 64 KiB comment; the last one shows "x". */
+static unsigned char *tp_form_ladder(int depth, int fan, size_t *out_len) {
+    int n = 5 + depth;
+    tp_obj_t *o = (tp_obj_t *)calloc((size_t)n, sizeof(tp_obj_t));
+    char **dicts = (char **)calloc((size_t)n, sizeof(char *));
+    tp_buf_t *bodies = (tp_buf_t *)calloc((size_t)n, sizeof(tp_buf_t));
+    o[0] = (tp_obj_t){TP_CATALOG, NULL, 0};
+    o[1] = (tp_obj_t){"<< /Type /Pages /Kids [3 0 R] /Count 1 >>", NULL, 0};
+    o[2] = (tp_obj_t){"<< /Type /Page /Parent 2 0 R /Resources << /XObject << /F 6 0 R >> >> "
+                      "/Contents 5 0 R >>",
+                      NULL, 0};
+    o[3] = (tp_obj_t){TP_HELV, NULL, 0};
+    o[4] = (tp_obj_t){"", "q /F Do Q", 9};
+    char *pad = (char *)malloc(64 * 1024 + 3);
+    pad[0] = '%';
+    memset(pad + 1, 'x', 64 * 1024);
+    pad[64 * 1024 + 1] = '\n';
+    pad[64 * 1024 + 2] = 0;
+    for (int k = 0; k < depth; k++) {
+        int i = 5 + k; /* object i + 1 */
+        dicts[i] = (char *)malloc(256);
+        snprintf(dicts[i], 256,
+                 "/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /XObject << /F "
+                 "%d 0 R >> /Font << /F1 4 0 R >> >>",
+                 i + 2);
+        tp_puts(&bodies[i], pad);
+        if (k + 1 < depth) {
+            for (int f = 0; f < fan; f++) {
+                tp_puts(&bodies[i], "q /F Do Q\n");
+            }
+        } else {
+            tp_puts(&bodies[i], "BT /F1 12 Tf 72 700 Td (x) Tj ET");
+        }
+        o[i] = (tp_obj_t){dicts[i], bodies[i].p, bodies[i].n};
+    }
+    unsigned char *pdf = tp_pdf(o, n, NULL, out_len);
+    for (int i = 0; i < n; i++) {
+        free(dicts[i]);
+        free(bodies[i].p);
+    }
+    free(pad);
+    free(bodies);
+    free(dicts);
+    free(o);
+    return pdf;
+}
+
+/* Forms drawing the next one four times, seven levels: the first reading of
+ * each form is whole, readings again stop at PDF_MAX_FORM_REREAD (about 1.3
+ * GB of form content read again before, and draws ^ depth in general). */
+TEST(pdf_extract_form_ladder_bounded) {
+    size_t len;
+    tp_text_t t;
+    unsigned char *pdf = tp_form_ladder(7, 4, &len);
+    ASSERT_TRUE(tp_extract(pdf, len, &t));
+    ASSERT_EQ(t.r.status, CBM_PDF_OK);
+    ASSERT_EQ(t.r.npages, 1);
+    ASSERT_TRUE(t.r.counts.form_rereads_cut > 0);
+    ASSERT_TRUE(t.r.pages[0].glyphs >= 1);
+    ASSERT_TRUE((size_t)t.r.pages[0].glyphs <= (256U << 20) / (64U * 1024U) + 1);
+    cbm_arena_destroy(&t.arena);
+    free(pdf);
+    PASS();
+}
+
 /* tp_simple's page, then `n` objects that each open a string and never close
  * it, and no cross-reference: the reader rebuilds it from the object headers. */
 static unsigned char *tp_open_strings(int n, size_t *out_len) {
@@ -1117,6 +1183,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_extract_object_chains);
     RUN_TEST(pdf_extract_xrefstm_once);
     RUN_TEST(pdf_extract_open_strings_linear);
+    RUN_TEST(pdf_extract_form_ladder_bounded);
     RUN_TEST(pdf_scan_mentions);
     RUN_TEST(pdf_links_pipeline);
     RUN_TEST(pdf_snippet_is_page_text);

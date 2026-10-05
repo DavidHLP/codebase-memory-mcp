@@ -71,6 +71,13 @@ enum {
  * no text layer, and real documents stay far below it. */
 #define PDF_MAX_STREAM_OUT ((size_t)512 << 20)
 
+/* A Form XObject's first reading in a document is always whole. Reading one
+ * again (the same content drawn elsewhere: a logo, a header) is counted, and
+ * beyond this many decoded bytes of such re-readings the document reads no
+ * form again (counted): forms drawing the next one many times, level under
+ * level, asked for (draws ^ depth) readings from a few kilobytes. */
+#define PDF_MAX_FORM_REREAD ((size_t)256 << 20)
+
 /* ── Integers from the file: saturated, never undefined ──────────── */
 
 static inline int64_t pdf_sat_add(int64_t a, int64_t b) {
