@@ -122,7 +122,7 @@ static const sig_case_t k_cases[] = {
      "HTTPMethod = .post, headers: [String: String]? = nil, handler: @escaping (Int) -> Void, "
      "xs: Int..., io: inout Swift.Int, t: (a: Int, String)) -> UploadRequest { }\n}",
      "function_declaration", 0,
-     "(_:Data,to:URLConvertible,method:HTTPMethod,headers:[String:String]?,handler:(Int)=>Void,"
+     "<T:Encodable>(_:Data,to:URLConvertible,method:HTTPMethod,headers:[String:String]?,handler:(Int)=>Void,"
      "xs:Int~,io:inout Int,t:(a:Int,String))"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "class Session {\n  func upload(_ data: Data, with request: URLRequest) {}\n}",
@@ -136,6 +136,21 @@ static const sig_case_t k_cases[] = {
      "class C { static func + (l: C, r: C) -> C { l } }", "function_declaration", 0, "(l:C,r:C)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func extra() {}", "function_declaration", 0,
      "()"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f<T>(_ x: T) {}",
+     "function_declaration", 0, "<T>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f<T: Equatable>(_ x: T) {}",
+     "function_declaration", 0, "<T:Equatable>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f<T>(_ x: T) where T: Equatable {}", "function_declaration", 0,
+     "<T;where T:Equatable>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f<T>(_ x: T) where T.Element == Int {}", "function_declaration", 0,
+     "<T;where T/Element==Int>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f < T > ( _ x : T ) where T . Element == Int { }", "function_declaration", 0,
+     "<T;where T/Element==Int>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f(_ x: Int) async {}",
+     "function_declaration", 0, "(_:Int)async"},
     /* Scala: every clause flattened, by-name and repeated parameters. */
     {CBM_LANG_SCALA, CBM_CALLABLE_ID_TYPED,
      "class A {\n  def work[T <: AnyRef](xs: List[T], n: => Int, rest: String*)(implicit ord: "

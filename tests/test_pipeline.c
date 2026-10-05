@@ -8519,6 +8519,113 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     PASS();
 }
 
+/* Distinct declarations retain their own source ranges and outgoing edges;
+ * labels/arity alone cannot choose generic constraints or sync vs async. */
+TEST(pipeline_swift_generic_async_identity_issue2061) {
+    const char *suffixes[] = {"pick<T>(_:T)", "pick<T:Equatable>(_:T)",
+                             "pick<T;where T:Hashable>(_:T)",
+                             "pick<T;where T:Comparable>(_:T)", "pick(_:Int)",
+                             "pick(_:Int)async"};
+    for (int mode = 0; mode < 2; mode++) {
+        char tmp[256];
+        snprintf(tmp, sizeof(tmp), "/tmp/cbm_swift_generic_XXXXXX");
+        ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+        write_temp_file(tmp, "Sources/Service.swift",
+                        "class Service {\n"
+                        "func pick<T>(_ x: T) { mark0() }\n"
+                        "func pick<T: Equatable>(_ x: T) { mark1() }\n"
+                        "func pick<T>(_ x: T) where T: Hashable { mark2() }\n"
+                        "func pick<T>(_ x: T) where T: Comparable { mark3() }\n"
+                        "func pick(_ x: Int) { mark4() }\n"
+                        "func pick(_ x: Int) async { mark5() }\n"
+                        "}\n"
+                        "func mark0() {}\nfunc mark1() {}\nfunc mark2() {}\n"
+                        "func mark3() {}\nfunc mark4() {}\nfunc mark5() {}\n");
+        const char *caller_source = "class Caller {\nlet service = Service()\n"
+                                    "func invoke() { self.service.pick(value) }\n}\n";
+        write_temp_file(tmp, "Sources/Caller.swift", caller_source);
+        for (int i = 0; mode && i < 50; i++) {
+            char path[64], source[80];
+            snprintf(path, sizeof(path), "Sources/Filler%d.swift", i);
+            snprintf(source, sizeof(source), "func filler%d() {}\n", i);
+            write_temp_file(tmp, path, source);
+        }
+        const char *previous = getenv("CBM_WORKERS");
+        char *saved = previous ? strdup(previous) : NULL;
+        cbm_setenv("CBM_WORKERS", mode ? "4" : "1", 1);
+        char db[512], project[512];
+        snprintf(db, sizeof(db), "%s/generic.db", tmp);
+        for (int phase = 0; phase < 2; phase++) {
+            if (phase) {
+                char path[512];
+                snprintf(path, sizeof(path), "%s/Sources/Caller.swift", tmp);
+                write_temp_file(tmp, "Sources/Caller.swift",
+                                "class Caller {\nlet service = Service()\n"
+                                "func invoke() { self.service.pick(value) }\n}\n// changed\n");
+                ASSERT_EQ(pipeline_test_set_mtime(path, 2000000000, 0), 0);
+            }
+            cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
+            ASSERT_NOT_NULL(p);
+            ASSERT_EQ(cbm_pipeline_run(p), 0);
+            snprintf(project, sizeof(project), "%s", cbm_pipeline_project_name(p));
+            cbm_store_t *s = cbm_store_open_path(db);
+            ASSERT_NOT_NULL(s);
+            cbm_node_t *overloads = NULL;
+            int count = 0;
+            ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "pick", &overloads, &count),
+                      CBM_STORE_OK);
+            ASSERT_EQ(count, 6);
+            cbm_store_free_nodes(overloads, count);
+            char qn[512];
+            snprintf(qn, sizeof(qn), "%s.Sources.Caller.Caller.invoke()", project);
+            cbm_node_t caller = {0};
+            ASSERT_EQ(cbm_store_find_node_by_qn(s, project, qn, &caller), CBM_STORE_OK);
+            for (int i = 0; i < 6; i++) {
+                cbm_node_t target = {0}, marker = {0};
+                snprintf(qn, sizeof(qn), "%s.Sources.Service.Service.%s", project, suffixes[i]);
+                ASSERT_EQ(cbm_store_find_node_by_qn(s, project, qn, &target), CBM_STORE_OK);
+                ASSERT_STR_EQ(target.name, "pick");
+                ASSERT_EQ(target.start_line, i + 2);
+                ASSERT_EQ(target.end_line, i + 2);
+                snprintf(qn, sizeof(qn), "%s.Sources.Service.mark%d()", project, i);
+                ASSERT_EQ(cbm_store_find_node_by_qn(s, project, qn, &marker), CBM_STORE_OK);
+                cbm_edge_t *edges = NULL;
+                int n = 0;
+                ASSERT_EQ(cbm_store_find_edges_by_source_type(s, target.id, "CALLS", &edges, &n),
+                          CBM_STORE_OK);
+                ASSERT_EQ(n, 1);
+                ASSERT_EQ(edges[0].target_id, marker.id);
+                cbm_store_free_edges(edges, n);
+                ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &n),
+                          CBM_STORE_OK);
+                ASSERT_EQ(n, 6);
+                int compatible = 0;
+                for (int e = 0; e < n; e++) {
+                    if (edges[e].target_id == target.id) {
+                        ASSERT_NOT_NULL(strstr(edges[e].properties_json, "\"candidates\":6"));
+                        compatible++;
+                    }
+                }
+                ASSERT_EQ(compatible, 1);
+                cbm_store_free_edges(edges, n);
+                cbm_node_free_fields(&target);
+                cbm_node_free_fields(&marker);
+            }
+            cbm_node_free_fields(&caller);
+            cbm_store_close(s);
+            cbm_pipeline_free(p);
+        }
+        if (saved) {
+            cbm_setenv("CBM_WORKERS", saved, 1);
+        } else {
+            cbm_unsetenv("CBM_WORKERS");
+        }
+        free(saved);
+        th_rmtree(tmp);
+    }
+    PASS();
+}
+
 /* The parallel call pass must retain both type-only overload candidates. */
 TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
     char tmp[256];
@@ -8775,7 +8882,12 @@ TEST(pipeline_swift_incompatible_overload_unresolved_issue2061) {
     snprintf(wrong_qn, sizeof(wrong_qn), "%s.Sources.Caller.Caller.wrongLabel()", project);
     cbm_node_t wrong = {0};
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, wrong_qn, &wrong), CBM_STORE_OK);
-    ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, wrong.id), 0);
+    cbm_node_t *gets = NULL;
+    int get_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "get", &gets, &get_count), CBM_STORE_OK);
+    ASSERT_EQ(get_count, 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, gets[0].id), 0);
+    cbm_store_free_nodes(gets, get_count);
     cbm_node_free_fields(&wrong);
     /* ... but the call never binds to it ... */
     ASSERT_EQ(pipeline_has_calls_edge(s, runs[0].id, fetches[0].id), 0);
@@ -8852,7 +8964,12 @@ TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061) {
     snprintf(wrong_qn, sizeof(wrong_qn), "%s.Sources.Caller.Caller.wrongLabel()", project);
     cbm_node_t wrong = {0};
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, wrong_qn, &wrong), CBM_STORE_OK);
-    ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, wrong.id), 0);
+    cbm_node_t *gets = NULL;
+    int get_count = 0;
+    ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "get", &gets, &get_count), CBM_STORE_OK);
+    ASSERT_EQ(get_count, 1);
+    ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, gets[0].id), 0);
+    cbm_store_free_nodes(gets, get_count);
     cbm_node_free_fields(&wrong);
     ASSERT_EQ(pipeline_has_calls_edge(s, runs[0].id, fetches[0].id), 0);
     cbm_store_free_nodes(fetches, fetch_count);
@@ -18397,6 +18514,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_http_call_makes_route_issue1892);
     RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
     RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
+    RUN_TEST(pipeline_swift_generic_async_identity_issue2061);
     RUN_TEST(pipeline_swift_default_before_required_candidates_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_unresolved_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061);
