@@ -1703,6 +1703,26 @@ static uint16_t swift_trailing_advance(const swift_parameters_t *params,
     return next;
 }
 
+static void swift_parameter_advance(const swift_parameters_t *params, const swift_signature_t *meta,
+                                    const CBMCall *call, unsigned i, unsigned total, int arg,
+                                    uint16_t states, uint16_t *next) {
+    uint16_t trailing =
+        arg == call->arg_count ? swift_trailing_advance(params, meta, call, i, total, states) : 0;
+    if (params->variadics[i] || (meta->defaults & (UINT64_C(1) << i))) {
+        /* After explicit arguments, preserve the first eligible trailing
+         * binding instead of skipping it to a later one. */
+        next[arg] |= states & (uint16_t)~(trailing >> SKIP_ONE);
+    }
+    if (swift_argument_label_matches(params, call, i, arg)) {
+        int end = params->variadics[i] ? swift_variadic_advance(call, arg, true) : arg + SKIP_ONE;
+        next[end] |= states;
+        if (params->variadics[i] && end == call->arg_count) {
+            next[end] |= swift_trailing_advance(params, meta, call, i, total, states);
+        }
+    }
+    next[arg] |= trailing;
+}
+
 static bool swift_parameters_match(const swift_parameters_t *params, const swift_signature_t *meta,
                                    const CBMCall *call) {
     /* Preserve the legacy bool as one unlabelled closure for manual callers. */
@@ -1713,32 +1733,14 @@ static bool swift_parameters_match(const swift_parameters_t *params, const swift
     /* Each argument cursor retains the reachable trailing-closure counts.
      * A matching label must not greedily consume an earlier default when
      * the same label is needed by a later required parameter. */
-    uint16_t states[CBM_MAX_CALL_ARGS + SKIP_ONE] = {1};
+    uint16_t states[CBM_MAX_CALL_ARGS + SKIP_ONE] = {SKIP_ONE};
     for (unsigned i = 0; i < params->count; i++) {
         uint16_t next[CBM_MAX_CALL_ARGS + SKIP_ONE] = {0};
         for (int arg = 0; arg <= call->arg_count; arg++) {
             if (!states[arg]) {
                 continue;
             }
-            uint16_t trailing =
-                arg == call->arg_count
-                    ? swift_trailing_advance(params, meta, call, i, trailing_total, states[arg])
-                    : 0;
-            if (params->variadics[i] || (meta->defaults & (UINT64_C(1) << i))) {
-                /* After explicit arguments, preserve the first eligible
-                 * trailing binding instead of skipping it to a later one. */
-                next[arg] |= states[arg] & (uint16_t)~(trailing >> SKIP_ONE);
-            }
-            if (swift_argument_label_matches(params, call, i, arg)) {
-                int end =
-                    params->variadics[i] ? swift_variadic_advance(call, arg, true) : arg + SKIP_ONE;
-                next[end] |= states[arg];
-                if (params->variadics[i] && end == call->arg_count) {
-                    next[end] |=
-                        swift_trailing_advance(params, meta, call, i, trailing_total, states[arg]);
-                }
-            }
-            next[arg] |= trailing;
+            swift_parameter_advance(params, meta, call, i, trailing_total, arg, states[arg], next);
         }
         memcpy(states, next, sizeof(states));
     }
