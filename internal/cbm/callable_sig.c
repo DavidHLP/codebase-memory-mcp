@@ -779,6 +779,36 @@ static void sig_swift_params(sig_ctx_t *c, TSNode node) {
     }
 }
 
+/* Keep generic declarations and requirements in identity, without interpreting
+ * applicability at call sites. '/' preserves associated-type paths without
+ * introducing a QN separator; comments and whitespace use the token rules. */
+static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
+    TSNode params = cbm_find_child_by_kind(node, "type_parameters");
+    TSNode requirements = cbm_find_child_by_kind(node, "type_constraints");
+    if (ts_node_is_null(params) && ts_node_is_null(requirements)) {
+        return;
+    }
+    size_t start = c->len;
+    if (!ts_node_is_null(params)) {
+        sig_type_tokens(c, params);
+        if (c->len > start && c->buf[c->len - 1] == '>') {
+            c->buf[--c->len] = '\0';
+        }
+    } else {
+        sig_raw(c, "<", 1);
+    }
+    if (!ts_node_is_null(requirements)) {
+        sig_raw(c, ";", 1);
+        sig_type_tokens(c, requirements);
+    }
+    sig_raw(c, ">", 1);
+    for (size_t i = start; i < c->len; i++) {
+        if (c->buf[i] == '.') {
+            c->buf[i] = '/';
+        }
+    }
+}
+
 uint64_t cbm_swift_default_mask(TSNode node, const char *source, uint8_t *count) {
     (void)source;
     uint64_t defaults = 0;
@@ -1002,6 +1032,8 @@ static void sig_render(sig_ctx_t *c, TSNode node) {
     }
     if (c->lang == CBM_LANG_CSHARP) {
         sig_cs_tparams(c, node);
+    } else if (c->lang == CBM_LANG_SWIFT) {
+        sig_swift_tparams(c, node);
     }
     c->open_off = c->len;
     sig_raw(c, "(", 1);
@@ -1030,6 +1062,17 @@ static void sig_render(sig_ctx_t *c, TSNode node) {
     }
     sig_raw(c, ")", 1);
     c->close_off = c->len;
+    if (c->lang == CBM_LANG_SWIFT) {
+        /* Only direct declaration children: a parameter's async closure type
+         * is already in params and must not mark the enclosing function. */
+        uint32_t count = ts_node_child_count(node);
+        for (uint32_t i = 0; i < count; i++) {
+            if (sig_node_text_is(c, ts_node_child(node, i), "async")) {
+                sig_raw(c, "async", 5);
+                break;
+            }
+        }
+    }
 }
 
 static bool sig_roundtrips(const char *suffix, size_t n) {
@@ -1170,6 +1213,9 @@ size_t cbm_qn_callable_base_len(const char *qn) {
     size_t len = strlen(qn);
     /* Trailing cvref (C++): const / volatile / & / && after the ')'. */
     size_t t = len;
+    if (t >= 5 && memcmp(qn + t - 5, "async", 5) == 0) {
+        t -= 5;
+    }
     for (;;) {
         if (t > 0 && qn[t - 1] == '&') {
             t--;
@@ -1215,7 +1261,7 @@ size_t cbm_qn_callable_base_len(const char *qn) {
         size_t q = p;
         while (q > 0) {
             q--;
-            if (qn[q] == '>') {
+            if (qn[q] == '>' && (q == 0 || qn[q - 1] != '=')) {
                 adepth++;
             } else if (qn[q] == '<') {
                 adepth--;

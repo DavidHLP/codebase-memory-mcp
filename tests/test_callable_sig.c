@@ -151,6 +151,11 @@ static const sig_case_t k_cases[] = {
      "<T;where T/Element==Int>(_:T)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f(_ x: Int) async {}",
      "function_declaration", 0, "(_:Int)async"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f(body: () async -> Void) {}",
+     "function_declaration", 0, "(body:()async=>Void)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f<T>(_ x: T) where T == () -> Void {}", "function_declaration", 0,
+     "<T;where T==()=>Void>(_:T)"},
     /* Scala: every clause flattened, by-name and repeated parameters. */
     {CBM_LANG_SCALA, CBM_CALLABLE_ID_TYPED,
      "class A {\n  def work[T <: AnyRef](xs: List[T], n: => Int, rest: String*)(implicit ord: "

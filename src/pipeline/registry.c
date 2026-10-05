@@ -1627,6 +1627,34 @@ static bool swift_parameters_read(const char *qn, const char *name, const swift_
     size_t base_len = cbm_qn_callable_base_len_named(qn, name);
     const char *sig = qn + base_len;
     size_t n = strlen(sig);
+    if (n >= 5 && memcmp(sig + n - 5, "async", 5) == 0) {
+        n -= 5;
+    }
+    /* Declaration generic requirements distinguish nodes, but do not prove
+     * applicability. Read only params when selecting compatible candidates. */
+    if (n && sig[0] == '<') {
+        unsigned depth = 0;
+        size_t i = 0;
+        for (; i < n; i++) {
+            if (sig[i] == '<') {
+                depth++;
+            } else if (sig[i] == '>' && (i == 0 || sig[i - 1] != '=')) {
+                if (depth == 0) {
+                    return false;
+                }
+                if (--depth != 0) {
+                    continue;
+                }
+                i++;
+                break;
+            }
+        }
+        if (depth || i >= n) {
+            return false;
+        }
+        sig += i;
+        n -= i;
+    }
     if (n < PAIR_LEN || sig[0] != '(' || sig[n - SKIP_ONE] != ')' || strchr(sig, '#')) {
         return false;
     }

@@ -4,6 +4,9 @@
  * A callable's graph identity is
  *
  *     callable_qn := base_qn [<tparams>] (params) [cvref]
+ * Swift includes generic declarations and where requirements in <tparams>
+ * (associated-type paths use '/' instead of '.') and appends function-level
+ * async after params. These distinguish declarations, not call applicability.
  *
  * so overloads that share a base QN (Java/C#/C++/Kotlin/Swift/Scala/ObjC)
  * become distinct nodes instead of merging into one node that collects every

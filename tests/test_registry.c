@@ -1329,6 +1329,16 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     }
 
     const char *out[8] = {0};
+    const char *generic_qns[] = {"proj.Service.constrained<T;where T==()=>Void>(_:T)",
+                                 "proj.Service.constrained<T>(_:T)async"};
+    for (int i = 0; i < 2; i++) {
+        cbm_registry_add(r, "constrained", generic_qns[i], "Method");
+        cbm_registry_set_swift_signature(r, generic_qns[i], 0, 1);
+    }
+    CBMCallArg generic_arg = {0};
+    CBMCall generic_call = {.callee_name = "Service.constrained", .args = &generic_arg,
+                            .arg_count = 1};
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 2);
     CBMCallArg args[3] = {{.keyword = "name"}};
     CBMCall call = {.callee_name = "Service.work", .args = args, .arg_count = 1};
     int n = cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8);

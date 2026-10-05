@@ -280,8 +280,92 @@ TEST(index_format_version_one_rebuilds) {
     PASS();
 }
 
+TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
+    const RFile files[] = {
+        {"Service.swift", "func pick<T>(_ x: T) { first() }\n"
+                          "func pick<T: Equatable>(_ x: T) { second() }\n"
+                          "func first() {}\nfunc second() {}\n"
+                          "func caller() { pick(value) }\n"
+                          "func wrong() { pick(key: 1) }\n"},
+    };
+    RProj lp;
+    cbm_store_t *s = rh_index_files(&lp, files, 1);
+    ASSERT_NOT_NULL(s);
+    cbm_store_close(s);
+    s = cbm_store_open_path(lp.dbpath);
+    ASSERT_NOT_NULL(s);
+    ASSERT_EQ(cbm_store_delete_nodes_by_label(s, lp.project, "Function"), CBM_STORE_OK);
+    char legacy_qn[512], wrong_qn[512];
+    snprintf(legacy_qn, sizeof(legacy_qn), "%s.Service.pick(_:T)", lp.project);
+    snprintf(wrong_qn, sizeof(wrong_qn), "%s.Service.wrong()", lp.project);
+    cbm_node_t legacy = {.project = lp.project, .label = "Function", .name = "pick",
+                         .qualified_name = legacy_qn, .file_path = "Service.swift",
+                         .start_line = 2, .end_line = 2};
+    cbm_node_t wrong = {.project = lp.project, .label = "Function", .name = "wrong",
+                        .qualified_name = wrong_qn, .file_path = "Service.swift",
+                        .start_line = 6, .end_line = 6};
+    int64_t legacy_id = cbm_store_upsert_node(s, &legacy);
+    int64_t wrong_id = cbm_store_upsert_node(s, &wrong);
+    ASSERT_GT(legacy_id, 0);
+    ASSERT_GT(wrong_id, 0);
+    cbm_edge_t stale = {.project = lp.project, .source_id = wrong_id, .target_id = legacy_id,
+                       .type = "CALLS", .properties_json = "{\"candidates\":1}"};
+    ASSERT_GT(cbm_store_insert_edge(s, &stale), 0);
+    ASSERT_EQ(cbm_store_set_format_version(s, 2), CBM_STORE_OK);
+    cbm_store_close(s);
+    for (int run = 0; run < 2; run++) {
+        char *resp = index_capture(&lp);
+        ASSERT_NOT_NULL(resp);
+        if (run == 0) {
+            ASSERT_NOT_NULL(strstr(g_log_buf, "format_change_reindex"));
+            ASSERT_NOT_NULL(strstr(resp, "\"format_migration\":true"));
+        } else {
+            ASSERT_NULL(strstr(g_log_buf, "format_change_reindex"));
+            ASSERT_NULL(strstr(resp, "format_migration"));
+        }
+        free(resp);
+        s = cbm_store_open_path(lp.dbpath);
+        ASSERT_NOT_NULL(s);
+        cbm_node_t old = {0};
+        ASSERT_EQ(cbm_store_find_node_by_qn(s, lp.project, legacy_qn, &old), CBM_STORE_NOT_FOUND);
+        cbm_node_t *picks = NULL;
+        int count = 0;
+        ASSERT_EQ(cbm_store_find_nodes_by_name(s, lp.project, "pick", &picks, &count), CBM_STORE_OK);
+        ASSERT_EQ(count, 2);
+        cbm_node_t caller = {0}, bad = {0};
+        char qn[512];
+        snprintf(qn, sizeof(qn), "%s.Service.caller()", lp.project);
+        ASSERT_EQ(cbm_store_find_node_by_qn(s, lp.project, qn, &caller), CBM_STORE_OK);
+        ASSERT_EQ(cbm_store_find_node_by_qn(s, lp.project, wrong_qn, &bad), CBM_STORE_OK);
+        cbm_edge_t *edges = NULL;
+        int n = 0;
+        ASSERT_EQ(cbm_store_find_edges_by_source_type(s, bad.id, "CALLS", &edges, &n), CBM_STORE_OK);
+        ASSERT_EQ(n, 0);
+        cbm_store_free_edges(edges, n);
+        ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &n), CBM_STORE_OK);
+        ASSERT_EQ(n, 2);
+        for (int i = 0; i < 2; i++) {
+            ASSERT_TRUE(edges[i].target_id == picks[0].id || edges[i].target_id == picks[1].id);
+            ASSERT_NOT_NULL(strstr(edges[i].properties_json, "\"candidates\":2"));
+            ASSERT_EQ(picks[i].start_line, picks[i].end_line);
+            ASSERT_TRUE(picks[i].start_line == 1 || picks[i].start_line == 2);
+        }
+        cbm_store_free_edges(edges, n);
+        cbm_store_free_nodes(picks, count);
+        cbm_node_free_fields(&caller);
+        cbm_node_free_fields(&bad);
+        int format = -1;
+        ASSERT_EQ(cbm_store_get_format_version(s, &format), CBM_STORE_OK);
+        ASSERT_EQ(format, CBM_INDEX_FORMAT_VERSION);
+        cbm_store_close(s);
+    }
+    rh_cleanup(&lp, NULL);
+    PASS();
+}
+
 SUITE(index_format) {
     RUN_TEST(index_format_siblings_distinct_and_searchable);
     RUN_TEST(index_format_legacy_index_rebuilds_and_repairs);
     RUN_TEST(index_format_version_one_rebuilds);
+    RUN_TEST(index_format_swift_collisions_and_stale_calls_rebuild);
 }
