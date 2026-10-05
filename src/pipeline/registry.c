@@ -1734,8 +1734,8 @@ static bool swift_parameters_match(const swift_parameters_t *params, const swift
                     params->variadics[i] ? swift_variadic_advance(call, arg, true) : arg + SKIP_ONE;
                 next[end] |= states[arg];
                 if (params->variadics[i] && end == call->arg_count) {
-                    next[end] |= swift_trailing_advance(params, meta, call, i, trailing_total,
-                                                       states[arg]);
+                    next[end] |=
+                        swift_trailing_advance(params, meta, call, i, trailing_total, states[arg]);
                 }
             }
             next[arg] |= trailing;
