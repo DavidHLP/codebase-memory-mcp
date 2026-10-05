@@ -1339,6 +1339,12 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     CBMCall generic_call = {
         .callee_name = "Service.constrained", .args = &generic_arg, .arg_count = 1};
     ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 2);
+    const char *nested = "proj.Service.nested<T,U;where T==Box<[Int]>,U==()=>Void>(_:T)=>Int";
+    cbm_registry_add(r, "nested", nested, "Method");
+    cbm_registry_set_swift_signature(r, nested, 0, 1);
+    generic_call.callee_name = "Service.nested";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], nested);
     const char *returns[] = {"proj.Service.pick()=>Int", "proj.Service.pick()async=>(A/Item)=>B/Item"};
     for (int i = 0; i < 2; i++) {
         cbm_registry_add(r, "pick", returns[i], "Method");
