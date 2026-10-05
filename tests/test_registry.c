@@ -1311,16 +1311,19 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         "proj.Service.batch(completions:(()=>Void)~)",
         "proj.Service.sheet(onDismiss:(()=>Void)?,content:()=>Void)",
         "proj.Service.combine(callbacks:(()=>Void)~,completion:()=>Void)",
+        "proj.Service.repeated(x:Int,x:Int)",
+        "proj.Service.repeated(x:String,x:String)",
+        "proj.Service.unlabeled(_:Int,_:Int)",
     };
     const char *names[] = {"work", "work", "work", "work", "send", "configure",
                            "consume", "consume", "accept", "perform", "perform",
                            "perform", "perform", "collect", "named", "run", "batch",
-                           "sheet", "combine"};
-    const uint8_t counts[] = {1, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2};
-    for (int i = 0; i < 19; i++) {
+                           "sheet", "combine", "repeated", "repeated", "unlabeled"};
+    const uint8_t counts[] = {1, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2};
+    for (int i = 0; i < 22; i++) {
         cbm_registry_add(r, names[i], qns[i], "Method");
         uint64_t defaults = (i == 5 || i == 15) ? UINT64_C(1) << 1
-                            : i == 17        ? UINT64_C(1)
+                            : i == 17 || i >= 19 ? UINT64_C(1)
                                              : 0;
         cbm_registry_set_swift_signature(r, qns[i], defaults, counts[i]);
     }
@@ -1357,6 +1360,25 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     call.arg_count = 2;
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
     ASSERT_STR_EQ(out[0], qns[5]);
+
+    /* The first default must remain skippable even when its label matches
+     * the argument needed by the following required parameter. */
+    call.callee_name = "Service.repeated";
+    call.arg_count = 1;
+    args[0].keyword = "x";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 2);
+    call.arg_count = 2;
+    args[1].keyword = "x";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 2);
+    call.arg_count = 0;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+    call.arg_count = 1;
+    args[0].keyword = "wrong";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), -1);
+    call.callee_name = "Service.unlabeled";
+    args[0].keyword = NULL;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[21]);
 
     args[0].keyword = "value";
     call.callee_name = "send";
