@@ -19,6 +19,7 @@ make -f tests/repro/issue2061_swift_identity/repro.mk issue2061-repro
 evidence=$(mktemp -d)
 build/c/issue2061-driver graph "$evidence/graph"
 mkdir "$evidence/cache"
+test ! -e "$evidence/graph/graph.db-wal"
 cp "$evidence/graph/graph.db" "$evidence/cache/issue2061-swift-identity.db"
 CBM_CACHE_DIR="$evidence/cache" CBM_ALLOWED_ROOT="$evidence/graph/repo" \
   build/c/issue2061-driver mcp issue2061-swift-identity

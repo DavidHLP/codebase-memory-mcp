@@ -1,6 +1,6 @@
 /* Standalone original #2061 fixture; real pipeline/store, no resolver substitute.
  * Exit 0: all observations pass; 1: semantic mismatch; 2: setup/API error.
- * Run only after review. Retain the temporary repository and DB as evidence.
+ * Retain the temporary repository and DB as evidence; see README.md.
  */
 #include "pipeline/pipeline.h"
 #include "store/store.h"

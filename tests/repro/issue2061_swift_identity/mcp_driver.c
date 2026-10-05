@@ -1,4 +1,4 @@
-/* Read the reviewed A graph COPY through production MCP only. No indexing,
+/* Read the freshly reproduced graph COPY through production MCP only. No indexing,
  * store queries, graph traversal, resolver replacement, or fixture creation.
  * Exit 0: all response checks pass; 1: mismatch; 2: setup/envelope error.
  */
