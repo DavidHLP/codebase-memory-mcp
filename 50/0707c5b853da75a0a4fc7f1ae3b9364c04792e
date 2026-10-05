@@ -1,0 +1,21 @@
+docs/SWIFT_IDENTITY_VALIDATION.md
+  s_5a43a3b5d41148::t_bad76d382e6457 9,21-43,49-59,61-75
+  s_5a43a3b5d41148::t_ba6ed006f636d8 60
+  s_5a43a3b5d41148::t_595954f3d1f5ea 44-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "500707c5b853da75a0a4fc7f1ae3b9364c04792e",
+  "prompts": {},
+  "sessions": {
+    "s_5a43a3b5d41148": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10a8c-6fc8-7192-bf6b-f80fdaae3e59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
