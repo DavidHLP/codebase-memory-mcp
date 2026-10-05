@@ -30,9 +30,15 @@
 #include "pdf/pdf.h"
 #include "pdf/pdf_unicode.h"
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+/* candidates a join compared, for the cost test */
+static atomic_size_t g_join_steps;
+#endif
 
 enum {
     PDF_R3_WINDOW = 400, /* the field test looked this far back for "(" or "," */
@@ -1120,6 +1126,46 @@ static void scan_page(CBMExtractCtx *ctx, const char *text, size_t len, uint32_t
         }
         tok[i] = emit(&e, kind_syntax(c->kind), sb.p ? sb.p : "", line_of(&e, c->start), 0);
     }
+    /* The emitted candidates of each line, ascending (CSR: lc[lc_off[l] ..
+     * lc_off[l + 1])). A join's span covers the end of one line and the start of
+     * the next, so only their candidates can overlap it; reading every candidate
+     * of the page per join cost (joins x candidates), quadratic in the text. */
+    int *lc_off = (int *)cbm_calloc(CBM_MEM_CLASS_EXTRACT, (size_t)(nlines + 2) * sizeof(int));
+    int *lc = NULL;
+    if (!lc_off) {
+        e.failed = true;
+    } else {
+        for (int f = 0; f < cv.n; f++) {
+            if (tok[f] >= 0) {
+                int end = cv.v[f].end > cv.v[f].start ? cv.v[f].end - 1 : cv.v[f].start;
+                for (uint32_t l = line_of(&e, cv.v[f].start); l <= line_of(&e, end); l++) {
+                    lc_off[l]++; /* line_of is 1-based: line l - 1 counts at l */
+                }
+            }
+        }
+        for (int l = 0; l < nlines; l++) {
+            lc_off[l + 1] += lc_off[l];
+        }
+        lc = (int *)cbm_alloc(CBM_MEM_CLASS_EXTRACT,
+                              (size_t)(lc_off[nlines] ? lc_off[nlines] : 1) * sizeof(int));
+        if (!lc) {
+            e.failed = true;
+        } else {
+            /* lc_off[l] runs as line l's cursor, then shifts back to its start */
+            for (int f = 0; f < cv.n; f++) {
+                if (tok[f] >= 0) {
+                    int end = cv.v[f].end > cv.v[f].start ? cv.v[f].end - 1 : cv.v[f].start;
+                    for (uint32_t l = line_of(&e, cv.v[f].start); l <= line_of(&e, end); l++) {
+                        lc[lc_off[l - 1]++] = f;
+                    }
+                }
+            }
+            for (int l = nlines; l > 0; l--) {
+                lc_off[l] = lc_off[l - 1];
+            }
+            lc_off[0] = 0;
+        }
+    }
     /* joins */
     for (int li = 0; li + 1 < nlines && !sb.fail && !e.failed; li++) {
         const uint32_t *prev = flat.v + starts[li];
@@ -1187,9 +1233,25 @@ static void scan_page(CBMExtractCtx *ctx, const char *text, size_t len, uint32_t
             char fs = PDF_JOIN_FRAG;
             sb_put(&sb, &fs, 1);
             bool first = true;
-            for (int f = 0; f < cv.n; f++) {
+            int ia = lc_off[li];
+            int ea = lc_off[li + 1];
+            int ib = lc_off[li + 1];
+            int eb = lc_off[li + 2];
+            while (ia < ea || ib < eb) {
+                int f;
+                if (ib >= eb || (ia < ea && lc[ia] < lc[ib])) {
+                    f = lc[ia++];
+                } else if (ia >= ea || lc[ib] < lc[ia]) {
+                    f = lc[ib++];
+                } else {
+                    f = lc[ia++]; /* on both lines */
+                    ib++;
+                }
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+                atomic_fetch_add_explicit(&g_join_steps, 1, memory_order_relaxed);
+#endif
                 const cand_t *x = &cv.v[f];
-                if (x->start < e_flat && x->end > s_flat && tok[f] >= 0) {
+                if (x->start < e_flat && x->end > s_flat) {
                     char num[16];
                     int nlen = snprintf(num, sizeof(num), first ? "%d" : ",%d", tok[f]);
                     sb_put(&sb, num, (size_t)nlen);
@@ -1209,6 +1271,8 @@ static void scan_page(CBMExtractCtx *ctx, const char *text, size_t len, uint32_t
     }
     cbm_free(CBM_MEM_CLASS_EXTRACT, sb.p);
     cbm_free(CBM_MEM_CLASS_EXTRACT, tok);
+    cbm_free(CBM_MEM_CLASS_EXTRACT, lc_off);
+    cbm_free(CBM_MEM_CLASS_EXTRACT, lc);
 done:
     candv_free(&cv);
     u32_free(&flat);
@@ -1220,6 +1284,10 @@ done:
 void cbm_pdf_test_scan_page(CBMExtractCtx *ctx, const char *text, size_t len, uint32_t page,
                             const char *page_qn) {
     scan_page(ctx, text, len, page, page_qn);
+}
+
+size_t cbm_pdf_test_join_steps(void) {
+    return atomic_load_explicit(&g_join_steps, memory_order_relaxed);
 }
 #endif
 

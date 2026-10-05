@@ -927,6 +927,41 @@ TEST(pdf_scan_mentions) {
     PASS();
 }
 
+/* Join work on a page of `n` lines that all join, eight names a line. */
+static size_t tp_join_work(int n) {
+    tp_buf_t b = {0};
+    for (int i = 0; i < n; i++) {
+        tp_puts(&b, "pkg.mod.Alpha pkg.mod.Beta dir/sub/f1.py dir/sub/f2.py pkg.mod.Gamma "
+                    "pkg.mod.Delta dir/sub/f3.py dir/sub/f4.py end_\n");
+    }
+    CBMFileResult *r = (CBMFileResult *)calloc(1, sizeof(*r));
+    cbm_arena_init(&r->arena);
+    CBMExtractCtx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.arena = &r->arena;
+    ctx.result = r;
+    size_t before = cbm_pdf_test_join_steps();
+    cbm_pdf_test_scan_page(&ctx, (const char *)b.p, b.n, 1, "p.doc.page_1");
+    size_t work = cbm_pdf_test_join_steps() - before;
+    bool ok = !r->doc_links.failed && r->doc_links.count > n * 8;
+    cbm_free_result(r);
+    free(b.p);
+    return ok ? work : 0;
+}
+
+/* A join compares only the candidates of its two lines: twice the page, about
+ * twice the work (every candidate of the page per join was four times). */
+TEST(pdf_scan_join_linear) {
+    size_t small = tp_join_work(300);
+    size_t large = tp_join_work(600);
+    ASSERT_TRUE(small > 0);
+    if (large > small * 5 / 2) {
+        fprintf(stderr, "join work: %zu for 300 lines, %zu for 600\n", small, large);
+    }
+    ASSERT_TRUE(large <= small * 5 / 2);
+    PASS();
+}
+
 /* ── the pipeline ────────────────────────────────────────────────── */
 
 /* A PDF whose pages each show the given lines (Helvetica, one Tj a line). */
@@ -1185,6 +1220,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_extract_open_strings_linear);
     RUN_TEST(pdf_extract_form_ladder_bounded);
     RUN_TEST(pdf_scan_mentions);
+    RUN_TEST(pdf_scan_join_linear);
     RUN_TEST(pdf_links_pipeline);
     RUN_TEST(pdf_snippet_is_page_text);
     RUN_TEST(pdf_links_incremental);

@@ -363,6 +363,8 @@ void cbm_pdf_extract_document(CBMExtractCtx *ctx);
  * into ctx->result->doc_links), without a PDF around it. */
 void cbm_pdf_test_scan_page(CBMExtractCtx *ctx, const char *text, size_t len, uint32_t page,
                             const char *page_qn);
+/* candidates the scanner's joins have compared so far (a cost counter) */
+size_t cbm_pdf_test_join_steps(void);
 #endif
 
 #endif /* CBM_DOCLINK_H */
