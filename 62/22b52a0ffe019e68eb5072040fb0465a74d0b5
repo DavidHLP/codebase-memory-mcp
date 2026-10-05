@@ -1,0 +1,20 @@
+tests/test_pipeline.c
+  s_5a43a3b5d41148::t_0880f239f879f5 8841,8860,8869,8919-8926
+  s_5a43a3b5d41148::t_74fdc086bd35c4 8927
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6222b52a0ffe019e68eb5072040fb0465a74d0b5",
+  "prompts": {},
+  "sessions": {
+    "s_5a43a3b5d41148": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a10a8c-6fc8-7192-bf6b-f80fdaae3e59",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
