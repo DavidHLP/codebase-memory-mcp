@@ -3239,7 +3239,7 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
                                                  .candidate_count = count};
                     emit_service_edge(ws->local_edge_buf, source_node, target, call, &selected,
                                       module_qn, rc->registry, rc->main_gbuf, imp_keys, imp_vals,
-                                      imp_count, false);
+                                      imp_count, false, route_mount);
                     ws->calls_resolved++;
                 }
                 continue;

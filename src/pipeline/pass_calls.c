@@ -763,7 +763,7 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call, const CBM
                                                  .confidence = swift_candidates == 1 ? 0.90 : 0.55,
                                                  .candidate_count = swift_candidates};
                     emit_classified_edge(ctx, call, source_node, target, &selected, module_qn,
-                                         imp_keys, imp_vals, imp_count, false);
+                                         imp_keys, imp_vals, imp_count, false, route_mount);
                     emitted++;
                 }
             }
