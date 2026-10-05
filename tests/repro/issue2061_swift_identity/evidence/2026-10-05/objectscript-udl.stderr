@@ -1,6 +1,0 @@
-internal/cbm/vendored/grammars/objectscript_udl/scanner.c:122:3: runtime error: null pointer passed as argument 2, which is declared to never be null
-    #0 0x628280053d52 in tree_sitter_objectscript_udl_external_scanner_deserialize internal/cbm/vendored/grammars/objectscript_udl/scanner.c:122
-    #1 0x628280046364 in main /home/david/swift-delivery-20261005/swift-objectscript-baseline-probe.c:16
-    #2 0x7f5316627780  (/usr/lib/libc.so.6+0x27780) (BuildId: 503200d7fda94a5dc6058d7e0694e5d1dcb2e372)
-    #3 0x7f53166278b8 in __libc_start_main (/usr/lib/libc.so.6+0x278b8) (BuildId: 503200d7fda94a5dc6058d7e0694e5d1dcb2e372)
-    #4 0x628280046214 in _start (/home/david/swift-delivery-20261005/objectscript-baseline-probe+0x2d214) (BuildId: b680da9817d0215b62060fffff7da5fb7784794c)

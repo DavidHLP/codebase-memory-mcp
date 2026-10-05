@@ -2,13 +2,13 @@
 #define passed graph_passed
 #define failed graph_failed
 #define errors graph_errors
-#include "/home/david/Projects/codebase-memory-mcp/tests/repro/issue2061_swift_identity/main.c"
+#include "main.c"
 #undef main
 #undef passed
 #undef failed
 #undef errors
 #define main mcp_main
-#include "/home/david/Projects/codebase-memory-mcp/tests/repro/issue2061_swift_identity/mcp_driver.c"
+#include "mcp_driver.c"
 #undef main
 
 int main(int argc, char **argv) {

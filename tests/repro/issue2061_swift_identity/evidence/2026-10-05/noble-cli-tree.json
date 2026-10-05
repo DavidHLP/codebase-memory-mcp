@@ -1,1 +1,0 @@
-{"content":[{"type":"text","text":"function: target\ndirection: inbound\ncallers_total: 1\ncallers_total_relation: eq\ncallers: 1  (cols: qn hop)\n  issue2061-swift-identity.Sources.Service.Service.work(flag:Bool) 1\n"}],"isError":false}
