@@ -282,21 +282,21 @@ TEST(index_format_version_one_rebuilds) {
 
 static int swift_collision_migration_case(int scenario) {
     const char *sources[] = {"func pick<T>(_ x: T) { first() }\n"
-                          "func pick<T: Equatable>(_ x: T) { second() }\n"
-                          "func first() {}\nfunc second() {}\n"
-                          "func caller() { pick(value) }\n"
-                          "func wrong() { pick(key: 1) }\n",
-                          "func pick(_ x: A.Item) { first() }\n"
-                          "func pick(_ x: B.Item) { second() }\n"
-                          "func first() {}\nfunc second() {}\n"
-                          "func caller() { pick(value) }\n"
-                          "func wrong() { pick(key: 1) }\n"
-                          "enum A { struct Item {} }\nenum B { struct Item {} }\n",
-                          "func pick() -> Int { first(); return 1 }\n"
-                          "func pick() -> String { second(); return \"x\" }\n"
-                          "func first() {}\nfunc second() {}\n"
-                          "func caller() { let _: Int = pick() }\n"
-                          "func wrong() { pick(key: 1) }\n"};
+                             "func pick<T: Equatable>(_ x: T) { second() }\n"
+                             "func first() {}\nfunc second() {}\n"
+                             "func caller() { pick(value) }\n"
+                             "func wrong() { pick(key: 1) }\n",
+                             "func pick(_ x: A.Item) { first() }\n"
+                             "func pick(_ x: B.Item) { second() }\n"
+                             "func first() {}\nfunc second() {}\n"
+                             "func caller() { pick(value) }\n"
+                             "func wrong() { pick(key: 1) }\n"
+                             "enum A { struct Item {} }\nenum B { struct Item {} }\n",
+                             "func pick() -> Int { first(); return 1 }\n"
+                             "func pick() -> String { second(); return \"x\" }\n"
+                             "func first() {}\nfunc second() {}\n"
+                             "func caller() { let _: Int = pick() }\n"
+                             "func wrong() { pick(key: 1) }\n"};
     const char *legacy_suffix[] = {"pick(_:T)", "pick(_:Item)", "pick()"};
     const RFile files[] = {{"Service.swift", sources[scenario]}};
     RProj lp;

@@ -8522,7 +8522,7 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
 /* Distinct declarations retain their own source ranges and outgoing edges;
  * labels/arity alone cannot choose generic constraints or sync vs async. */
 static int swift_declaration_identity_case(const char **suffixes, int total,
-                                          const char *service_source, const char *caller_source) {
+                                           const char *service_source, const char *caller_source) {
     for (int mode = 0; mode < 2; mode++) {
         char tmp[256];
         snprintf(tmp, sizeof(tmp), "/tmp/cbm_swift_generic_XXXXXX");
@@ -8618,34 +8618,35 @@ static int swift_declaration_identity_case(const char **suffixes, int total,
 }
 
 TEST(pipeline_swift_generic_async_identity_issue2061) {
-    const char *suffixes[] = {"pick<T>(_:T)", "pick<T:Equatable>(_:T)",
+    const char *suffixes[] = {"pick<T>(_:T)",
+                              "pick<T:Equatable>(_:T)",
                               "pick<T;where T:Hashable>(_:T)",
-                              "pick<T;where T:Comparable>(_:T)", "pick(_:Int)", "pick(_:Int)async"};
-    return swift_declaration_identity_case(
-        suffixes, 6,
-        "class Service {\n"
-        "func pick<T>(_ x: T) { mark0() }\n"
-        "func pick<T: Equatable>(_ x: T) { mark1() }\n"
-        "func pick<T>(_ x: T) where T: Hashable { mark2() }\n"
-        "func pick<T>(_ x: T) where T: Comparable { mark3() }\n"
-        "func pick(_ x: Int) { mark4() }\n"
-        "func pick(_ x: Int) async { mark5() }\n}\n"
-        "func mark0() {}\nfunc mark1() {}\nfunc mark2() {}\n"
-        "func mark3() {}\nfunc mark4() {}\nfunc mark5() {}\n",
-        "class Caller {\nlet service = Service()\n"
-        "func invoke() { self.service.pick(value) }\n}\n");
+                              "pick<T;where T:Comparable>(_:T)",
+                              "pick(_:Int)",
+                              "pick(_:Int)async"};
+    return swift_declaration_identity_case(suffixes, 6,
+                                           "class Service {\n"
+                                           "func pick<T>(_ x: T) { mark0() }\n"
+                                           "func pick<T: Equatable>(_ x: T) { mark1() }\n"
+                                           "func pick<T>(_ x: T) where T: Hashable { mark2() }\n"
+                                           "func pick<T>(_ x: T) where T: Comparable { mark3() }\n"
+                                           "func pick(_ x: Int) { mark4() }\n"
+                                           "func pick(_ x: Int) async { mark5() }\n}\n"
+                                           "func mark0() {}\nfunc mark1() {}\nfunc mark2() {}\n"
+                                           "func mark3() {}\nfunc mark4() {}\nfunc mark5() {}\n",
+                                           "class Caller {\nlet service = Service()\n"
+                                           "func invoke() { self.service.pick(value) }\n}\n");
 }
 
 TEST(pipeline_swift_qualified_and_return_identity_issue2061) {
     const char *qualified[] = {"pick(_:A/Item)", "pick(_:B/Item)"};
-    return swift_declaration_identity_case(
-                  qualified, 2,
-                  "class Service {\nfunc pick(_ x: A.Item) { mark0() }\n"
-                  "func pick(_ x: B.Item) { mark1() }\n}\n"
-                  "func mark0() {}\nfunc mark1() {}\n"
-                  "enum A { struct Item {} }\nenum B { struct Item {} }\n",
-                  "class Caller {\nlet service = Service()\n"
-                  "func invoke() { self.service.pick(value) }\n}\n");
+    return swift_declaration_identity_case(qualified, 2,
+                                           "class Service {\nfunc pick(_ x: A.Item) { mark0() }\n"
+                                           "func pick(_ x: B.Item) { mark1() }\n}\n"
+                                           "func mark0() {}\nfunc mark1() {}\n"
+                                           "enum A { struct Item {} }\nenum B { struct Item {} }\n",
+                                           "class Caller {\nlet service = Service()\n"
+                                           "func invoke() { self.service.pick(value) }\n}\n");
 }
 
 TEST(pipeline_swift_return_identity_issue2061) {

@@ -134,7 +134,8 @@ static const sig_case_t k_cases[] = {
      "class C { subscript(index i: Int) -> Int { return 0 } }", "subscript_declaration", 0,
      "(index:Int)=>Int"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
-     "class C { static func + (l: C, r: C) -> C { l } }", "function_declaration", 0, "(l:C,r:C)=>C"},
+     "class C { static func + (l: C, r: C) -> C { l } }", "function_declaration", 0,
+     "(l:C,r:C)=>C"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func extra() {}", "function_declaration", 0,
      "()"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f<T>(_ x: T) {}", "function_declaration",
@@ -167,11 +168,10 @@ static const sig_case_t k_cases[] = {
      "function_declaration", 0, "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f ( _ x : [ A /* comment */ . Item ], body : ( B.Item ) -> A.Item ) async "
-     "-> ( A.Item, [ B.Item ] ) {}", "function_declaration", 0,
-     "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
-    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
-     "func f() -> (A.Item) -> B.Item {}", "function_declaration", 0,
-     "()=>(A/Item)=>B/Item"},
+     "-> ( A.Item, [ B.Item ] ) {}",
+     "function_declaration", 0, "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f() -> (A.Item) -> B.Item {}",
+     "function_declaration", 0, "()=>(A/Item)=>B/Item"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f<T,U>(_ x: T, _ y: U) -> Int where T == Box<[Int]>, U == () -> Void {}",
      "function_declaration", 0, "<T,U;where T==Box<[Int]>,U==()=>Void>(_:T,_:U)=>Int"},
@@ -263,19 +263,18 @@ TEST(callable_sig_cap_keeps_identity) {
     cbm_arena_destroy(&a);
     n = (size_t)snprintf(src_a, sizeof(src_a), "func f() -> (");
     for (int i = 0; i < 24; i++) {
-        n += (size_t)snprintf(src_a + n, sizeof(src_a) - n, "%sA.VeryLongType%d",
-                             i ? "," : "", i);
+        n += (size_t)snprintf(src_a + n, sizeof(src_a) - n, "%sA.VeryLongType%d", i ? "," : "", i);
     }
     memcpy(src_b, src_a, n);
     snprintf(src_a + n, sizeof(src_a) - n, ",A.Last) {}");
     snprintf(src_b + n, sizeof(src_b) - n, ",B.Last) {}");
     cbm_arena_init(&a);
-    sa = sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a,
-                "function_declaration", 0);
-    sa2 = sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a,
-                 "function_declaration", 0);
-    sb = sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_b,
-                "function_declaration", 0);
+    sa =
+        sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a, "function_declaration", 0);
+    sa2 =
+        sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a, "function_declaration", 0);
+    sb =
+        sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_b, "function_declaration", 0);
     ASSERT_NOT_NULL(sa);
     ASSERT_NOT_NULL(sb);
     ASSERT_TRUE(strlen(sa) <= CBM_CALLABLE_SIG_MAX);

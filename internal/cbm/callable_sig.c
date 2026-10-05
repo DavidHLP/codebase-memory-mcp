@@ -1260,8 +1260,8 @@ size_t cbm_callable_return_offset(const char *suffix) {
         char ch = suffix[i];
         bool arrow = ch == '=' && suffix[i + 1] == '>';
         bool after_params = i && (suffix[i - 1] == ')' ||
-                                   (i >= SIG_ASYNC_LEN &&
-                                    memcmp(suffix + i - SIG_ASYNC_LEN, "async", SIG_ASYNC_LEN) == 0));
+                                  (i >= SIG_ASYNC_LEN && memcmp(suffix + i - SIG_ASYNC_LEN, "async",
+                                                                SIG_ASYNC_LEN) == 0));
         if (arrow && after_params && parens == 0 && brackets == 0 && angles == 0) {
             return sig_return_type_valid(suffix + i + SIG_ARROW_LEN) ? i : 0;
         }
