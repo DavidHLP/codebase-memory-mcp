@@ -298,18 +298,29 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
     char legacy_qn[512], wrong_qn[512];
     snprintf(legacy_qn, sizeof(legacy_qn), "%s.Service.pick(_:T)", lp.project);
     snprintf(wrong_qn, sizeof(wrong_qn), "%s.Service.wrong()", lp.project);
-    cbm_node_t legacy = {.project = lp.project, .label = "Function", .name = "pick",
-                         .qualified_name = legacy_qn, .file_path = "Service.swift",
-                         .start_line = 2, .end_line = 2};
-    cbm_node_t wrong = {.project = lp.project, .label = "Function", .name = "wrong",
-                        .qualified_name = wrong_qn, .file_path = "Service.swift",
-                        .start_line = 6, .end_line = 6};
+    cbm_node_t legacy = {.project = lp.project,
+                         .label = "Function",
+                         .name = "pick",
+                         .qualified_name = legacy_qn,
+                         .file_path = "Service.swift",
+                         .start_line = 2,
+                         .end_line = 2};
+    cbm_node_t wrong = {.project = lp.project,
+                        .label = "Function",
+                        .name = "wrong",
+                        .qualified_name = wrong_qn,
+                        .file_path = "Service.swift",
+                        .start_line = 6,
+                        .end_line = 6};
     int64_t legacy_id = cbm_store_upsert_node(s, &legacy);
     int64_t wrong_id = cbm_store_upsert_node(s, &wrong);
     ASSERT_GT(legacy_id, 0);
     ASSERT_GT(wrong_id, 0);
-    cbm_edge_t stale = {.project = lp.project, .source_id = wrong_id, .target_id = legacy_id,
-                       .type = "CALLS", .properties_json = "{\"candidates\":1}"};
+    cbm_edge_t stale = {.project = lp.project,
+                        .source_id = wrong_id,
+                        .target_id = legacy_id,
+                        .type = "CALLS",
+                        .properties_json = "{\"candidates\":1}"};
     ASSERT_GT(cbm_store_insert_edge(s, &stale), 0);
     ASSERT_EQ(cbm_store_set_format_version(s, 2), CBM_STORE_OK);
     cbm_store_close(s);
@@ -330,7 +341,8 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
         ASSERT_EQ(cbm_store_find_node_by_qn(s, lp.project, legacy_qn, &old), CBM_STORE_NOT_FOUND);
         cbm_node_t *picks = NULL;
         int count = 0;
-        ASSERT_EQ(cbm_store_find_nodes_by_name(s, lp.project, "pick", &picks, &count), CBM_STORE_OK);
+        ASSERT_EQ(cbm_store_find_nodes_by_name(s, lp.project, "pick", &picks, &count),
+                  CBM_STORE_OK);
         ASSERT_EQ(count, 2);
         cbm_node_t caller = {0}, bad = {0};
         char qn[512];
@@ -339,10 +351,12 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
         ASSERT_EQ(cbm_store_find_node_by_qn(s, lp.project, wrong_qn, &bad), CBM_STORE_OK);
         cbm_edge_t *edges = NULL;
         int n = 0;
-        ASSERT_EQ(cbm_store_find_edges_by_source_type(s, bad.id, "CALLS", &edges, &n), CBM_STORE_OK);
+        ASSERT_EQ(cbm_store_find_edges_by_source_type(s, bad.id, "CALLS", &edges, &n),
+                  CBM_STORE_OK);
         ASSERT_EQ(n, 0);
         cbm_store_free_edges(edges, n);
-        ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &n), CBM_STORE_OK);
+        ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &n),
+                  CBM_STORE_OK);
         ASSERT_EQ(n, 2);
         for (int i = 0; i < 2; i++) {
             ASSERT_TRUE(edges[i].target_id == picks[0].id || edges[i].target_id == picks[1].id);

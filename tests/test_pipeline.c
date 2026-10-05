@@ -8522,10 +8522,12 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
 /* Distinct declarations retain their own source ranges and outgoing edges;
  * labels/arity alone cannot choose generic constraints or sync vs async. */
 TEST(pipeline_swift_generic_async_identity_issue2061) {
-    const char *suffixes[] = {"pick<T>(_:T)", "pick<T:Equatable>(_:T)",
-                             "pick<T;where T:Hashable>(_:T)",
-                             "pick<T;where T:Comparable>(_:T)", "pick(_:Int)",
-                             "pick(_:Int)async"};
+    const char *suffixes[] = {"pick<T>(_:T)",
+                              "pick<T:Equatable>(_:T)",
+                              "pick<T;where T:Hashable>(_:T)",
+                              "pick<T;where T:Comparable>(_:T)",
+                              "pick(_:Int)",
+                              "pick(_:Int)async"};
     for (int mode = 0; mode < 2; mode++) {
         char tmp[256];
         snprintf(tmp, sizeof(tmp), "/tmp/cbm_swift_generic_XXXXXX");
@@ -8908,8 +8910,8 @@ static int swift_incompatible_overload_fixture(bool parallel) {
     ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, gets[0].id), 0);
     /* Fault injection: the same checker must detect an incompatible edge,
      * which would make the preceding negative assertion fail in either path. */
-    cbm_edge_t injected = {.project = project, .source_id = wrong.id,
-                           .target_id = gets[0].id, .type = "CALLS"};
+    cbm_edge_t injected = {
+        .project = project, .source_id = wrong.id, .target_id = gets[0].id, .type = "CALLS"};
     ASSERT_GT(cbm_store_insert_edge(s, &injected), 0);
     ASSERT_EQ(pipeline_has_calls_edge(s, wrong.id, gets[0].id), 1);
     cbm_store_free_nodes(gets, get_count);

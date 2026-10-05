@@ -1336,8 +1336,8 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         cbm_registry_set_swift_signature(r, generic_qns[i], 0, 1);
     }
     CBMCallArg generic_arg = {0};
-    CBMCall generic_call = {.callee_name = "Service.constrained", .args = &generic_arg,
-                            .arg_count = 1};
+    CBMCall generic_call = {
+        .callee_name = "Service.constrained", .args = &generic_arg, .arg_count = 1};
     ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 2);
     CBMCallArg args[3] = {{.keyword = "name"}};
     CBMCall call = {.callee_name = "Service.work", .args = args, .arg_count = 1};
