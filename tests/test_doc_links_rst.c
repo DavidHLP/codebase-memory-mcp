@@ -446,9 +446,11 @@ TEST(rst_links_incremental) {
 }
 
 SUITE(doc_links_rst) {
+    dm_ship_held_families();
     RUN_TEST(rst_scan_structure);
     RUN_TEST(rst_python_scope_blob);
     RUN_TEST(rst_links_pipeline);
     RUN_TEST(rst_adr_record);
     RUN_TEST(rst_links_incremental);
+    cbm_doclink_test_reset_ships();
 }

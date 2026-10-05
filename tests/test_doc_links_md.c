@@ -573,11 +573,42 @@ TEST(doc_links_md_adr) {
     PASS();
 }
 
+/* The production gate (doclink.h): families held back by the held-out audit
+ * write rows, not edges; the families that passed still write edges. */
+TEST(doc_links_md_ship_gate) {
+    for (size_t i = 0; i < sizeof(DM_HELD_FAMILIES) / sizeof(DM_HELD_FAMILIES[0]); i++) {
+        ASSERT_FALSE(cbm_doclink_syntax_ships(DM_HELD_FAMILIES[i]));
+    }
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_LINK));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_ROLE));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_ADOC_INCLUDE));
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlmdgate_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    md_write_fixture(tmp);
+    char db[512];
+    snprintf(db, sizeof(db), "%s/md.db", tmp);
+    ASSERT_EQ(dm_index(tmp, db, NULL), 0);
+    char props[512];
+    ASSERT_EQ(md_edge(db, "Guide", "config.go.__file__", props, sizeof(props)), 1);
+    ASSERT_EQ(md_edge(db, "Paths", "APIRouter.add", props, sizeof(props)), 0);
+    ASSERT_TRUE(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE "
+                             "reason = 'below_bar_tier' AND syntax = 'code_path'") > 0);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges WHERE type = 'MENTIONS' AND "
+                           "properties LIKE '%\"syntax\":\"code_path\"%'"),
+              0);
+    th_cleanup(tmp);
+    PASS();
+}
+
 SUITE(doc_links_md) {
+    dm_ship_held_families();
     RUN_TEST(doc_links_md_extract_tokens);
     RUN_TEST(doc_links_md_repeated_headings);
     RUN_TEST(doc_links_md_classify_span);
     RUN_TEST(doc_links_md_resolve);
     RUN_TEST(doc_links_md_incremental);
     RUN_TEST(doc_links_md_adr);
+    cbm_doclink_test_reset_ships();
+    RUN_TEST(doc_links_md_ship_gate);
 }

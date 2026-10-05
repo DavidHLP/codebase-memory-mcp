@@ -280,8 +280,10 @@ TEST(adoc_links_incremental) {
 }
 
 SUITE(doc_links_adoc) {
+    dm_ship_held_families();
     RUN_TEST(adoc_scan_structure);
     RUN_TEST(adoc_antora_scope_blob);
     RUN_TEST(adoc_links_pipeline);
     RUN_TEST(adoc_links_incremental);
+    cbm_doclink_test_reset_ships();
 }
