@@ -1133,6 +1133,48 @@ TEST(pdf_links_pipeline) {
     PASS();
 }
 
+/* A page's docstring keeps 256 KiB of its text and says where it was cut; a
+ * page's mentions still come from the whole text. */
+TEST(pdf_page_doc_bounded) {
+    enum { WORDS = 45000 }; /* 315 KB of text */
+    tp_buf_t c = {0};
+    tp_puts(&c, "BT /F1 12 Tf 72 700 Td (");
+    for (int i = 0; i < WORDS; i++) {
+        tp_puts(&c, "filler ");
+    }
+    tp_puts(&c, "src/tail/last.py) Tj ET");
+    tp_obj_t o[5] = {
+        {TP_CATALOG, NULL, 0},   {"<< /Type /Pages /Kids [3 0 R] /Count 1 >>", NULL, 0},
+        {TP_PAGE_F1_5, NULL, 0}, {TP_HELV, NULL, 0},
+        {"", c.p, c.n},
+    };
+    size_t len;
+    unsigned char *pdf = tp_pdf(o, 5, NULL, &len);
+    CBMFileResult *r =
+        cbm_extract_file((const char *)pdf, (int)len, CBM_LANG_PDF, "p", "doc.pdf", 0, NULL, NULL);
+    ASSERT_NOT_NULL(r);
+    const CBMDefinition *page = NULL;
+    for (int i = 0; i < r->defs.count; i++) {
+        if (strcmp(r->defs.items[i].label, "Section") == 0) {
+            page = &r->defs.items[i];
+        }
+    }
+    ASSERT_NOT_NULL(page);
+    ASSERT_NOT_NULL(page->docstring);
+    size_t dl = strlen(page->docstring);
+    ASSERT_TRUE(dl > 256 * 1024 && dl < 256 * 1024 + 128);
+    ASSERT_NOT_NULL(strstr(page->docstring, "[page text cut at 262144 of "));
+    bool tail = false;
+    for (int i = 0; i < r->doc_links.count; i++) {
+        tail = tail || strcmp(r->doc_links.items[i].raw, "src/tail/last.py") == 0;
+    }
+    ASSERT_TRUE(tail);
+    cbm_free_result(r);
+    free(pdf);
+    free(c.p);
+    PASS();
+}
+
 TEST(pdf_snippet_is_page_text) {
     char tmp[256] = "/tmp/cbm_dlpdf_snip_XXXXXX";
     ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
@@ -1222,6 +1264,7 @@ SUITE(doc_links_pdf) {
     RUN_TEST(pdf_scan_mentions);
     RUN_TEST(pdf_scan_join_linear);
     RUN_TEST(pdf_links_pipeline);
+    RUN_TEST(pdf_page_doc_bounded);
     RUN_TEST(pdf_snippet_is_page_text);
     RUN_TEST(pdf_links_incremental);
 }

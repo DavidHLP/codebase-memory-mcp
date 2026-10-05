@@ -45,6 +45,7 @@ enum {
     PDF_PAGE_NAME = 32,
     PDF_LIST_MIN = 64,
     PDF_U8_MAX = 4,
+    PDF_PAGE_DOC_MAX = 256 * 1024, /* bytes of a page's text kept as its docstring */
 };
 
 #define PDF_JOIN_SEP '\x1f'  /* between a join's forms */
@@ -1321,6 +1322,23 @@ static bool fixture_pdf(const char *rel_path) {
     }
 }
 
+/* A page's docstring (its snippet): the page text, up to PDF_PAGE_DOC_MAX bytes
+ * cut on a character boundary and then said so. A page holds a few kilobytes;
+ * only a crafted text layer reaches the bound, and the mentions are still read
+ * from the whole text. */
+static const char *page_doc(CBMArena *a, const cbm_pdf_page_t *pg) {
+    if (pg->len <= PDF_PAGE_DOC_MAX) {
+        return pg->text;
+    }
+    size_t cut = PDF_PAGE_DOC_MAX;
+    while (cut > 0 && ((unsigned char)pg->text[cut] & 0xC0U) == 0x80U) {
+        cut--; /* not inside a UTF-8 sequence */
+    }
+    const char *doc = cbm_arena_sprintf(a, "%.*s\n[page text cut at %zu of %zu bytes]", (int)cut,
+                                        pg->text, cut, pg->len);
+    return doc ? doc : pg->text;
+}
+
 void cbm_pdf_extract_document(CBMExtractCtx *ctx) {
     CBMFileResult *result = ctx->result;
     CBMArena *a = ctx->arena;
@@ -1364,7 +1382,7 @@ void cbm_pdf_extract_document(CBMExtractCtx *ctx) {
         def.start_line = page;
         def.end_line = page;
         def.is_exported = true;
-        def.docstring = pr.pages[i].len ? pr.pages[i].text : NULL;
+        def.docstring = pr.pages[i].len ? page_doc(a, &pr.pages[i]) : NULL;
         def.extra_props = kv;
         cbm_defs_push(&result->defs, a, def);
         if (!fixture && pr.pages[i].len) {
