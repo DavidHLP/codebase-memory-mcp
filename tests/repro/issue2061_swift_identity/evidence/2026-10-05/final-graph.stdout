@@ -1,0 +1,19 @@
+EVIDENCE root=/home/david/swift-delivery-20261005/final-graph mode=fast
+NODE name=work id=12 file=Sources/Service.swift lines=5-7 qn=issue2061-swift-identity.Sources.Service.Service.work(flag:Bool)
+NODE name=work id=13 file=Sources/Service.swift lines=10-12 qn=issue2061-swift-identity.Sources.Service.Service.work(name:String)
+NODE name=work id=12 file=Sources/Service.swift lines=5-7 qn=issue2061-swift-identity.Sources.Service.Service.work(flag:Bool)
+NODE name=work id=13 file=Sources/Service.swift lines=10-12 qn=issue2061-swift-identity.Sources.Service.Service.work(name:String)
+NODE name=target id=9 file=Sources/Sink.swift lines=2-2 qn=issue2061-swift-identity.Sources.Sink.Sink.target()
+NODE name=onlyCallsOverloadB id=17 file=Sources/Caller.swift lines=5-7 qn=issue2061-swift-identity.Sources.Caller.Caller.onlyCallsOverloadB()
+OBS two_work_nodes actual=2 expected=2 PASS
+OBS flag_node_at_5_7 actual=1 expected=1 PASS
+OBS name_node_at_10_12 actual=1 expected=1 PASS
+OBS target_node actual=1 expected=1 PASS
+OBS caller_node actual=1 expected=1 PASS
+OBS flag_calls_target actual=1 expected=1 PASS
+OBS name_does_not_call_target actual=0 expected=0 PASS
+OBS caller_calls_name actual=1 expected=1 PASS
+OBS caller_does_not_call_flag actual=0 expected=0 PASS
+INBOUND remaining_depth=3 source=12 target=9
+OBS target_inbound_depth3_has_no_false_caller actual=0 expected=0 PASS
+SUMMARY passed=10 failed=0 errors=0 exit=0

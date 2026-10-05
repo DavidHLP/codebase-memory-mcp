@@ -5,6 +5,134 @@ callable identity and conservative overload candidates, including candidate
 counts and multiple trailing closure labels. The scope remains one language,
 one claim.
 
+## Current main integration — 2026-10-05
+
+This section supersedes the readiness and dependency statements in the historical
+snapshots below. Those results retain their original tested SHA; they are not
+reruns of this delivery. The current implementation was tested at
+`0f294df8c1fc1be3b00e948150c2f54f06708cb3` (code checkpoint C).
+Any subsequent documentation-only commit preserves C's source inputs rather
+than claiming that tests ran against the later Git metadata.
+
+Parent #2342 merged as `01fd6cb5e680662d55b040703d6b08b128b8e10f` and is
+an ancestor of current main `268a9d8886642eb7f9b2ce45f5ce27cdecf0f519`.
+Merge `251c06ac988fe96059581dadd5b901428e7164ce` integrated main into
+`feat/issue-2061-swift-identity` without rewriting published history. PR #2436
+now targets main. Integration preserves upstream route-mount emission and adds
+the missing emitter arguments to the Swift paths. No parent implementation is
+duplicated in the main-relative diff.
+
+The additional regression fixes optional parameters preceding required
+parameters with the same label, including unlabeled parameters. The former
+greedy match could consume the required argument too early. Bounded cursor
+transitions now retain every compatible binding. The existing deterministic
+trailing-closure rules and variadic behavior remain in force. Serial and parallel
+pipeline tests assert candidate edges and counts, including incompatible labels;
+literal spelling is not used to guess overload types. Existing argument,
+parameter, bucket and shared signature limits remain documented limitations;
+the DAV-63 long-signature work is separate.
+
+### Executed checks
+
+All commands ran on **remote-dev**, not the local editing machine. Native host:
+omarchy, GCC/G++ 16.2.1 (20260810), glibc 2.44, eight CPUs. Evidence root:
+`/home/david/swift-delivery-20261005`. Logs, exit files, source provenance and
+executables are retained there. No sanitizer suppression was added.
+
+| Check at C | Command / evidence prefix | Result and limit |
+| --- | --- | --- |
+| Focused suites | `scripts/test.sh --suites extraction,callable_sig,registry,pipeline,index_format`; `final-code-focused` | **825 passed, exit 0**; two baseline ObjectScript UBSan diagnostics, so this aggregate is not sanitizer-clean |
+| Original graph reproduction | combined driver `graph .../final-graph`; `final-graph` | **10/10, exit 0**, ASan/UBSan/LSan clean; fresh production pipeline/store graph |
+| MCP presentation | combined driver `mcp issue2061-swift-identity`; `final-mcp` | **5/5, exit 0**, ASan/UBSan/LSan clean; all JSON envelopes and the exact text tree observed |
+| Pipeline TSan | `scripts/test.sh --tsan TEST_TSAN_SUITES=pipeline`; `final-tsan-pipeline` | **325 passed, exit 0**, including Swift serial/parallel overload, default and trailing-closure regressions; no TSan report |
+| Default broad TSan | `timeout 3600 scripts/test.sh --tsan`; `final-tsan` | **exit 124**, timed out in daemon-runtime suite before pipeline; not a completed broad pass |
+| Native production build | `scripts/build.sh BUILD_DIR=build/swift-production`; `final-production-build` | **exit 0**; native CLI startup fails before main in mimalloc/C++ locale initialization |
+| Ubuntu production build | `scripts/build.sh BUILD_DIR=build/swift-noble-prod`; `noble-production-build2` | **exit 0**, standard production allocator/flags; source mounted read-only |
+| Production CLI | index plus five queries; `noble-cli-*` | **index exit 0, five observations pass**, distinct signature display, counts, correct paths and exact text tree |
+| Full canonical entry | `scripts/test.sh`; `final-code-full-test` | **exit 1 at Step0x**, same Scoop newest-release metadata contract failure on main; dynamic suites/production guards not reached |
+| Full lint | `scripts/lint.sh`; intermediate `final-lint` and `baseline-lint` logs | **exit 2**, baseline clang-tidy diagnostics; final registry analysis has no diagnostics on main-relative added lines |
+| CI-mode lint | `timeout 900 scripts/lint.sh --ci`; `final-code-ci-lint` | memory-core check passes; **exit 124** during cppcheck, full lint acceptance incomplete |
+
+The baseline attribution is deliberately bounded. Main's ObjectScript UDL and
+routine scanner sources are byte-identical to C. Independent ASan/UBSan probes
+at main `268a9d88` reproduce both null-buffer/zero-length deserialize diagnostics
+at scanner.c lines 122 and 118, with `UBSAN_OPTIONS=halt_on_error=1`, each exit 1
+(`objectscript-udl` / `objectscript-routine`). This is a direct baseline control,
+not a claim that main's entire focused suite was rerun. These unrelated vendored
+scanners were not changed.
+
+The regression's semantic RED checkpoint is
+`233f5693a4302065ab8a680ce5c507aed95cec96`: integrated build fixes and the
+new test, but the old greedy matcher. `scripts/test.sh --suites registry` fails
+at test_registry.c:1369 (candidate count -1 instead of 2), with 78 passes and
+one failure. The assertion exits before registry cleanup, producing an LSan
+report of 77,323 bytes in 108 allocations. This is a failing RED run, not a clean
+sanitizer run. The earlier `b4e3daf0` attempt failed compilation and is not the
+semantic RED proof.
+
+For the original reproduction, an external launcher only renames the two
+existing drivers' main functions and graph counters, then dispatches `graph`
+or `mcp`. It compiles the unchanged production sources once through:
+
+```bash
+make -j4 -f Makefile.cbm build/c/test-runner \
+  ALL_TEST_SRCS=/home/david/swift-delivery-20261005/swift-combined-driver.c
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+timeout 180 build/c/test-runner graph "$evidence/final-graph"
+# After the graph writer closes, SQLite's backup API creates a fresh private
+# cache/issue2061-swift-identity.db from the persisted graph, without overwriting.
+CBM_CACHE_DIR="$evidence/mcp-cache" CBM_ALLOWED_ROOT="$evidence/final-graph/repo" \
+CBM_RUNTIME_DIR="$evidence/mcp-runtime" \
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 \
+UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+timeout 180 build/c/test-runner mcp issue2061-swift-identity
+```
+
+The fresh graph has two stored bare-name `work` nodes at lines 5–7 and 10–12,
+with label/type-qualified names. Only `work(flag:Bool)` calls target; the caller
+reaches only `work(name:String)`; target's depth-three inbound traversal has no
+false caller. MCP and CLI independently confirm signature-bearing display
+leaves, exact totals and paths. Stored bare names and displayed qualified-name
+leaves are separate contracts. Persistence, metadata restoration and index-format
+rebuild behavior are additionally covered by the current focused suites.
+
+Native startup is an environment failure: a minimal no-Swift C++ program linked
+with the exact production mimalloc object also crashes before main on glibc2.44.
+The same object/probe enters main successfully in the existing remote Docker
+image `codebase-memory-clang-tidy21:swift2061-noble-v1`, ID
+`sha256:e24dbbd5c42fea34b839fc435d7110b9c52263ce00378299a956950d6184725a`.
+This verified Ubuntu24.04.5/GCC13.3/glibc2.39 environment was therefore used for
+the actual production CLI, with network disabled and private cache/runtime.
+Git is absent inside this image, so build version metadata falls back to dev;
+host Git checks establish source C. The first container build stopped before
+compilation because Git was absent; only the second completed build is a pass.
+
+CLI commands are `cli --json index_repository --repo-path /evidence/cli-fixture
+--mode fast --name issue2061-swift-identity`, `search_graph --name-pattern
+'^work$' --format json --limit 20`, and `trace_path` for target inbound depth3,
+onlyCallsOverloadB outbound depth1, and the fully qualified name overload
+outbound depth1 (JSON, limit100, max-output-tokens3200). A fifth query requests
+target's default text tree. All use project `issue2061-swift-identity`.
+
+| Retained artifact | SHA-256 |
+| --- | --- |
+| Focused runner | `f0ca3564c49e7424336c2d336c10d9faaba6e160cf320969458e78968e1722cb` |
+| Focused log | `e32de50335b9016144df5ac103ed8d51a46ca2624e1c792e1a3c380565b9c83f` |
+| Combined launcher | `d920968ed9f19b265e806945485c3143969ec951fe5e9744ef5612956ce36f57` |
+| Combined driver executable | `24addf3107f959469b377d56732bcd81703e5c0d8b6b2d94d8cab7358c2174ad` |
+| Graph stdout | `8c1cb416f731229c684d058c184f7ed86d1b7fa986c35b4e006da08a133ce661` |
+| MCP stdout | `cebbf9a59dcd5de21118d56adb85a50228ca99f885c2b2522d1177d1095a3efd` |
+| CLI validator | `54c640bb3f28d912822fd11e73103706984d49a9a33ba812d1a86e1dbd454bb3` |
+| Ubuntu production executable | `c6aac37edc7efb39b1cd9ab4bf902675c6fa882110fc98fa8dccd6717cb5042d` |
+
+GitHub CI/DCO/CodeQL for C remain queued/pending at the publication checkpoint;
+the earlier starting-head DCO success is historical. Required checks and
+maintainer approval are not supplied by local evidence. Upstream review and
+merge remain external; no branch-protection bypass or approval substitution
+was attempted. DAV-61 is independently Done; DAV-62 remains future multilingual
+work. The rest of this document is historical evidence.
+
 ## Tested source
 
 The A-only checkpoint contains the seven Swift implementation and regression

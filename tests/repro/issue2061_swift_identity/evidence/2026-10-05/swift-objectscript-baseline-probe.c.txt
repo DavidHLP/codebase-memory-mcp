@@ -1,0 +1,24 @@
+#include <stddef.h>
+#include <string.h>
+
+void *tree_sitter_objectscript_udl_external_scanner_create(void);
+void tree_sitter_objectscript_udl_external_scanner_deserialize(void *, const char *, unsigned);
+void tree_sitter_objectscript_udl_external_scanner_destroy(void *);
+void *tree_sitter_objectscript_routine_external_scanner_create(void);
+void tree_sitter_objectscript_routine_external_scanner_deserialize(void *, const char *, unsigned);
+void tree_sitter_objectscript_routine_external_scanner_destroy(void *);
+
+int main(int argc, char **argv) {
+    if (argc != 2)
+        return 2;
+    if (strcmp(argv[1], "udl") == 0) {
+        void *p = tree_sitter_objectscript_udl_external_scanner_create();
+        tree_sitter_objectscript_udl_external_scanner_deserialize(p, NULL, 0);
+        tree_sitter_objectscript_udl_external_scanner_destroy(p);
+    } else {
+        void *p = tree_sitter_objectscript_routine_external_scanner_create();
+        tree_sitter_objectscript_routine_external_scanner_deserialize(p, NULL, 0);
+        tree_sitter_objectscript_routine_external_scanner_destroy(p);
+    }
+    return 0;
+}

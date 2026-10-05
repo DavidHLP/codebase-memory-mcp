@@ -1,0 +1,44 @@
+import json
+from pathlib import Path
+
+root = Path('/home/david/swift-delivery-20261005')
+results = {}
+for name in ('search', 'target', 'caller', 'name', 'tree'):
+    envelope = json.loads((root / f'noble-cli-{name}.json').read_text())
+    assert envelope['isError'] is False, name
+    content = envelope['content']
+    assert len(content) == 1 and content[0]['type'] == 'text', name
+    if name != 'tree':
+        data = json.loads(content[0]['text'])
+        assert envelope['structuredContent'] == data, name
+        results[name] = data
+    else:
+        expected = ('function: target\ndirection: inbound\ncallers_total: 1\n'
+                    'callers_total_relation: eq\ncallers: 1  (cols: qn hop)\n'
+                    '  issue2061-swift-identity.Sources.Service.Service.work(flag:Bool) 1\n')
+        assert content[0]['text'] == expected
+        assert 'structuredContent' not in envelope
+search = results['search']
+assert search['total'] == search['returned'] == search['count'] == 2
+assert search['has_more'] is False and search['truncated'] is False
+assert search['cols'] == ['name', 'label', 'lines', 'in', 'out']
+assert len(search['groups']) == 1
+group = search['groups'][0]
+assert group['qn_prefix'] == 'issue2061-swift-identity.Sources.Service.Service'
+assert group['file'] == 'Sources/Service.swift'
+assert sorted(group['rows']) == [['work(flag:Bool)', 'Method', '5-7', 0, 2],
+                               ['work(name:String)', 'Method', '10-12', 1, 0]]
+for name, direction, total, leaf in (('target', 'callers', 1, 'work(flag:Bool)'),
+                                     ('caller', 'callees', 1, 'work(name:String)'),
+                                     ('name', 'callees', 0, None)):
+    data = results[name]
+    assert data[f'{direction}_total'] == total
+    assert data[f'{direction}_total_relation'] == 'eq'
+    assert data[direction]['cols'] == ['name', 'hop']
+    groups = data[direction]['groups']
+    if total:
+        assert len(groups) == 1 and groups[0]['qn_prefix'] == group['qn_prefix']
+        assert groups[0]['rows'] == [[leaf, 1]]
+    else:
+        assert groups == []
+print('CLI observations: 5/5 PASS (JSON envelopes, signature display, paths/counts, tree)')
