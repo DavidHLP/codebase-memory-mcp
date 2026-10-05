@@ -8567,6 +8567,10 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
             cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
             ASSERT_NOT_NULL(p);
             ASSERT_EQ(cbm_pipeline_run(p), 0);
+            if (phase) {
+                ASSERT_EQ(cbm_pipeline_incremental_test_last_route(),
+                          CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+            }
             snprintf(project, sizeof(project), "%s", cbm_pipeline_project_name(p));
             cbm_store_t *s = cbm_store_open_path(db);
             ASSERT_NOT_NULL(s);
