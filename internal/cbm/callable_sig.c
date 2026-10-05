@@ -1284,7 +1284,8 @@ size_t cbm_callable_return_offset(const char *suffix) {
             brackets++;
         } else if (ch == ']') {
             brackets--;
-        } else if (ch == '<' && (angles > 0 || sig_ident_char((unsigned char)suffix[i + SIG_CHAR_LEN]))) {
+        } else if (ch == '<' &&
+                   (angles > 0 || sig_ident_char((unsigned char)suffix[i + SIG_CHAR_LEN]))) {
             angles++;
         } else if (ch == '>' && angles > 0 && (i == 0 || suffix[i - SIG_CHAR_LEN] != '=')) {
             angles--;
