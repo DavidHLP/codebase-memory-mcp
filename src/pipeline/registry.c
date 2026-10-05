@@ -1621,35 +1621,39 @@ static bool swift_parameter_add(swift_parameters_t *params, const char *entry, c
     return true;
 }
 
+/* Declaration requirements distinguish nodes, without proving applicability. */
+static size_t swift_generic_prefix_len(const char *sig, size_t n) {
+    unsigned depth = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (sig[i] == '<') {
+            depth++;
+        } else if (sig[i] == '>' && (i == 0 || sig[i - SKIP_ONE] != '=')) {
+            if (depth == 0) {
+                return 0;
+            }
+            if (--depth == 0) {
+                return i + SKIP_ONE;
+            }
+        }
+    }
+    return 0;
+}
+
 /* Split only at top-level commas; preserve the closure/variadic spelling rules. */
 static bool swift_parameters_read(const char *qn, const char *name, const swift_signature_t *meta,
                                   swift_parameters_t *params) {
     size_t base_len = cbm_qn_callable_base_len_named(qn, name);
     const char *sig = qn + base_len;
     size_t n = strlen(sig);
-    if (n >= 5 && memcmp(sig + n - 5, "async", 5) == 0) {
-        n -= 5;
+    const size_t async_len = sizeof("async") - SKIP_ONE;
+    if (n >= async_len && memcmp(sig + n - async_len, "async", async_len) == 0) {
+        n -= async_len;
     }
     /* Declaration generic requirements distinguish nodes, but do not prove
      * applicability. Read only params when selecting compatible candidates. */
     if (n && sig[0] == '<') {
-        unsigned depth = 0;
-        size_t i = 0;
-        for (; i < n; i++) {
-            if (sig[i] == '<') {
-                depth++;
-            } else if (sig[i] == '>' && (i == 0 || sig[i - 1] != '=')) {
-                if (depth == 0) {
-                    return false;
-                }
-                if (--depth != 0) {
-                    continue;
-                }
-                i++;
-                break;
-            }
-        }
-        if (depth || i >= n) {
+        size_t i = swift_generic_prefix_len(sig, n);
+        if (i == 0 || i >= n) {
             return false;
         }
         sig += i;

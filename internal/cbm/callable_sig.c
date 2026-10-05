@@ -22,6 +22,8 @@ enum {
     SIG_HASH_HEX = 16,                      /* FNV-1a 64 rendered as hex */
     SIG_OPERATOR_LEN = 8,                   /* strlen("operator") */
     SIG_CONST_LEN = 5,                      /* strlen("const") */
+    SIG_ASYNC_LEN = 5,                      /* strlen("async") */
+    SIG_CHAR_LEN = 1,
     SIG_VOLATILE_LEN = 8,                   /* strlen("volatile") */
     SIG_ARITY_DIGITS = 16,                  /* "(%d)" scratch */
     SIG_CAPPED_TAIL = 1 + SIG_HASH_HEX + 1, /* "#" hex ")" */
@@ -791,17 +793,17 @@ static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
     size_t start = c->len;
     if (!ts_node_is_null(params)) {
         sig_type_tokens(c, params);
-        if (c->len > start && c->buf[c->len - 1] == '>') {
+        if (c->len > start && c->buf[c->len - SIG_CHAR_LEN] == '>') {
             c->buf[--c->len] = '\0';
         }
     } else {
-        sig_raw(c, "<", 1);
+        sig_raw_str(c, "<");
     }
     if (!ts_node_is_null(requirements)) {
-        sig_raw(c, ";", 1);
+        sig_raw_str(c, ";");
         sig_type_tokens(c, requirements);
     }
-    sig_raw(c, ">", 1);
+    sig_raw_str(c, ">");
     for (size_t i = start; i < c->len; i++) {
         if (c->buf[i] == '.') {
             c->buf[i] = '/';
@@ -1068,7 +1070,7 @@ static void sig_render(sig_ctx_t *c, TSNode node) {
         uint32_t count = ts_node_child_count(node);
         for (uint32_t i = 0; i < count; i++) {
             if (sig_node_text_is(c, ts_node_child(node, i), "async")) {
-                sig_raw(c, "async", 5);
+                sig_raw_str(c, "async");
                 break;
             }
         }
@@ -1213,8 +1215,8 @@ size_t cbm_qn_callable_base_len(const char *qn) {
     size_t len = strlen(qn);
     /* Trailing cvref (C++): const / volatile / & / && after the ')'. */
     size_t t = len;
-    if (t >= 5 && memcmp(qn + t - 5, "async", 5) == 0) {
-        t -= 5;
+    if (t >= SIG_ASYNC_LEN && memcmp(qn + t - SIG_ASYNC_LEN, "async", SIG_ASYNC_LEN) == 0) {
+        t -= SIG_ASYNC_LEN;
     }
     for (;;) {
         if (t > 0 && qn[t - 1] == '&') {
@@ -1261,7 +1263,7 @@ size_t cbm_qn_callable_base_len(const char *qn) {
         size_t q = p;
         while (q > 0) {
             q--;
-            if (qn[q] == '>' && (q == 0 || qn[q - 1] != '=')) {
+            if (qn[q] == '>' && (q == 0 || qn[q - SIG_CHAR_LEN] != '=')) {
                 adepth++;
             } else if (qn[q] == '<') {
                 adepth--;
