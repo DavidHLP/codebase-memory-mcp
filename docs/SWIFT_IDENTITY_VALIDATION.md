@@ -23,10 +23,46 @@ The TS/HTML/SCSS rebuild regression remains.
 ## P2 repair evidence
 
 Review checkpoint: `500707c5b853da75a0a4fc7f1ae3b9364c04792e`. The previous
-generic/where/async, negative-target, migration and documentation findings remain
-resolved. New qualified-type and return-only collisions require independent
-RED/GREEN and final-source verification; the historical passes below do not
-establish acceptance of this repair.
+generic/where/async, negative-target, migration and documentation findings are
+Already Addressed. Complete test-only RED at
+`e3cd15a9c462cb294eafcc9ea39cbef90fafe22f` leaves production unchanged and
+independently reproduces both qualified-parameter and return-only collisions:
+one node instead of two. It exits 1; failed-assert cleanup also reports leaks.
+
+Tested repair source: `10f4769779c8ec63d509b7884219187a0e7a1939`.
+Build/test/lint ran on remote-dev with the environment listed below. Subsequent
+evidence-only commits do not imply reruns at their SHA. All times are UTC on
+2026-10-05.
+
+| Command/path | Time | Exit/result |
+| --- | --- | --- |
+| Seven focused suites listed below | 08:52:55–09:27:22 | 0; 909 passes, two ObjectScript UBSan reports; **not sanitizer-clean** |
+| `scripts/test.sh --tsan TEST_TSAN_SUITES=pipeline` | 08:47:26–09:16:01 | 0; 328 passes |
+| Strict graph / real JSON-RPC MCP drivers | 09:20:01–09:20:24 | 0 / 0; 10/10 and 5/5 observations, no sanitizer reports |
+| CI lint, unchanged rules with Cppcheck `-j4` | 09:02:08–09:16:35 | 0; complete retry after retained 900s timeout/124 |
+| `scripts/build.sh BUILD_DIR=build/p2-prod` | 08:38:32–08:56:39 | 0; isolated clean production build |
+| Production `--version` / `--help` | 08:57:04 | 139 / 139; same startup stack as historical main control |
+| `scripts/test.sh`, real stable tags | 08:34:54–08:36:29 | 1; Scoop metadata preflight, full C suite not reached |
+| Targeted `lint-tidy` on signature/registry | 09:06:39–09:06:45 | 2; existing diagnostics remain; not a full lint pass |
+| Formatter/whitespace/DCO range | 08:38:33–08:38:38 | 0; 48 nonmerge commits signed off at tested source |
+
+The new pipeline cases verify separate nodes/source positions/outgoing edges,
+all compatible candidate edges/counts, workers 1/4 and persisted incremental
+repair. Format 3 collision/stale-CALLS migration and the retained cross-language
+rebuild regression pass. Operator, nested generic requirements, return parsing
+and capped-identity regressions also pass. Full-context independent static
+reviews found no unresolved material findings; static review is not execution.
+
+[Public readable summary, complete logs and SHA/time/exit metadata](https://gist.github.com/DavidHLP/a10894c5c6926dc7c0dd874b3998dded)
+include RED/GREEN, all five MCP responses, current and historical log tails,
+binary hashes and a raw-log checksum manifest. Clone the gist for complete files
+when web previews truncate. Targeted old-production lint also reports inverse
+complexity 42; new return helpers have no remaining targeted diagnostics. Full
+clang-tidy is not green. Runtime report attribution remains unconfirmed; current
+macOS/Windows and Ubuntu production CLI semantics remain unexecuted. The tagless
+diagnostic full-test timeout and interrupted duplicate-object driver build are
+retained separately from completed gates. Maintainer identity-format agreement,
+upstream checks and approval remain required before merge.
 
 ## Previous repair evidence (historical)
 
