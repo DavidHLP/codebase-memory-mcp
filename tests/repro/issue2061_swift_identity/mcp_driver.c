@@ -70,8 +70,7 @@ static bool rows(yyjson_val *obj, const char *project, bool search, const char *
             if (search) {
                 snprintf(wanted, sizeof(wanted), "%s.Sources.Service.Service.work(flag:Bool)",
                          project);
-                if (strcmp(qn, wanted) == 0 &&
-                    yyjson_equals_str(yyjson_arr_get(row, 2), "5-7"))
+                if (strcmp(qn, wanted) == 0 && yyjson_equals_str(yyjson_arr_get(row, 2), "5-7"))
                     flag++;
                 else {
                     snprintf(wanted, sizeof(wanted), "%s.Sources.Service.Service.work(name:String)",
@@ -101,7 +100,8 @@ static void request(cbm_mcp_server_t *srv, const char *project, int id, const ch
     snprintf(label, sizeof(label), "request_%d", id);
     int n = snprintf(input, sizeof(input),
                      "{\"jsonrpc\":\"2.0\",\"id\":%d,\"method\":\"tools/call\","
-                     "\"params\":{\"name\":\"%s\",\"arguments\":%s}}", id, tool, args);
+                     "\"params\":{\"name\":\"%s\",\"arguments\":%s}}",
+                     id, tool, args);
     if (n < 0 || n >= (int)sizeof(input)) {
         errors++;
         return;
@@ -132,7 +132,8 @@ static void request(cbm_mcp_server_t *srv, const char *project, int id, const ch
         snprintf(wanted, sizeof(wanted),
                  "function: target\ndirection: inbound\ncallers_total: 1\n"
                  "callers_total_relation: eq\ncallers: 1  (cols: qn hop)\n"
-                 "  %s.Sources.Service.Service.work(flag:Bool) 1\n", project);
+                 "  %s.Sources.Service.Service.work(flag:Bool) 1\n",
+                 project);
         check(label, !structured && strcmp(text, wanted) == 0);
     } else {
         yyjson_doc *payload = yyjson_read(text, strlen(text), 0);
@@ -158,8 +159,8 @@ static void request(cbm_mcp_server_t *srv, const char *project, int id, const ch
 }
 
 int main(int argc, char **argv) {
-    if (argc != 2 || strcmp(argv[1], "issue2061-swift-identity") != 0 ||
-        !getenv("CBM_CACHE_DIR") || !getenv("CBM_ALLOWED_ROOT")) {
+    if (argc != 2 || strcmp(argv[1], "issue2061-swift-identity") != 0 || !getenv("CBM_CACHE_DIR") ||
+        !getenv("CBM_ALLOWED_ROOT")) {
         fprintf(stderr, "usage: mcp-driver issue2061-swift-identity; set isolated "
                         "CBM_CACHE_DIR and CBM_ALLOWED_ROOT\n");
         return 2;
@@ -171,25 +172,31 @@ int main(int argc, char **argv) {
     cbm_mcp_server_set_background_tasks(srv, false);
     cbm_mcp_server_set_tool_profile(srv, CBM_MCP_TOOL_PROFILE_ANALYSIS);
     if (!cbm_mcp_server_set_session_context(srv, getenv("CBM_ALLOWED_ROOT"),
-                                           getenv("CBM_ALLOWED_ROOT"))) {
+                                            getenv("CBM_ALLOWED_ROOT"))) {
         cbm_mcp_server_free(srv);
         return 2;
     }
     char args[2048];
-    snprintf(args, sizeof(args), "{\"project\":\"%s\",\"name_pattern\":\"^work$\","
-             "\"format\":\"json\",\"limit\":20}", project);
+    snprintf(args, sizeof(args),
+             "{\"project\":\"%s\",\"name_pattern\":\"^work$\","
+             "\"format\":\"json\",\"limit\":20}",
+             project);
     request(srv, project, 1, "search_graph", args, true, false, NULL, 2);
     for (int id = 2; id <= 5; id++) {
-        const char *function = id <= 3 ? "target" : id == 4 ? "onlyCallsOverloadB" :
-            "issue2061-swift-identity.Sources.Service.Service.work(name:String)";
-        snprintf(args, sizeof(args), "{\"project\":\"%s\",\"function_name\":\"%s\","
+        const char *function =
+            id <= 3   ? "target"
+            : id == 4 ? "onlyCallsOverloadB"
+                      : "issue2061-swift-identity.Sources.Service.Service.work(name:String)";
+        snprintf(args, sizeof(args),
+                 "{\"project\":\"%s\",\"function_name\":\"%s\","
                  "\"direction\":\"%s\",\"depth\":%d,\"limit\":100,"
-                 "\"max_output_tokens\":3200%s}", project, function,
-                 id <= 3 ? "inbound" : "outbound", id <= 3 ? 3 : 1,
+                 "\"max_output_tokens\":3200%s}",
+                 project, function, id <= 3 ? "inbound" : "outbound", id <= 3 ? 3 : 1,
                  id == 3 ? "" : ",\"format\":\"json\"");
         request(srv, project, id, "trace_path", args, false, id == 3,
-                id == 2 ? "Sources.Service.Service.work(flag:Bool)" :
-                          "Sources.Service.Service.work(name:String)", id == 5 ? 0 : 1);
+                id == 2 ? "Sources.Service.Service.work(flag:Bool)"
+                        : "Sources.Service.Service.work(name:String)",
+                id == 5 ? 0 : 1);
     }
     cbm_mcp_server_free(srv);
     int rc = errors ? 2 : failed ? 1 : 0;

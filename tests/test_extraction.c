@@ -2115,11 +2115,11 @@ TEST(swift_method_call) {
 }
 
 TEST(swift_multiple_trailing_closure_extraction) {
-    CBMFileResult *r = extract(
-        "func outer() { service.handle { nested() } onError: { recover() } }\n"
-        "func one() { service.run { nested() } }\n"
-        "func incomplete() { service.handle { } onError: { recover( } }\n",
-        CBM_LANG_SWIFT, "t", "Calls.swift");
+    CBMFileResult *r =
+        extract("func outer() { service.handle { nested() } onError: { recover() } }\n"
+                "func one() { service.run { nested() } }\n"
+                "func incomplete() { service.handle { } onError: { recover( } }\n",
+                CBM_LANG_SWIFT, "t", "Calls.swift");
     ASSERT_NOT_NULL(r);
     ASSERT_FALSE(r->has_error);
     CBMCall *multi = NULL;
@@ -5050,10 +5050,11 @@ TEST(swift_non_url_constructor_untouched_issue1892) {
  * the per-file constant map and resolved at the call site, for both return
  * statements and arrow expression bodies. */
 TEST(extract_ts_await_generic_call_issue2210) {
-    CBMFileResult *r = extract("function parseJsonBody<T>() { return {} as T; }\n"
-                               "async function plain() { return await parseJsonBody(); }\n"
-                               "async function generic() { return await parseJsonBody<string>(); }\n",
-                               CBM_LANG_TYPESCRIPT, "t", "await.ts");
+    CBMFileResult *r =
+        extract("function parseJsonBody<T>() { return {} as T; }\n"
+                "async function plain() { return await parseJsonBody(); }\n"
+                "async function generic() { return await parseJsonBody<string>(); }\n",
+                CBM_LANG_TYPESCRIPT, "t", "await.ts");
     ASSERT_NOT_NULL(r);
     ASSERT_FALSE(r->has_error);
     ASSERT_EQ(count_calls_named(r, "parseJsonBody"), 2);

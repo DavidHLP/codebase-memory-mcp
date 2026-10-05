@@ -1690,6 +1690,19 @@ static int swift_variadic_advance(const CBMCall *call, int arg, bool label_match
     return arg;
 }
 
+static uint16_t swift_trailing_advance(const swift_parameters_t *params,
+                                       const swift_signature_t *meta, const CBMCall *call,
+                                       unsigned i, unsigned total, uint16_t states) {
+    uint16_t next = 0;
+    for (unsigned used = 0; used < total; used++) {
+        if ((states & (UINT16_C(1) << used)) &&
+            swift_trailing_binds(meta, call, params, i, total, used)) {
+            next |= (uint16_t)(UINT16_C(1) << (used + SKIP_ONE));
+        }
+    }
+    return next;
+}
+
 static bool swift_parameters_match(const swift_parameters_t *params, const swift_signature_t *meta,
                                    const CBMCall *call) {
     /* Preserve the legacy bool as one unlabelled closure for manual callers. */
@@ -1697,34 +1710,47 @@ static bool swift_parameters_match(const swift_parameters_t *params, const swift
     if (trailing_total == 0 && call->swift_trailing_closure) {
         trailing_total = SKIP_ONE;
     }
-    unsigned trailing_used = 0;
-    int arg = 0;
+    /* Each argument cursor retains the reachable trailing-closure counts.
+     * A matching label must not greedily consume an earlier default when
+     * the same label is needed by a later required parameter. */
+    uint16_t states[CBM_MAX_CALL_ARGS + SKIP_ONE] = {1};
     for (unsigned i = 0; i < params->count; i++) {
-        bool label_matches = swift_argument_label_matches(params, call, i, arg);
-        bool takes_trailing =
-            swift_trailing_binds(meta, call, params, i, trailing_total, trailing_used);
-        if (params->variadics[i]) {
-            arg = swift_variadic_advance(call, arg, label_matches);
-            if (takes_trailing && arg == call->arg_count) {
-                trailing_used++;
+        uint16_t next[CBM_MAX_CALL_ARGS + SKIP_ONE] = {0};
+        for (int arg = 0; arg <= call->arg_count; arg++) {
+            if (!states[arg]) {
+                continue;
             }
-            continue;
+            uint16_t trailing =
+                arg == call->arg_count
+                    ? swift_trailing_advance(params, meta, call, i, trailing_total, states[arg])
+                    : 0;
+            if (params->variadics[i] || (meta->defaults & (UINT64_C(1) << i))) {
+                /* After explicit arguments, preserve the first eligible
+                 * trailing binding instead of skipping it to a later one. */
+                next[arg] |= states[arg] & (uint16_t)~(trailing >> SKIP_ONE);
+            }
+            if (swift_argument_label_matches(params, call, i, arg)) {
+                int end =
+                    params->variadics[i] ? swift_variadic_advance(call, arg, true) : arg + SKIP_ONE;
+                next[end] |= states[arg];
+                if (params->variadics[i] && end == call->arg_count) {
+                    next[end] |= swift_trailing_advance(params, meta, call, i, trailing_total,
+                                                       states[arg]);
+                }
+            }
+            next[arg] |= trailing;
         }
-        if (label_matches) {
-            arg++;
-        } else if (takes_trailing && arg == call->arg_count) {
-            trailing_used++;
-        } else if ((meta->defaults & (UINT64_C(1) << i)) == 0) {
-            return false;
-        }
+        memcpy(states, next, sizeof(states));
     }
-    return arg == call->arg_count && trailing_used == trailing_total;
+    return (states[call->arg_count] & (UINT16_C(1) << trailing_total)) != 0;
 }
 
 static bool swift_signature_matches(const char *qn, const char *name, const swift_signature_t *meta,
                                     const CBMCall *call) {
-    if (!meta || meta->count == UINT8_MAX || call->swift_args_truncated ||
-        call->swift_trailing_truncated || call->swift_trailing_count > CBM_MAX_TRAILING_CLOSURES) {
+    if (!meta || meta->count == UINT8_MAX || call->arg_count < 0 ||
+        call->arg_count > CBM_MAX_CALL_ARGS || (call->arg_count > 0 && !call->args) ||
+        call->swift_args_truncated || call->swift_trailing_truncated ||
+        call->swift_trailing_count > CBM_MAX_TRAILING_CLOSURES) {
         return false;
     }
     swift_parameters_t params;

@@ -8293,50 +8293,54 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
                     "class Sink {\n"
                     "    func target() {}\n"
                     "}\n");
-    write_temp_file(tmp, "Sources/Service.swift",
-                    "class Service {\n"
-                    "    let sink = Sink()\n"
-                    "\n"
-                    "    // Overload A: DOES call target()\n"
-                    "    func work(flag: Bool) {\n"
-                    "        self.sink.target()\n"
-                    "    }\n"
-                    "\n"
-                    "    // Overload B: does NOT call target()\n"
-                    "    func work(name: String) {\n"
-                    "        print(name)\n"
-                    "    }\n"
-                    "    func upload(_ data: Data, to url: URL) { sink.target() }\n"
-                    "    func upload(_ fileURL: URL, to url: URL) { print(fileURL) }\n"
-                    "    func record(path: String, session: URLSession) {}\n"
-                    "    func withDefault(message: String, flag: Bool = true) { sink.target() }\n"
-                    "    func withCallback(completion: () -> Void) { sink.target() }\n"
-                    "    func many(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int) {}\n"
-                    "    func handle(completion: () -> Void) { sink.target() }\n"
-                    "    func handle(completion: () -> Void, onError: () -> Void) { sink.target() }\n"
-                    "}\n");
-    write_temp_file(tmp, "Sources/Caller.swift",
-                    "class Caller {\n"
-                    "    let service = Service()\n"
-                    "\n"
-                    "    // Calls ONLY overload B, which never reaches target()\n"
-                    "    func onlyCallsOverloadB() {\n"
-                    "        self.service.work(name: \"x\")\n"
-                    "    }\n"
-                    "    func callAmbiguousUpload() {\n"
-                    "        self.service.upload(Data(), to: URL(string: \"/x\")!)\n"
-                    "    }\n"
-                    "    func callWithDefault() { self.service.withDefault(message: \"x\") }\n"
-                    "    func callWithClosure() { self.service.withCallback { } }\n"
-                    "    func callRecord() { self.service.record(path: \"/audit\", session: URLSession.shared) }\n"
-                    "    func callManyWithComment() {\n"
-                    "        self.service.many(a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 // trailing comment\n"
-                    "        )\n"
-                    "    }\n"
-                    "    func callHandle() { self.service.handle { } onError: { } }\n"
-                    "    func callHandleWrongLabel() { self.service.handle { } bogus: { } }\n"
-                    "    func callHandleIncomplete() { self.service.handle { } onError: { recover( } }\n"
-                    "}\n");
+    write_temp_file(
+        tmp, "Sources/Service.swift",
+        "class Service {\n"
+        "    let sink = Sink()\n"
+        "\n"
+        "    // Overload A: DOES call target()\n"
+        "    func work(flag: Bool) {\n"
+        "        self.sink.target()\n"
+        "    }\n"
+        "\n"
+        "    // Overload B: does NOT call target()\n"
+        "    func work(name: String) {\n"
+        "        print(name)\n"
+        "    }\n"
+        "    func upload(_ data: Data, to url: URL) { sink.target() }\n"
+        "    func upload(_ fileURL: URL, to url: URL) { print(fileURL) }\n"
+        "    func record(path: String, session: URLSession) {}\n"
+        "    func withDefault(message: String, flag: Bool = true) { sink.target() }\n"
+        "    func withCallback(completion: () -> Void) { sink.target() }\n"
+        "    func many(a: Int, b: Int, c: Int, d: Int, e: Int, f: Int, g: Int, h: Int) {}\n"
+        "    func handle(completion: () -> Void) { sink.target() }\n"
+        "    func handle(completion: () -> Void, onError: () -> Void) { sink.target() }\n"
+        "}\n");
+    write_temp_file(
+        tmp, "Sources/Caller.swift",
+        "class Caller {\n"
+        "    let service = Service()\n"
+        "\n"
+        "    // Calls ONLY overload B, which never reaches target()\n"
+        "    func onlyCallsOverloadB() {\n"
+        "        self.service.work(name: \"x\")\n"
+        "    }\n"
+        "    func callAmbiguousUpload() {\n"
+        "        self.service.upload(Data(), to: URL(string: \"/x\")!)\n"
+        "    }\n"
+        "    func callWithDefault() { self.service.withDefault(message: \"x\") }\n"
+        "    func callWithClosure() { self.service.withCallback { } }\n"
+        "    func callRecord() { self.service.record(path: \"/audit\", session: URLSession.shared) "
+        "}\n"
+        "    func callManyWithComment() {\n"
+        "        self.service.many(a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8 // trailing "
+        "comment\n"
+        "        )\n"
+        "    }\n"
+        "    func callHandle() { self.service.handle { } onError: { } }\n"
+        "    func callHandleWrongLabel() { self.service.handle { } bogus: { } }\n"
+        "    func callHandleIncomplete() { self.service.handle { } onError: { recover( } }\n"
+        "}\n");
 
     char db_path[512];
     snprintf(db_path, sizeof(db_path), "%s/swiftoverload.db", tmp);
@@ -8403,10 +8407,10 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     snprintf(closure_caller_qn, sizeof(closure_caller_qn),
              "%s.Sources.Caller.Caller.callWithClosure()", project);
     char record_qn[512], record_caller_qn[512], many_qn[512], many_caller_qn[512];
-    snprintf(record_qn, sizeof(record_qn), "%s.Sources.Service.Service.record(path:String,session:URLSession)",
+    snprintf(record_qn, sizeof(record_qn),
+             "%s.Sources.Service.Service.record(path:String,session:URLSession)", project);
+    snprintf(record_caller_qn, sizeof(record_caller_qn), "%s.Sources.Caller.Caller.callRecord()",
              project);
-    snprintf(record_caller_qn, sizeof(record_caller_qn),
-             "%s.Sources.Caller.Caller.callRecord()", project);
     snprintf(many_qn, sizeof(many_qn),
              "%s.Sources.Service.Service.many(a:Int,b:Int,c:Int,d:Int,e:Int,f:Int,g:Int,h:Int)",
              project);
@@ -8461,8 +8465,8 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
              "%s.Sources.Service.Service.handle(completion:()=>Void)", project);
     snprintf(handle_two_qn, sizeof(handle_two_qn),
              "%s.Sources.Service.Service.handle(completion:()=>Void,onError:()=>Void)", project);
-    snprintf(handle_caller_qn, sizeof(handle_caller_qn),
-             "%s.Sources.Caller.Caller.callHandle()", project);
+    snprintf(handle_caller_qn, sizeof(handle_caller_qn), "%s.Sources.Caller.Caller.callHandle()",
+             project);
     snprintf(handle_wrong_qn, sizeof(handle_wrong_qn),
              "%s.Sources.Caller.Caller.callHandleWrongLabel()", project);
     snprintf(handle_incomplete_qn, sizeof(handle_incomplete_qn),
@@ -8471,18 +8475,21 @@ TEST(pipeline_swift_overloads_keep_argument_labels_issue2061) {
     cbm_node_t handle_wrong_caller = {0}, handle_incomplete_caller = {0};
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_one_qn, &handle_one), CBM_STORE_OK);
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_two_qn, &handle_two), CBM_STORE_OK);
-    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_caller_qn, &handle_caller), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_caller_qn, &handle_caller),
+              CBM_STORE_OK);
     ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_wrong_qn, &handle_wrong_caller),
               CBM_STORE_OK);
-    ASSERT_EQ(cbm_store_find_node_by_qn(s, project, handle_incomplete_qn, &handle_incomplete_caller),
-              CBM_STORE_OK);
+    ASSERT_EQ(
+        cbm_store_find_node_by_qn(s, project, handle_incomplete_qn, &handle_incomplete_caller),
+        CBM_STORE_OK);
     /* `handle { } onError: { }`: only the two-closure overload can take both. */
     ASSERT_EQ(pipeline_has_calls_edge(s, handle_caller.id, handle_two.id), 1);
     ASSERT_EQ(pipeline_has_calls_edge(s, handle_caller.id, handle_one.id), 0);
     /* A second closure whose label matches no parameter binds neither. */
     ASSERT_EQ(pipeline_has_calls_edge(s, handle_wrong_caller.id, handle_two.id), 0);
     ASSERT_EQ(pipeline_has_calls_edge(s, handle_wrong_caller.id, handle_one.id), 0);
-    /* An incomplete second closure marks candidate input unknown; resolver must not emit a bare-name edge. */
+    /* An incomplete second closure marks candidate input unknown; resolver must not emit a
+     * bare-name edge. */
     ASSERT_EQ(pipeline_has_calls_edge(s, handle_incomplete_caller.id, handle_two.id), 0);
     ASSERT_EQ(pipeline_has_calls_edge(s, handle_incomplete_caller.id, handle_one.id), 0);
     cbm_node_free_fields(&handle_incomplete_caller);
@@ -8525,17 +8532,18 @@ TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
                     "    func handle(completion: () -> Void) {}\n"
                     "    func handle(completion: () -> Void, onError: () -> Void) {}\n"
                     "}\n");
-    write_temp_file(tmp, "Sources/Caller.swift",
-                    "class Caller {\n"
-                    "    let service = Service()\n"
-                    "    func invoke() {\n"
-                    "        self.service.upload(Data(), to: URL(string: \"/x\")!)\n"
-                    "        self.service.record(path: \"/audit\", session: URLSession.shared)\n"
-                    "    }\n"
-                    "    func callHandle() { self.service.handle { } onError: { } }\n"
-                    "    func callHandleWrongLabel() { self.service.handle { } bogus: { } }\n"
-                    "    func callHandleIncomplete() { self.service.handle { } onError: { recover( } }\n"
-                    "}\n");
+    write_temp_file(
+        tmp, "Sources/Caller.swift",
+        "class Caller {\n"
+        "    let service = Service()\n"
+        "    func invoke() {\n"
+        "        self.service.upload(Data(), to: URL(string: \"/x\")!)\n"
+        "        self.service.record(path: \"/audit\", session: URLSession.shared)\n"
+        "    }\n"
+        "    func callHandle() { self.service.handle { } onError: { } }\n"
+        "    func callHandleWrongLabel() { self.service.handle { } bogus: { } }\n"
+        "    func callHandleIncomplete() { self.service.handle { } onError: { recover( } }\n"
+        "}\n");
     for (int i = 0; i < 50; i++) {
         char path[64], source[80];
         snprintf(path, sizeof(path), "Sources/Filler%d.swift", i);
@@ -8631,6 +8639,88 @@ TEST(pipeline_swift_overloads_parallel_candidates_issue2061) {
     cbm_store_close(s);
     cbm_pipeline_free(p);
     th_rmtree(tmp);
+    PASS();
+}
+
+TEST(pipeline_swift_default_before_required_candidates_issue2061) {
+    for (int mode = 0; mode < 2; mode++) {
+        char tmp[256];
+        snprintf(tmp, sizeof(tmp), "/tmp/cbm_swift_default_XXXXXX");
+        ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+        write_temp_file(tmp, "Sources/Service.swift",
+                        "class Service {\n"
+                        "    func choose(x first: Int = 0, x second: Int) {}\n"
+                        "    func choose(x first: String = \"\", x second: String) {}\n"
+                        "    func consume(_ first: Int = 0, _ second: Int) {}\n"
+                        "}\n");
+        write_temp_file(tmp, "Sources/Caller.swift",
+                        "class Caller {\n"
+                        "    let service = Service()\n"
+                        "    func labeled() { self.service.choose(x: 1) }\n"
+                        "    func unlabeled() { self.service.consume(1) }\n"
+                        "    func wrong() { self.service.choose(y: 1) }\n"
+                        "}\n");
+        for (int i = 0; mode && i < 50; i++) {
+            char path[64], source[80];
+            snprintf(path, sizeof(path), "Sources/Filler%d.swift", i);
+            snprintf(source, sizeof(source), "func filler%d() {}\n", i);
+            write_temp_file(tmp, path, source);
+        }
+        const char *previous = getenv("CBM_WORKERS");
+        char *saved = previous ? strdup(previous) : NULL;
+        cbm_setenv("CBM_WORKERS", mode ? "4" : "1", 1);
+        char db[512];
+        snprintf(db, sizeof(db), "%s/defaults.db", tmp);
+        cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
+        int result = p ? cbm_pipeline_run(p) : -1;
+        if (saved) {
+            cbm_setenv("CBM_WORKERS", saved, 1);
+        } else {
+            cbm_unsetenv("CBM_WORKERS");
+        }
+        free(saved);
+        ASSERT_NOT_NULL(p);
+        ASSERT_EQ(result, 0);
+        const char *project = cbm_pipeline_project_name(p);
+        cbm_store_t *store = cbm_store_open_path(db);
+        ASSERT_NOT_NULL(store);
+        const char *targets[] = {"choose(x:Int,x:Int)", "choose(x:String,x:String)",
+                                 "consume(_:Int,_:Int)"};
+        for (int i = 0; i < 3; i++) {
+            char caller_qn[512], target_qn[512], wrong_qn[512];
+            snprintf(caller_qn, sizeof(caller_qn), "%s.Sources.Caller.Caller.%s()", project,
+                     i < 2 ? "labeled" : "unlabeled");
+            snprintf(target_qn, sizeof(target_qn), "%s.Sources.Service.Service.%s", project,
+                     targets[i]);
+            snprintf(wrong_qn, sizeof(wrong_qn), "%s.Sources.Caller.Caller.wrong()", project);
+            cbm_node_t caller = {0}, target = {0}, wrong = {0};
+            ASSERT_EQ(cbm_store_find_node_by_qn(store, project, caller_qn, &caller), CBM_STORE_OK);
+            ASSERT_EQ(cbm_store_find_node_by_qn(store, project, target_qn, &target), CBM_STORE_OK);
+            ASSERT_EQ(cbm_store_find_node_by_qn(store, project, wrong_qn, &wrong), CBM_STORE_OK);
+            ASSERT_EQ(pipeline_has_calls_edge(store, caller.id, target.id), 1);
+            ASSERT_EQ(pipeline_has_calls_edge(store, wrong.id, target.id), 0);
+            cbm_edge_t *edges = NULL;
+            int count = 0, compatible = 0;
+            ASSERT_EQ(
+                cbm_store_find_edges_by_source_type(store, caller.id, "CALLS", &edges, &count),
+                CBM_STORE_OK);
+            for (int e = 0; e < count; e++) {
+                if (edges[e].target_id == target.id && edges[e].properties_json &&
+                    strstr(edges[e].properties_json,
+                           i < 2 ? "\"candidates\":2" : "\"candidates\":1")) {
+                    compatible++;
+                }
+            }
+            ASSERT_EQ(compatible, 1);
+            cbm_store_free_edges(edges, count);
+            cbm_node_free_fields(&caller);
+            cbm_node_free_fields(&target);
+            cbm_node_free_fields(&wrong);
+        }
+        cbm_store_close(store);
+        cbm_pipeline_free(p);
+        th_rmtree(tmp);
+    }
     PASS();
 }
 
@@ -17707,9 +17797,9 @@ static bool swift_default_restore_graph_is_valid(cbm_store_t *store, const char 
                  cbm_store_find_node_by_qn(store, project, bad_qn, &bad) == CBM_STORE_OK;
     if (valid) {
         valid = service.name && strcmp(service.name, "ping") == 0 && service.properties_json &&
-                strstr(service.properties_json,
-                       has_default ? "\"swift_defaults\":\"0000000000000002\""
-                                   : "\"swift_defaults\":\"0000000000000000\"") &&
+                strstr(service.properties_json, has_default
+                                                    ? "\"swift_defaults\":\"0000000000000002\""
+                                                    : "\"swift_defaults\":\"0000000000000000\"") &&
                 strstr(service.properties_json, "\"swift_params\":2") &&
                 pipeline_has_calls_edge(store, good.id, service.id) == has_default &&
                 pipeline_has_calls_edge(store, bad.id, service.id) == 0;
@@ -18307,6 +18397,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_http_call_makes_route_issue1892);
     RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
     RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
+    RUN_TEST(pipeline_swift_default_before_required_candidates_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_unresolved_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061);
     RUN_TEST(pipeline_swift_incremental_restores_default_signature_issue2061);

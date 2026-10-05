@@ -13,7 +13,6 @@
 #include "service_patterns.h"
 #include "callable_sig.h"
 
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>

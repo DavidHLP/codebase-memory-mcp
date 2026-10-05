@@ -1315,16 +1315,16 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         "proj.Service.repeated(x:String,x:String)",
         "proj.Service.unlabeled(_:Int,_:Int)",
     };
-    const char *names[] = {"work", "work", "work", "work", "send", "configure",
-                           "consume", "consume", "accept", "perform", "perform",
-                           "perform", "perform", "collect", "named", "run", "batch",
-                           "sheet", "combine", "repeated", "repeated", "unlabeled"};
+    const char *names[] = {"work",    "work",     "work",     "work",     "send",    "configure",
+                           "consume", "consume",  "accept",   "perform",  "perform", "perform",
+                           "perform", "collect",  "named",    "run",      "batch",   "sheet",
+                           "combine", "repeated", "repeated", "unlabeled"};
     const uint8_t counts[] = {1, 1, 1, 1, 2, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2};
     for (int i = 0; i < 22; i++) {
         cbm_registry_add(r, names[i], qns[i], "Method");
-        uint64_t defaults = (i == 5 || i == 15) ? UINT64_C(1) << 1
+        uint64_t defaults = (i == 5 || i == 15)  ? UINT64_C(1) << 1
                             : i == 17 || i >= 19 ? UINT64_C(1)
-                                             : 0;
+                                                 : 0;
         cbm_registry_set_swift_signature(r, qns[i], defaults, counts[i]);
     }
 
@@ -1418,6 +1418,11 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     call.callee_name = "batch";
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
     ASSERT_STR_EQ(out[0], qns[16]); /* variadic closure accepts trailing closure */
+    call.arg_count = 1;
+    args[0].keyword = "completions";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
+    ASSERT_STR_EQ(out[0], qns[16]); /* explicit and trailing variadic closures */
+    call.arg_count = 0;
 
     call.callee_name = "sheet";
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8), 1);
