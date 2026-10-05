@@ -1,0 +1,21 @@
+src/pipeline/pass_calls.c
+  s_369d103dcf82b9::t_59ec1d67a54987 766
+src/pipeline/pass_parallel.c
+  s_369d103dcf82b9::t_59ec1d67a54987 3242
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "233f5693a4302065ab8a680ce5c507aed95cec96",
+  "prompts": {},
+  "sessions": {
+    "s_369d103dcf82b9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a109ac-f7a8-7950-979d-39c4def6d337",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
