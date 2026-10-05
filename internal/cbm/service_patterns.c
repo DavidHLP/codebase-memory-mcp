@@ -1082,24 +1082,18 @@ cbm_svc_kind_t cbm_service_pattern_match(const char *resolved_qn) {
         match_qn_text = base_qn;
     }
     cbm_svc_kind_t result = CBM_SVC_NONE;
-    const lib_pattern_t *p;
-
     /* Route registration checked first — prevents gin/echo from matching
      * as HTTP clients (both have .get/.post suffixes). */
-    if ((p = match_qn(match_qn_text, route_reg_libraries)))
-        result = p->kind;
-    else if ((p = match_qn(match_qn_text, http_libraries)))
-        result = p->kind;
-    else if ((p = match_qn(match_qn_text, async_libraries)))
-        result = p->kind;
-    else if ((p = match_qn(match_qn_text, config_libraries)))
-        result = p->kind;
-    else if ((p = match_qn(match_qn_text, grpc_libraries)))
-        result = p->kind;
-    else if ((p = match_qn(match_qn_text, graphql_libraries)))
-        result = p->kind;
-    else if ((p = match_qn(match_qn_text, trpc_libraries)))
-        result = p->kind;
+    const lib_pattern_t *const tables[] = {route_reg_libraries, http_libraries, async_libraries,
+                                          config_libraries, grpc_libraries, graphql_libraries,
+                                          trpc_libraries};
+    for (size_t i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
+        const lib_pattern_t *p = match_qn(match_qn_text, tables[i]);
+        if (p) {
+            result = p->kind;
+            break;
+        }
+    }
     cbm_free(CBM_MEM_CLASS_EXTRACT, base_qn);
 
     if (_svc_cache) {
