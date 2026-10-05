@@ -4645,17 +4645,27 @@ static void using_visit(const cs_ctx_t *c, const cs_using_t *us, int id, const c
     level_using(c, &us[id], q, a_type_name, fd);
 }
 
+/* False when none of a step's n directives can give the query anything:
+ * there are none, or the index shows no static candidates and no namespace
+ * that can contribute this name. *a_type_name: the name is some type's. */
+static bool usings_may_give(const cs_ctx_t *c, int n, const cs_using_index_t *index,
+                            const cs_query_t *q, bool *a_type_name) {
+    if (!n) {
+        return false;
+    }
+    *a_type_name = cbm_ht_get(c->ix->type_names, q->name) != NULL;
+    bool indexed = index && index->ready && c->ix->name_scopes_ready;
+    return !(indexed && !index->nentities && (!index->nnamespaces || !*a_type_name));
+}
+
 static void level_usings(const cs_ctx_t *c, const cs_using_t *us, int n,
                          const cs_using_index_t *index, const cs_query_t *q, cs_found_t *fd,
                          cs_active_rec_t *rec) {
-    if (!n) {
+    bool a_type_name = false;
+    if (!usings_may_give(c, n, index, q, &a_type_name)) {
         return;
     }
-    bool a_type_name = cbm_ht_get(c->ix->type_names, q->name) != NULL;
     bool indexed = index && index->ready && c->ix->name_scopes_ready;
-    if (indexed && !index->nentities && (!index->nnamespaces || !a_type_name)) {
-        return; /* no static candidates, and no namespace can contribute this name */
-    }
     size_t hi = 0;
     size_t lo = indexed ? name_scope_range(c->ix, q->name, &hi) : 0;
     /* A common name in a large repository must not make a small scope walk
@@ -4861,6 +4871,10 @@ static cs_unit_step_t *unit_step_at(cs_unit_memo_t *m, const char *key, bool *mi
 /* What the unit's directives give the query after the region's (`fd`). */
 static void unit_usings(const cs_ctx_t *c, const cs_unit_t *unit, const cs_query_t *q,
                         cs_found_t *fd) {
+    bool a_type_name = false;
+    if (!usings_may_give(c, unit->nusings, &unit->using_index, q, &a_type_name)) {
+        return; /* nothing to ask, nothing to remember */
+    }
     cs_unit_memo_t *m = c->ix->unit_memo;
     char key[CS_MEMO_KEY];
     cs_unit_step_t *e = NULL;
@@ -4891,7 +4905,6 @@ static void unit_usings(const cs_ctx_t *c, const cs_unit_t *unit, const cs_query
         level_usings(c, unit->usings, unit->nusings, &unit->using_index, q, fd, NULL);
         return;
     }
-    bool a_type_name = cbm_ht_get(c->ix->type_names, q->name) != NULL;
     for (int i = 0; i < e->n && !found_decided(fd); i++) {
         level_using(c, &unit->usings[e->ids[i]], q, a_type_name, fd);
     }
