@@ -1085,8 +1085,8 @@ cbm_svc_kind_t cbm_service_pattern_match(const char *resolved_qn) {
     /* Route registration checked first — prevents gin/echo from matching
      * as HTTP clients (both have .get/.post suffixes). */
     const lib_pattern_t *const tables[] = {route_reg_libraries, http_libraries, async_libraries,
-                                          config_libraries, grpc_libraries, graphql_libraries,
-                                          trpc_libraries};
+                                           config_libraries,    grpc_libraries, graphql_libraries,
+                                           trpc_libraries};
     for (size_t i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
         const lib_pattern_t *p = match_qn(match_qn_text, tables[i]);
         if (p) {
