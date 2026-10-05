@@ -124,7 +124,7 @@ static const sig_case_t k_cases[] = {
      "function_declaration", 0,
      "<T:Encodable>(_:Data,to:URLConvertible,method:HTTPMethod,headers:[String:String]?,handler:("
      "Int)=>Void,"
-     "xs:Int~,io:inout Int,t:(a:Int,String))"},
+     "xs:Int~,io:inout Swift/Int,t:(a:Int,String))=>UploadRequest"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "class Session {\n  func upload(_ data: Data, with request: URLRequest) {}\n}",
      "function_declaration", 0, "(_:Data,with:URLRequest)"},
@@ -132,9 +132,9 @@ static const sig_case_t k_cases[] = {
      "init_declaration", 0, "(frame:CGRect)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "class C { subscript(index i: Int) -> Int { return 0 } }", "subscript_declaration", 0,
-     "(index:Int)"},
+     "(index:Int)=>Int"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
-     "class C { static func + (l: C, r: C) -> C { l } }", "function_declaration", 0, "(l:C,r:C)"},
+     "class C { static func + (l: C, r: C) -> C { l } }", "function_declaration", 0, "(l:C,r:C)=>C"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func extra() {}", "function_declaration", 0,
      "()"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f<T>(_ x: T) {}", "function_declaration",
@@ -162,6 +162,19 @@ static const sig_case_t k_cases[] = {
      "function_declaration", 0, "()=>Int"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func pick() -> String { \"x\" }",
      "function_declaration", 0, "()=>String"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f(_ x: [A.Item], body: (B.Item) -> A.Item) async -> (A.Item, [B.Item]) {}",
+     "function_declaration", 0, "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f ( _ x : [ A /* comment */ . Item ], body : ( B.Item ) -> A.Item ) async "
+     "-> ( A.Item, [ B.Item ] ) {}", "function_declaration", 0,
+     "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f<T>(_ x: T) where T == () -> Void {}", "function_declaration", 0,
+     "<T;where T==()=>Void>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f() -> (A.Item) -> B.Item {}", "function_declaration", 0,
+     "()=>(A/Item)=>B/Item"},
     /* Scala: every clause flattened, by-name and repeated parameters. */
     {CBM_LANG_SCALA, CBM_CALLABLE_ID_TYPED,
      "class A {\n  def work[T <: AnyRef](xs: List[T], n: => Int, rest: String*)(implicit ord: "
@@ -314,6 +327,9 @@ TEST(callable_sig_base_len_unsuffixed_is_full) {
         "proj.lib/(group)/page",
         "proj.C.+",
         "proj.A.unary_!",
+        "p.f()=>",
+        "p.f()=>[Int",
+        "p.f()=>Int)",
     };
     for (size_t i = 0; i < sizeof(qns) / sizeof(qns[0]); i++) {
         ASSERT_EQ(cbm_qn_callable_base_len(qns[i]), strlen(qns[i]));
@@ -337,6 +353,10 @@ TEST(callable_sig_base_len_suffixed) {
         {"p.S.f<typename,int>(const vector<T>&,int(*)(int))const&&", "p.S.f"},
         {"p.C.Work<T,U>(ref int)", "p.C.Work"},
         {"p.Session.upload(_:Data,to:URL)", "p.Session.upload"},
+        {"p.S.pick()=>Int", "p.S.pick"},
+        {"p.S.pick()=>String", "p.S.pick"},
+        {"p.S.pick()async=>(A/Item)=>B/Item", "p.S.pick"},
+        {"p.S.pick<T;where T==()=>Void>(_:T)=>[A/Item]", "p.S.pick"},
         {"p.K.work(this:String,(Int)=>Unit)", "p.K.work"},
         {"p.O.initWithFrame(_:style:)", "p.O.initWithFrame"},
         {"p.C.+(l:C,r:C)", "p.C.+"},

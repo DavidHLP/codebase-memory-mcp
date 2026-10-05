@@ -1339,6 +1339,21 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     CBMCall generic_call = {
         .callee_name = "Service.constrained", .args = &generic_arg, .arg_count = 1};
     ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 2);
+    const char *returns[] = {"proj.Service.pick()=>Int", "proj.Service.pick()async=>(A/Item)=>B/Item"};
+    for (int i = 0; i < 2; i++) {
+        cbm_registry_add(r, "pick", returns[i], "Method");
+        cbm_registry_set_swift_signature(r, returns[i], 0, 0);
+    }
+    CBMCall returned = {.callee_name = "Service.pick"};
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &returned, "proj.Caller", NULL, 0, out, 8), 2);
+    const char *malformed[] = {"proj.Service.bad()=>", "proj.Service.bad()=>[Int",
+                               "proj.Service.bad()=>Int)"};
+    for (int i = 0; i < 3; i++) {
+        cbm_registry_add(r, "bad", malformed[i], "Method");
+        cbm_registry_set_swift_signature(r, malformed[i], 0, 0);
+    }
+    returned.callee_name = "Service.bad";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &returned, "proj.Caller", NULL, 0, out, 8), -1);
     CBMCallArg args[3] = {{.keyword = "name"}};
     CBMCall call = {.callee_name = "Service.work", .args = args, .arg_count = 1};
     int n = cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 8);

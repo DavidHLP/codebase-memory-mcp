@@ -280,14 +280,25 @@ TEST(index_format_version_one_rebuilds) {
     PASS();
 }
 
-TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
-    const RFile files[] = {
-        {"Service.swift", "func pick<T>(_ x: T) { first() }\n"
+static int swift_collision_migration_case(int scenario) {
+    const char *sources[] = {"func pick<T>(_ x: T) { first() }\n"
                           "func pick<T: Equatable>(_ x: T) { second() }\n"
                           "func first() {}\nfunc second() {}\n"
                           "func caller() { pick(value) }\n"
-                          "func wrong() { pick(key: 1) }\n"},
-    };
+                          "func wrong() { pick(key: 1) }\n",
+                          "func pick(_ x: A.Item) { first() }\n"
+                          "func pick(_ x: B.Item) { second() }\n"
+                          "func first() {}\nfunc second() {}\n"
+                          "func caller() { pick(value) }\n"
+                          "func wrong() { pick(key: 1) }\n"
+                          "enum A { struct Item {} }\nenum B { struct Item {} }\n",
+                          "func pick() -> Int { first(); return 1 }\n"
+                          "func pick() -> String { second(); return \"x\" }\n"
+                          "func first() {}\nfunc second() {}\n"
+                          "func caller() { let _: Int = pick() }\n"
+                          "func wrong() { pick(key: 1) }\n"};
+    const char *legacy_suffix[] = {"pick(_:T)", "pick(_:Item)", "pick()"};
+    const RFile files[] = {{"Service.swift", sources[scenario]}};
     RProj lp;
     cbm_store_t *s = rh_index_files(&lp, files, 1);
     ASSERT_NOT_NULL(s);
@@ -296,7 +307,7 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
     ASSERT_NOT_NULL(s);
     ASSERT_EQ(cbm_store_delete_nodes_by_label(s, lp.project, "Function"), CBM_STORE_OK);
     char legacy_qn[512], wrong_qn[512];
-    snprintf(legacy_qn, sizeof(legacy_qn), "%s.Service.pick(_:T)", lp.project);
+    snprintf(legacy_qn, sizeof(legacy_qn), "%s.Service.%s", lp.project, legacy_suffix[scenario]);
     snprintf(wrong_qn, sizeof(wrong_qn), "%s.Service.wrong()", lp.project);
     cbm_node_t legacy = {.project = lp.project,
                          .label = "Function",
@@ -322,7 +333,7 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
                         .type = "CALLS",
                         .properties_json = "{\"candidates\":1}"};
     ASSERT_GT(cbm_store_insert_edge(s, &stale), 0);
-    ASSERT_EQ(cbm_store_set_format_version(s, 2), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_set_format_version(s, scenario ? 3 : 2), CBM_STORE_OK);
     cbm_store_close(s);
     for (int run = 0; run < 2; run++) {
         char *resp = index_capture(&lp);
@@ -355,6 +366,20 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
                   CBM_STORE_OK);
         ASSERT_EQ(n, 0);
         cbm_store_free_edges(edges, n);
+        ASSERT_NEQ(picks[0].id, picks[1].id);
+        ASSERT_NEQ(picks[0].start_line, picks[1].start_line);
+        for (int i = 0; i < count; i++) {
+            cbm_node_t marker = {0};
+            snprintf(qn, sizeof(qn), "%s.Service.%s()", lp.project,
+                     picks[i].start_line == 1 ? "first" : "second");
+            ASSERT_EQ(cbm_store_find_node_by_qn(s, lp.project, qn, &marker), CBM_STORE_OK);
+            ASSERT_EQ(cbm_store_find_edges_by_source_type(s, picks[i].id, "CALLS", &edges, &n),
+                      CBM_STORE_OK);
+            ASSERT_EQ(n, 1);
+            ASSERT_EQ(edges[0].target_id, marker.id);
+            cbm_store_free_edges(edges, n);
+            cbm_node_free_fields(&marker);
+        }
         ASSERT_EQ(cbm_store_find_edges_by_source_type(s, caller.id, "CALLS", &edges, &n),
                   CBM_STORE_OK);
         ASSERT_EQ(n, 2);
@@ -374,6 +399,13 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
         cbm_store_close(s);
     }
     rh_cleanup(&lp, NULL);
+    PASS();
+}
+
+TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
+    for (int scenario = 0; scenario < 3; scenario++) {
+        ASSERT_EQ(swift_collision_migration_case(scenario), 0);
+    }
     PASS();
 }
 

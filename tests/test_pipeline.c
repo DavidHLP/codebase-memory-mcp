@@ -8638,14 +8638,17 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
 
 TEST(pipeline_swift_qualified_and_return_identity_issue2061) {
     const char *qualified[] = {"pick(_:A/Item)", "pick(_:B/Item)"};
-    ASSERT_EQ(swift_declaration_identity_case(
+    return swift_declaration_identity_case(
                   qualified, 2,
                   "class Service {\nfunc pick(_ x: A.Item) { mark0() }\n"
                   "func pick(_ x: B.Item) { mark1() }\n}\n"
                   "func mark0() {}\nfunc mark1() {}\n"
                   "enum A { struct Item {} }\nenum B { struct Item {} }\n",
                   "class Caller {\nlet service = Service()\n"
-                  "func invoke() { self.service.pick(value) }\n}\n"), 0);
+                  "func invoke() { self.service.pick(value) }\n}\n");
+}
+
+TEST(pipeline_swift_return_identity_issue2061) {
     const char *returns[] = {"pick()=>Int", "pick()=>String"};
     return swift_declaration_identity_case(
         returns, 2,
@@ -18494,6 +18497,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
     RUN_TEST(pipeline_swift_generic_async_identity_issue2061);
     RUN_TEST(pipeline_swift_qualified_and_return_identity_issue2061);
+    RUN_TEST(pipeline_swift_return_identity_issue2061);
     RUN_TEST(pipeline_swift_default_before_required_candidates_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_unresolved_issue2061);
     RUN_TEST(pipeline_swift_incompatible_overload_parallel_fallback_issue2061);
