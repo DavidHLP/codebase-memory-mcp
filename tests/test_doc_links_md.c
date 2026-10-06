@@ -216,6 +216,10 @@ TEST(doc_links_md_classify_span) {
         {"main.go:7-8", CBM_DOCLINK_MD_FILENAME, "main.go", NULL, 7, 8, false, false},
         {"README.md", CBM_DOCLINK_MD_FILENAME, "README.md", NULL, 0, 0, false, false},
         {"Makefile", CBM_DOCLINK_MD_FILENAME, "Makefile", NULL, 0, 0, false, false},
+        /* a built or shipped file is a file name, never a member (`OliveTin.exe`
+         * took the module stem of OliveTin.exe.manifest in a held-out audit) */
+        {"OliveTin.exe", CBM_DOCLINK_MD_FILENAME, "OliveTin.exe", NULL, 0, 0, false, false},
+        {"app.manifest", CBM_DOCLINK_MD_FILENAME, "app.manifest", NULL, 0, 0, false, false},
         {"main.rs::run", CBM_DOCLINK_MD_FILENAME, "main.rs", "run", 0, 0, false, false},
         {"fastapi.routing.APIRouter", CBM_DOCLINK_MD_QUALIFIED, "fastapi.routing.APIRouter", NULL,
          0, 0, false, false},

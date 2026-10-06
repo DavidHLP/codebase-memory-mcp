@@ -144,24 +144,20 @@ static bool md_in_list(const char *s, size_t n, const char *const *list, bool ci
 /* File extensions that make a dotted token a FILE NAME. Strict: none of them
  * is a common member name (`.log`, `.get` and `.map` are not here). */
 static const char *const MD_FILE_EXT[] = {
-    "py",       "pyi",    "js",     "jsx",        "mjs",          "cjs",       "ts",
-    "tsx",      "mts",    "cts",    "go",         "rs",           "c",         "h",
-    "cc",       "cpp",    "cxx",    "hpp",        "hh",           "java",      "kt",
-    "kts",      "scala",  "groovy", "cs",         "php",          "rb",        "sh",
-    "bash",     "zsh",    "ps1",    "md",         "mdx",          "rst",       "adoc",
-    "txt",      "json",   "jsonc",  "yaml",       "yml",          "toml",      "ini",
-    "cfg",      "xml",    "html",   "htm",        "css",          "scss",      "sass",
-    "less",     "vue",    "svelte", "proto",      "sql",          "lock",      "gradle",
-    "csproj",   "sln",    "fsproj", "props",      "targets",      "cmake",     "mk",
-    "tf",       "tfvars", "hcl",    "png",        "jpg",          "jpeg",      "gif",
-    "svg",      "pdf",    "ipynb",  "dockerfile", "swift",        "dart",      "lua",
-    "pl",       "pm",     "ex",     "exs",        "erl",          "clj",       "hs",
-    "ml",       "zig",    "sol",    "graphql",    "gql",          "bzl",       "nix",
-    "plist",    "env",    "conf",   "properties", "editorconfig", "gitignore", "npmrc",
-    "nvmrc",    "j2",     "jinja",  "tmpl",       "tpl",          "erb",       "hbs",
-    "mustache", "patch",  "diff",   "whl",        "jar",          "zip",       "gz",
-    "tgz",      "so",     "dll",    "dylib",      "wasm",         "service",   "socket",
-    "timer",    "mod",    "sum",    NULL};
+    "py", "pyi", "js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts", "go", "rs", "c", "h", "cc",
+    "cpp", "cxx", "hpp", "hh", "java", "kt", "kts", "scala", "groovy", "cs", "php", "rb", "sh",
+    "bash", "zsh", "ps1", "md", "mdx", "rst", "adoc", "txt", "json", "jsonc", "yaml", "yml", "toml",
+    "ini", "cfg", "xml", "html", "htm", "css", "scss", "sass", "less", "vue", "svelte", "proto",
+    "sql", "lock", "gradle", "csproj", "sln", "fsproj", "props", "targets", "cmake", "mk", "tf",
+    "tfvars", "hcl", "png", "jpg", "jpeg", "gif", "svg", "pdf", "ipynb", "dockerfile", "swift",
+    "dart", "lua", "pl", "pm", "ex", "exs", "erl", "clj", "hs", "ml", "zig", "sol", "graphql",
+    "gql", "bzl", "nix", "plist", "env", "conf", "properties", "editorconfig", "gitignore", "npmrc",
+    "nvmrc", "j2", "jinja", "tmpl", "tpl", "erb", "hbs", "mustache", "patch", "diff", "whl", "jar",
+    "zip", "gz", "tgz", "so", "dll", "dylib", "wasm", "service", "socket", "timer", "mod", "sum",
+    /* built and shipped files, never a member's name (`OliveTin.exe` took the
+     * module stem of OliveTin.exe.manifest in a held-out audit) */
+    "exe", "msi", "deb", "rpm", "dmg", "tar", "xz", "bz2", "7z", "apk", "ipa", "manifest", "csv",
+    "tsv", NULL};
 
 /* File names that are files without an extension. */
 static const char *const MD_SPECIAL_FILES[] = {
