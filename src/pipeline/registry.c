@@ -1237,6 +1237,20 @@ const char *cbm_registry_label_of(const cbm_registry_t *r, const char *qn) {
     return cbm_ht_get(r->exact, qn);
 }
 
+const char *cbm_registry_value_target(const cbm_registry_t *r, const char *qn) {
+    const char *label = cbm_registry_label_of(r, qn);
+    if (!label || strcmp(label, "Method") != 0) {
+        return qn;
+    }
+    char twin[CBM_SZ_1K];
+    int n = snprintf(twin, sizeof(twin), "%s#field", qn);
+    if (n < 0 || (size_t)n >= sizeof(twin)) {
+        return qn;
+    }
+    const char *owned = cbm_ht_get_key(r->exact, twin);
+    return owned ? owned : qn;
+}
+
 int cbm_registry_find_by_name(const cbm_registry_t *r, const char *name, const char ***out,
                               int *count) {
     if (!r || !out || !count) {

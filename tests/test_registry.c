@@ -213,6 +213,27 @@ TEST(registry_label_of) {
     PASS();
 }
 
+/* A read, write or value reference that resolved to a Method goes to the
+ * method's fenced `#field` twin when the class has one; nothing else moves. */
+TEST(registry_value_target_field_twin) {
+    cbm_registry_t *r = cbm_registry_new();
+    cbm_registry_add(r, "count", "p.C.count", "Method");
+    cbm_registry_add(r, "count", "p.C.count#field", "Field");
+    cbm_registry_add(r, "size", "p.C.size", "Method");
+    cbm_registry_add(r, "name", "p.C.name", "Field");
+    ASSERT_STR_EQ(cbm_registry_value_target(r, "p.C.count"), "p.C.count#field");
+    ASSERT_STR_EQ(cbm_registry_value_target(r, "p.C.size"), "p.C.size");
+    ASSERT_STR_EQ(cbm_registry_value_target(r, "p.C.name"), "p.C.name");
+    ASSERT_STR_EQ(cbm_registry_value_target(r, "p.C.none"), "p.C.none");
+    /* the fenced field is still found by its plain name */
+    const char **qns = NULL;
+    int n = 0;
+    ASSERT_EQ(cbm_registry_find_by_name(r, "count", &qns, &n), 0);
+    ASSERT_EQ(n, 2);
+    cbm_registry_free(r);
+    PASS();
+}
+
 TEST(registry_find_by_name) {
     cbm_registry_t *r = cbm_registry_new();
     cbm_registry_add(r, "main", "proj.cmd.main", "Function");
@@ -1569,6 +1590,7 @@ SUITE(registry) {
     RUN_TEST(registry_free_null);
     RUN_TEST(registry_add_and_exists);
     RUN_TEST(registry_label_of);
+    RUN_TEST(registry_value_target_field_twin);
     RUN_TEST(registry_find_by_name);
     RUN_TEST(registry_no_duplicates);
     /* Resolution */

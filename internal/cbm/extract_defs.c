@@ -222,6 +222,7 @@ static void extract_variables(CBMExtractCtx *ctx, TSNode root, const CBMLangSpec
 static void extract_var_names(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec);
 static void extract_class_variables(CBMExtractCtx *ctx, TSNode class_node, const char *class_qn,
                                     const CBMLangSpec *spec, int fields_from);
+static void fence_fields_named_like_methods(CBMExtractCtx *ctx, int methods_from, int fields_from);
 static void extract_rust_impl(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec);
 static void extract_class_methods(CBMExtractCtx *ctx, TSNode class_node, const char *class_qn,
                                   const CBMLangSpec *spec);
@@ -7566,11 +7567,13 @@ static void emit_class_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *s
     }
 
     // Extract methods inside the class
+    int methods_from = ctx->result->defs.count;
     extract_class_methods(ctx, node, class_qn, spec);
 
     // Extract typed struct/class fields (for cross-file LSP type resolution)
     int fields_from = ctx->result->defs.count;
     extract_class_fields(ctx, node, class_qn, spec);
+    fence_fields_named_like_methods(ctx, methods_from, fields_from);
 
     // Extract class-level variables (field declarations not already Fields)
     extract_class_variables(ctx, node, class_qn, spec, fields_from);
@@ -10614,6 +10617,51 @@ static void extract_class_fields(CBMExtractCtx *ctx, TSNode class_node, const ch
         cbm_defs_push(&ctx->result->defs, a, def);
     }
     member_iter_done(&it);
+}
+
+static int cmp_cstr_ptr(const void *pa, const void *pb) {
+    return strcmp(*(const char *const *)pa, *(const char *const *)pb);
+}
+
+// A field and a method of one class body may share a name (Java `count` and
+// `count()`), and the graph keeps one node per qualified name, so one of them
+// was lost. The field then takes the qualified name `<Owner>.<name>#field`
+// (the `base#suffix` fence of `#macro` and the Rust cfg twins; the registry
+// still files it under its plain name). Only a collision in the same body
+// renames, so every other field keeps its name. The body's methods are the
+// defs [methods_from, fields_from), its fields [fields_from, count); a sorted
+// copy of the method names keeps a large class linear-logarithmic.
+static void fence_fields_named_like_methods(CBMExtractCtx *ctx, int methods_from, int fields_from) {
+    CBMDefinition *defs = ctx->result->defs.items;
+    int fields_to = ctx->result->defs.count;
+    if (fields_from >= fields_to || methods_from >= fields_from) {
+        return;
+    }
+    const char **qns = (const char **)cbm_arena_alloc(
+        ctx->arena, (size_t)(fields_from - methods_from) * sizeof(const char *));
+    if (!qns) {
+        return;
+    }
+    size_t n = 0;
+    for (int i = methods_from; i < fields_from; i++) {
+        if (defs[i].qualified_name && strcmp(defs[i].label, "Method") == 0) {
+            qns[n++] = defs[i].qualified_name;
+        }
+    }
+    if (n == 0) {
+        return;
+    }
+    qsort(qns, n, sizeof(qns[0]), cmp_cstr_ptr);
+    for (int i = fields_from; i < fields_to; i++) {
+        const char *qn = defs[i].qualified_name;
+        if (qn && strcmp(defs[i].label, "Field") == 0 &&
+            bsearch(&qn, qns, n, sizeof(qns[0]), cmp_cstr_ptr)) {
+            char *fenced = cbm_arena_sprintf(ctx->arena, "%s#field", qn);
+            if (fenced) {
+                defs[i].qualified_name = fenced;
+            }
+        }
+    }
 }
 
 // Extract class-level variables (field declarations inside class bodies).

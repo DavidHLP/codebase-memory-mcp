@@ -7472,6 +7472,37 @@ static const CBMDefinition *c1_def_qn(CBMFileResult *r, const char *qn) {
     return NULL;
 }
 
+static bool qn_ends_with(const CBMDefinition *d, const char *tail) {
+    size_t n = d && d->qualified_name ? strlen(d->qualified_name) : 0;
+    size_t t = strlen(tail);
+    return n >= t && strcmp(d->qualified_name + n - t, tail) == 0;
+}
+
+/* A field and a same-named method of one class body would share one qualified
+ * name (one node per QN): the field is fenced `<Owner>.<name>#field` and the
+ * method keeps the plain name. A field without a namesake keeps its name, and
+ * so does a nested class's field named like a method of the outer class. */
+TEST(field_named_like_method_is_fenced) {
+    CBMFileResult *r = extract("package demo;\npublic class Starter {\n"
+                               "    private String executable;\n"
+                               "    private String dir;\n"
+                               "    public Starter executable(String p) { return this; }\n"
+                               "    public void size() {}\n"
+                               "    static class Inner { int size; }\n}\n",
+                               CBM_LANG_JAVA, "t", "Starter.java");
+    ASSERT_NOT_NULL(r);
+    const CBMDefinition *field = c1_def(r, "Field", "executable");
+    const CBMDefinition *method = c1_def(r, "Method", "executable");
+    ASSERT_NOT_NULL(field);
+    ASSERT_NOT_NULL(method);
+    ASSERT_TRUE(qn_ends_with(field, "Starter.executable#field"));
+    ASSERT_TRUE(qn_ends_with(method, "Starter.executable"));
+    ASSERT_TRUE(qn_ends_with(c1_def(r, "Field", "dir"), "Starter.dir"));
+    ASSERT_TRUE(qn_ends_with(c1_def(r, "Field", "size"), "Inner.size"));
+    cbm_free_result(r);
+    PASS();
+}
+
 /* The def with this label and name that starts on `line`. */
 static const CBMDefinition *c1_def_at(CBMFileResult *r, const char *label, const char *name,
                                       int line) {
@@ -10441,6 +10472,7 @@ SUITE(extraction) {
     RUN_TEST(java_class);
     RUN_TEST(java_method);
     RUN_TEST(class_field_is_one_field_not_also_a_variable);
+    RUN_TEST(field_named_like_method_is_fenced);
     RUN_TEST(java_interface);
     RUN_TEST(java_interface_no_duplicate_function_issue1234);
     RUN_TEST(java_enum_dedup_preserves_calls_issue1234);
