@@ -489,6 +489,37 @@ TEST(rst_object_and_open_lines) {
     PASS();
 }
 
+/* The production gate (doclink.h): object directives ship since their
+ * held-out audit; include and kernel-doc are still held, so in the same
+ * documents they write rows, not edges. Runs after the suite's forced
+ * families are reset. */
+TEST(rst_ship_gate) {
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_OBJECT));
+    ASSERT_FALSE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_INCLUDE));
+    ASSERT_FALSE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_KERNEL_DOC));
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlrst_gate_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[512];
+    char db[512];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    snprintf(db, sizeof(db), "%s/g.db", tmp);
+    rst_write_repo(repo, INIT_PY);
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    /* `.. class:: View` in pkg.views: an edge */
+    ASSERT_TRUE(rst_edge(db, "docs.api.Models", "pkg.views.View", "\"syntax\":\"object\""));
+    /* the include resolves, and its family holds it as a row */
+    ASSERT_FALSE(rst_edge(db, "docs.api.Code", "pkg.sub.thing.py.__file__", NULL));
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE "
+                           "reason = 'below_bar_tier' AND syntax = 'include'"),
+              1);
+    ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM edges WHERE type = 'MENTIONS' AND "
+                           "properties LIKE '%\"syntax\":\"kernel_doc\"%'"),
+              0);
+    th_cleanup(tmp);
+    PASS();
+}
+
 SUITE(doc_links_rst) {
     dm_ship_held_families();
     RUN_TEST(rst_scan_structure);
@@ -498,4 +529,5 @@ SUITE(doc_links_rst) {
     RUN_TEST(rst_adr_record);
     RUN_TEST(rst_links_incremental);
     cbm_doclink_test_reset_ships();
+    RUN_TEST(rst_ship_gate);
 }

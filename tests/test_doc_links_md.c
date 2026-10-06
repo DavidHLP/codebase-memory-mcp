@@ -608,6 +608,7 @@ TEST(doc_links_md_ship_gate) {
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_CODE_PATH));
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_CODE_PATH));
     ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_MD_SUPERSEDES));
+    ASSERT_TRUE(cbm_doclink_syntax_ships(CBM_DOCLINK_RST_OBJECT));
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlmdgate_XXXXXX");
     ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
