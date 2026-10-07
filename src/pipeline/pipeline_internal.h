@@ -1393,8 +1393,8 @@ void cbm_pipeline_take_doc_link_rows(cbm_pipeline_t *p, cbm_doc_link_row_t **row
                                      bool *failed, bool *ran);
 
 /* Hand the run's doc -> code candidates (pass_semantic_edges) to the
- * pipeline. Takes ownership (rows and strings malloc'd, released with
- * cbm_store_doc_candidates_free); a NULL p frees them. Passing NULL/0 clears. */
+ * pipeline. Takes ownership (rows and strings in CBM_MEM_CLASS_STORE, released
+ * with cbm_store_doc_candidates_free); a NULL p frees them. NULL/0 clears. */
 void cbm_pipeline_set_doc_candidates(cbm_pipeline_t *p, cbm_doc_candidate_t *rows, int count);
 const cbm_doc_candidate_t *cbm_pipeline_doc_candidates(const cbm_pipeline_t *p, int *count);
 

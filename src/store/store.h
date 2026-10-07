@@ -1105,7 +1105,8 @@ int cbm_store_doc_candidates_replace(cbm_store_t *s, const char *project,
 
 /* The candidates of one section (section_qn) or for one function (target_qn;
  * pass the other NULL), highest p first, then score, at most limit. *out is
- * allocated (cbm_store_doc_candidates_free). CBM_STORE_NOT_FOUND: no table. */
+ * allocated in CBM_MEM_CLASS_STORE (cbm_store_doc_candidates_free).
+ * CBM_STORE_NOT_FOUND: no table. */
 int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char *section_qn,
                                  const char *target_qn, int limit, cbm_doc_candidate_t **out,
                                  int *count);

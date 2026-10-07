@@ -2261,7 +2261,7 @@ static void doc_section_lines(FILE *out, const cbm_gbuf_t *gbuf, const cbm_gbuf_
 }
 
 /* The stored candidates of every section (rank <= CBM_SEM_DOC_TOP_K, tfidf >=
- * CBM_SEM_DOC_MIN_SCORE), malloc'd for cbm_store_doc_candidates_free; p at two
+ * CBM_SEM_DOC_MIN_SCORE), in CBM_MEM_CLASS_STORE for cbm_store_doc_candidates_free; p at two
  * decimals, as on SEMANTICALLY_RELATED edges. */
 static cbm_doc_candidate_t *doc_candidate_rows(const cbm_gbuf_t *gbuf, const cbm_gbuf_node_t **secs,
                                                int nsec, const cbm_sem_func_t *funcs,
@@ -2274,7 +2274,8 @@ static cbm_doc_candidate_t *doc_candidate_rows(const cbm_gbuf_t *gbuf, const cbm
         }
     }
     *out_count = 0;
-    cbm_doc_candidate_t *rows = n > 0 ? calloc((size_t)n, sizeof(*rows)) : NULL;
+    cbm_doc_candidate_t *rows =
+        n > 0 ? cbm_calloc(CBM_MEM_CLASS_STORE, (size_t)n * sizeof(*rows)) : NULL;
     if (!rows) {
         return NULL;
     }
@@ -2293,12 +2294,12 @@ static cbm_doc_candidate_t *doc_candidate_rows(const cbm_gbuf_t *gbuf, const cbm
             snprintf(ev, sizeof(ev), "{\"shared_terms\":%d,\"name_tokens\":%d}", hit->shared,
                      hit->name_shared);
             rows[k] = (cbm_doc_candidate_t){
-                .section_qn = strdup(secs[s]->qualified_name),
-                .target_qn = strdup(fn->qualified_name),
+                .section_qn = cbm_mem_strdup(CBM_MEM_CLASS_STORE, secs[s]->qualified_name),
+                .target_qn = cbm_mem_strdup(CBM_MEM_CLASS_STORE, fn->qualified_name),
                 .rank = hit->rank,
                 .score = hit->tfidf,
                 .p = (double)(int)(cbm_sem_doc_calibrated_p(hit->tfidf) * 100.0F + 0.5F) / 100.0,
-                .evidence = strdup(ev)};
+                .evidence = cbm_mem_strdup(CBM_MEM_CLASS_STORE, ev)};
             if (!rows[k].section_qn || !rows[k].target_qn || !rows[k].evidence) {
                 cbm_store_doc_candidates_free(rows, k + SKIP_ONE);
                 return NULL;

@@ -10847,19 +10847,22 @@ int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char
     bind_text(stmt, SKIP_ONE, project);
     bind_text(stmt, ST_COL_2, section_qn ? section_qn : target_qn);
     sqlite3_bind_int(stmt, ST_COL_3, limit);
-    cbm_doc_candidate_t *rows = calloc((size_t)limit, sizeof(*rows));
+    cbm_doc_candidate_t *rows = cbm_calloc(CBM_MEM_CLASS_STORE, (size_t)limit * sizeof(*rows));
     if (!rows) {
         sqlite3_finalize(stmt);
         return CBM_STORE_ERR;
     }
     int n = 0;
     while (n < limit && sqlite3_step(stmt) == SQLITE_ROW) {
-        rows[n].section_qn = heap_strdup((const char *)sqlite3_column_text(stmt, 0));
-        rows[n].target_qn = heap_strdup((const char *)sqlite3_column_text(stmt, SKIP_ONE));
+        rows[n].section_qn =
+            cbm_mem_strdup(CBM_MEM_CLASS_STORE, (const char *)sqlite3_column_text(stmt, 0));
+        rows[n].target_qn =
+            cbm_mem_strdup(CBM_MEM_CLASS_STORE, (const char *)sqlite3_column_text(stmt, SKIP_ONE));
         rows[n].rank = sqlite3_column_int(stmt, ST_COL_2);
         rows[n].score = sqlite3_column_double(stmt, ST_COL_3);
         rows[n].p = sqlite3_column_double(stmt, ST_COL_4);
-        rows[n].evidence = heap_strdup((const char *)sqlite3_column_text(stmt, ST_COL_5));
+        rows[n].evidence =
+            cbm_mem_strdup(CBM_MEM_CLASS_STORE, (const char *)sqlite3_column_text(stmt, ST_COL_5));
         n++;
     }
     sqlite3_finalize(stmt);
@@ -10870,11 +10873,11 @@ int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char
 
 void cbm_store_doc_candidates_free(cbm_doc_candidate_t *rows, int count) {
     for (int i = 0; rows && i < count; i++) {
-        free((void *)rows[i].section_qn);
-        free((void *)rows[i].target_qn);
-        free((void *)rows[i].evidence);
+        cbm_free(CBM_MEM_CLASS_STORE, (void *)rows[i].section_qn);
+        cbm_free(CBM_MEM_CLASS_STORE, (void *)rows[i].target_qn);
+        cbm_free(CBM_MEM_CLASS_STORE, (void *)rows[i].evidence);
     }
-    free(rows);
+    cbm_free(CBM_MEM_CLASS_STORE, rows);
 }
 
 void cbm_adr_sections_free(cbm_adr_sections_t *s) {
