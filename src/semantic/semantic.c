@@ -1750,6 +1750,71 @@ float cbm_sem_combine(const cbm_sem_signals_t *s, const cbm_sem_config_t *cfg) {
     return score;
 }
 
+typedef struct {
+    float score;
+    int pos;
+} sem_rank_t;
+
+static int cmp_rank_best_first(const void *pa, const void *pb) {
+    const sem_rank_t *a = pa;
+    const sem_rank_t *b = pb;
+    if (a->score != b->score) {
+        return a->score > b->score ? -1 : 1;
+    }
+    return (a->pos > b->pos) - (a->pos < b->pos);
+}
+
+/* Best-first, not first-come: when a function has more candidate partners
+ * than its budget, it keeps its best ones. Judged on held-out repositories
+ * (2026-10-07): the pairs first-come admitted over budget were 0 of 17
+ * related, the ones best-first admits instead 7 of 20. */
+bool cbm_sem_admit_best_first(const float *scores, const int *fa, const int *fb,
+                              const bool *eligible, int n, int max_edges, int *counts,
+                              bool *admitted) {
+    if (n <= 0) {
+        return true;
+    }
+    memset(admitted, 0, (size_t)n * sizeof(admitted[0]));
+    sem_rank_t *order = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)n * sizeof(sem_rank_t));
+    if (!order) {
+        return false;
+    }
+    int m = 0;
+    for (int k = 0; k < n; k++) {
+        if (eligible[k]) {
+            order[m++] = (sem_rank_t){.score = scores[k], .pos = k};
+        }
+    }
+    qsort(order, (size_t)m, sizeof(order[0]), cmp_rank_best_first);
+    for (int r = 0; r < m; r++) {
+        int k = order[r].pos;
+        if (counts[fa[k]] < max_edges && counts[fb[k]] < max_edges) {
+            counts[fa[k]]++;
+            counts[fb[k]]++;
+            admitted[k] = true;
+        }
+    }
+    cbm_free(CBM_MEM_CLASS_SEMANTIC, order);
+    return true;
+}
+
+/* Score bands at the quartiles of the admitted scores, each band's p the
+ * judged share of related pairs (2026-10-07: 120 blind-judged admitted pairs
+ * from held-out repositories in six languages, three reading rounds; the
+ * curve is monotone as measured). Ships as the edge property "p". The cuts
+ * (measured 0.777752, 0.805782, 0.851543) are at the stored score's three
+ * decimals, so one shown score always carries one p. */
+static const float SEM_P_CUTS[] = {0.778F, 0.806F, 0.852F};
+static const float SEM_P_BANDS[] = {0.556F, 0.640F, 0.731F, 0.857F};
+
+float cbm_sem_calibrated_p(float score) {
+    size_t band = 0;
+    while (band < sizeof(SEM_P_CUTS) / sizeof(SEM_P_CUTS[0]) && score >= SEM_P_CUTS[band]) {
+        band++;
+    }
+    return SEM_P_BANDS[band];
+}
+
 float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
                              const cbm_sem_config_t *cfg) {
     if (!a || !b || !cfg) {

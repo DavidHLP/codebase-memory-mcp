@@ -1203,8 +1203,29 @@ static int phase6b_merge_edges(cbm_gbuf_t *gbuf, deferred_edge_buf_t *worker_buf
         }
     }
 
+    /* Admission: best-first by score under the per-function budget
+     * (cbm_sem_admit_best_first); the dumps and the edge inserts below keep
+     * the canonical order. */
+    float *scores = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)n * sizeof(float));
+    int *fa = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)n * sizeof(int));
+    int *fb = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)n * sizeof(int));
+    bool *eligible = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)n * sizeof(bool));
+    bool *admitted = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)n * sizeof(bool));
+    bool ranked = scores && fa && fb && eligible && admitted;
+    for (int e = 0; ranked && e < n; e++) {
+        scores[e] = pairs[e].score;
+        fa[e] = pairs[e].i;
+        fb[e] = pairs[e].j;
+        eligible[e] = !pairs[e].below;
+    }
+    ranked = ranked && cbm_sem_admit_best_first(scores, fa, fb, eligible, n, max_edges, edge_counts,
+                                                admitted);
+    if (!ranked) {
+        cbm_log_warn("semantic_edges.admission", "reason", "out_of_memory", "pairs", itoa_log(n));
+    }
+
     int total_edges = 0;
-    for (int e = 0; e < n; e++) {
+    for (int e = 0; ranked && e < n; e++) {
         deferred_edge_t *de = &pairs[e];
         if (de->below) {
             if (signals) {
@@ -1215,21 +1236,27 @@ static int phase6b_merge_edges(cbm_gbuf_t *gbuf, deferred_edge_buf_t *worker_buf
         if (pair_dump) {
             fprintf(pair_dump, "%d %d %.9g\n", de->i, de->j, (double)de->score);
         }
-        bool admitted = edge_counts[de->i] < max_edges && edge_counts[de->j] < max_edges;
         if (signals) {
-            pair_signals_line(signals, gbuf, funcs, de, admitted);
+            pair_signals_line(signals, gbuf, funcs, de, admitted[e]);
         }
-        if (!admitted) {
+        if (!admitted[e]) {
             continue;
         }
+        /* p from the score as stored, so one shown score carries one p. */
+        char score_text[CBM_SZ_32];
+        snprintf(score_text, sizeof(score_text), "%.3f", (double)de->score);
         char props[PROPS_BUF];
-        snprintf(props, sizeof(props), "{\"score\":%.3f,\"same_file\":%s}", de->score,
-                 de->same_file ? "true" : "false");
+        snprintf(props, sizeof(props), "{\"score\":%s,\"same_file\":%s,\"p\":%.2f}", score_text,
+                 de->same_file ? "true" : "false",
+                 (double)cbm_sem_calibrated_p(strtof(score_text, NULL)));
         cbm_gbuf_insert_edge(gbuf, de->source_id, de->target_id, "SEMANTICALLY_RELATED", props);
-        edge_counts[de->i]++;
-        edge_counts[de->j]++;
         total_edges++;
     }
+    cbm_free(CBM_MEM_CLASS_SEMANTIC, scores);
+    cbm_free(CBM_MEM_CLASS_SEMANTIC, fa);
+    cbm_free(CBM_MEM_CLASS_SEMANTIC, fb);
+    cbm_free(CBM_MEM_CLASS_SEMANTIC, eligible);
+    cbm_free(CBM_MEM_CLASS_SEMANTIC, admitted);
     if (pair_dump) {
         (void)fclose(pair_dump);
     }

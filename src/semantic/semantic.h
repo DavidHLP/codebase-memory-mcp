@@ -243,6 +243,21 @@ void cbm_sem_signal_values(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
 /* cbm_sem_combined_score from the signal values (the same arithmetic). */
 float cbm_sem_combine(const cbm_sem_signals_t *s, const cbm_sem_config_t *cfg);
 
+/* Best-first admission under a per-function edge budget. Pair k joins
+ * functions fa[k] and fb[k] with scores[k]; pairs are taken by descending
+ * score, ties in ascending k (the caller's canonical order), and pair k is
+ * admitted when eligible[k] and both functions have fewer than max_edges
+ * admitted pairs. counts holds one zeroed slot per function and is updated.
+ * Returns false (nothing admitted) when the order cannot be allocated. */
+bool cbm_sem_admit_best_first(const float *scores, const int *fa, const int *fb,
+                              const bool *eligible, int n, int max_edges, int *counts,
+                              bool *admitted);
+
+/* The probability that an admitted SEMANTICALLY_RELATED pair is related, by
+ * its score as stored (three decimals): the judged precision of blind-judged
+ * held-out samples (the edge property "p"). */
+float cbm_sem_calibrated_p(float score);
+
 /* Module proximity multiplier based on file paths. */
 float cbm_sem_proximity(const char *path_a, const char *path_b);
 

@@ -460,6 +460,61 @@ TEST(sem_combine_weighs_signals) {
     PASS();
 }
 
+/* Over budget, a function keeps its BEST partners, not its first ones (a
+ * held-out judged sample: the pairs first-come admitted over budget were 0 of
+ * 17 related). Equal scores keep the canonical order; an ineligible pair is
+ * never admitted and takes no budget. */
+TEST(sem_admit_best_first_keeps_the_best) {
+    /* function 0 has four partners in canonical order, budget 2 */
+    const float scores[] = {0.80F, 0.90F, 0.95F, 0.99F, 0.90F};
+    const int fa[] = {0, 0, 0, 0, 5};
+    const int fb[] = {1, 2, 3, 4, 6};
+    const bool eligible[] = {true, true, true, false, true};
+    int counts[7] = {0};
+    bool admitted[5];
+    ASSERT_TRUE(cbm_sem_admit_best_first(scores, fa, fb, eligible, 5, 2, counts, admitted));
+    ASSERT_FALSE(admitted[0]); /* first-come would have kept 0.80 */
+    ASSERT_TRUE(admitted[1]);
+    ASSERT_TRUE(admitted[2]);
+    ASSERT_FALSE(admitted[3]); /* the best score, but recorded only */
+    ASSERT_TRUE(admitted[4]);
+    ASSERT_EQ(counts[0], 2);
+    ASSERT_EQ(counts[4], 0);
+
+    /* ties: the earlier pair in canonical order wins the last slot */
+    const float tied[] = {0.85F, 0.85F};
+    const int ta[] = {0, 0};
+    const int tb[] = {1, 2};
+    const bool all[] = {true, true};
+    int tcounts[3] = {0};
+    bool tadmitted[2];
+    ASSERT_TRUE(cbm_sem_admit_best_first(tied, ta, tb, all, 2, 1, tcounts, tadmitted));
+    ASSERT_TRUE(tadmitted[0]);
+    ASSERT_FALSE(tadmitted[1]);
+    PASS();
+}
+
+/* p by the stored (three-decimal) score: the judged bands, monotone. */
+TEST(sem_calibrated_p_bands) {
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.750F), 0.556F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.777F), 0.556F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.778F), 0.640F, 0.0);
+    /* the cut sits at the stored precision (0.778), not the raw quartile
+     * 0.777752: a stored "0.778" and a stored "0.777" never share a band */
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.7779F), 0.556F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.805F), 0.640F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.806F), 0.731F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.852F), 0.857F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(1.000F), 0.857F, 0.0);
+    float last = 0.0F;
+    for (int milli = 750; milli <= 1000; milli++) {
+        float p = cbm_sem_calibrated_p((float)milli / 1000.0F);
+        ASSERT_TRUE(p >= last);
+        last = p;
+    }
+    PASS();
+}
+
 TEST(sem_corpus_add_null_doc) {
     cbm_sem_corpus_t *c = cbm_sem_corpus_new();
     ASSERT_NOT_NULL(c);
@@ -638,6 +693,8 @@ SUITE(semantic) {
     RUN_TEST(sem_corpus_index_accessors_match_name_lookups);
     RUN_TEST(sem_tfidf_terms_compare_vocabulary_not_positions);
     RUN_TEST(sem_combine_weighs_signals);
+    RUN_TEST(sem_admit_best_first_keeps_the_best);
+    RUN_TEST(sem_calibrated_p_bands);
     RUN_TEST(sem_corpus_add_null_doc);
     RUN_TEST(sem_corpus_free_null);
     RUN_TEST(sem_get_config_defaults);

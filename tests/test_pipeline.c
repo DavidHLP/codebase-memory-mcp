@@ -14,6 +14,7 @@
 #include "pipeline/pipeline_internal.h"
 #include "pipeline/artifact.h"
 #include "store/store.h"
+#include "semantic/semantic.h"
 #include "git/git_context.h"
 #include "foundation/dump_verify.h"
 #include "foundation/sha256.h"
@@ -18896,6 +18897,57 @@ TEST(pipeline_semantic_pair_signals_never_change_the_graph) {
     PASS();
 }
 
+/* Every SEMANTICALLY_RELATED edge carries "p": the calibrated probability for
+ * its score AS STORED (three decimals), so one shown score has one p. */
+TEST(pipeline_semantic_edges_carry_p) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_semp_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    static const char *const subjects[] = {"User", "Server", "Client", "Cache", "Queue", "Mail"};
+    for (size_t i = 0; i < sizeof(subjects) / sizeof(subjects[0]); i++) {
+        char file[64];
+        snprintf(file, sizeof(file), "%s_config.go", subjects[i]);
+        write_sem_family(tmp, file, subjects[i]);
+    }
+    char db[512];
+    snprintf(db, sizeof(db), "%s/p.db", tmp);
+    cbm_setenv("CBM_SEMANTIC_THRESHOLD", "0.3", 1); /* as above: admits the near-duplicates */
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    int rc = cbm_pipeline_run(p);
+    cbm_unsetenv("CBM_SEMANTIC_THRESHOLD");
+    cbm_pipeline_free(p);
+    ASSERT_EQ(rc, 0);
+
+    cbm_store_t *s = cbm_store_open_path(db);
+    ASSERT_NOT_NULL(s);
+    sqlite3_stmt *st = NULL;
+    ASSERT_EQ(sqlite3_prepare_v2(cbm_store_get_db(s),
+                                 "SELECT properties FROM edges WHERE type = 'SEMANTICALLY_RELATED'",
+                                 -1, &st, NULL),
+              SQLITE_OK);
+    int edges = 0;
+    while (sqlite3_step(st) == SQLITE_ROW) {
+        const char *props = (const char *)sqlite3_column_text(st, 0);
+        ASSERT_NOT_NULL(props);
+        yyjson_doc *doc = yyjson_read(props, strlen(props), 0);
+        ASSERT_NOT_NULL(doc);
+        yyjson_val *score = yyjson_obj_get(yyjson_doc_get_root(doc), "score");
+        yyjson_val *pv = yyjson_obj_get(yyjson_doc_get_root(doc), "p");
+        ASSERT_TRUE(score && yyjson_is_num(score));
+        ASSERT_TRUE(pv && yyjson_is_num(pv));
+        double want = cbm_sem_calibrated_p((float)yyjson_get_num(score));
+        ASSERT_FLOAT_EQ(yyjson_get_num(pv), want, 0.006);
+        yyjson_doc_free(doc);
+        edges++;
+    }
+    sqlite3_finalize(st);
+    cbm_store_close(s);
+    ASSERT_GT(edges, 0);
+    th_rmtree(tmp);
+    PASS();
+}
+
 TEST(pipeline_semantic_edges_no_functions) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_nofunc_XXXXXX");
@@ -19809,6 +19861,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_semantic_edges_no_functions);
     RUN_TEST(pipeline_semantic_batched_matches_unbatched);
     RUN_TEST(pipeline_semantic_pair_signals_never_change_the_graph);
+    RUN_TEST(pipeline_semantic_edges_carry_p);
     RUN_TEST(pipeline_cpp_static_factory_pointer_receiver_issue1153);
     RUN_TEST(pipeline_cpp_static_factory_reference_receiver_issue1153);
     RUN_TEST(pipeline_cpp_static_factory_unique_ptr_receiver_issue1153);
