@@ -18810,6 +18810,92 @@ TEST(pipeline_semantic_batched_matches_unbatched) {
     PASS();
 }
 
+/* CBM_SEM_PAIR_SIGNALS (+ _FLOOR) is the semantic engine's measuring
+ * harness: it records each scored pair with its signal values, from a floor
+ * below the threshold up. Recording must never change the graph: the same
+ * SEMANTICALLY_RELATED rows with and without it, one admitted line per edge,
+ * and every pair under the threshold recorded but never admitted. */
+TEST(pipeline_semantic_pair_signals_never_change_the_graph) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_semsig_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    static const char *const subjects[] = {"User", "Server", "Client", "Cache", "Queue", "Mail"};
+    for (size_t i = 0; i < sizeof(subjects) / sizeof(subjects[0]); i++) {
+        char file[64];
+        snprintf(file, sizeof(file), "%s_config.go", subjects[i]);
+        write_sem_family(tmp, file, subjects[i]);
+    }
+    char db_plain[512];
+    char db_signals[512];
+    char tsv[512];
+    snprintf(db_plain, sizeof(db_plain), "%s/plain.db", tmp);
+    snprintf(db_signals, sizeof(db_signals), "%s/signals.db", tmp);
+    snprintf(tsv, sizeof(tsv), "%s/pairs.tsv", tmp);
+
+    cbm_setenv("CBM_SEMANTIC_THRESHOLD", "0.3", 1); /* as above: admits the near-duplicates */
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db_plain, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(cbm_pipeline_run(p), 0);
+    cbm_pipeline_free(p);
+
+    cbm_setenv("CBM_SEM_PAIR_SIGNALS", tsv, 1);
+    cbm_setenv("CBM_SEM_PAIR_SIGNALS_FLOOR", "0.05", 1);
+    p = cbm_pipeline_new(tmp, db_signals, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    int rc = cbm_pipeline_run(p);
+    cbm_unsetenv("CBM_SEM_PAIR_SIGNALS");
+    cbm_unsetenv("CBM_SEM_PAIR_SIGNALS_FLOOR");
+    cbm_unsetenv("CBM_SEMANTIC_THRESHOLD");
+    cbm_pipeline_free(p);
+    ASSERT_EQ(rc, 0);
+
+    cbm_store_t *sp = cbm_store_open_path(db_plain);
+    cbm_store_t *ss = cbm_store_open_path(db_signals);
+    ASSERT_NOT_NULL(sp);
+    ASSERT_NOT_NULL(ss);
+    int edges = 0;
+    ASSERT_TRUE(
+        sem_same_rows(cbm_store_get_db(sp), cbm_store_get_db(ss),
+                      "SELECT s.qualified_name, t.qualified_name, e.properties FROM edges e "
+                      "JOIN nodes s ON s.id = e.source_id JOIN nodes t ON t.id = e.target_id "
+                      "WHERE e.type = 'SEMANTICALLY_RELATED' ORDER BY 1, 2",
+                      &edges));
+    ASSERT_GT(edges, 0);
+    cbm_store_close(sp);
+    cbm_store_close(ss);
+
+    /* qa qb score tfidf ri minhash api type decorator struct proximity
+     * same_file admitted loc_a loc_b */
+    FILE *f = cbm_fopen(tsv, "r");
+    ASSERT_NOT_NULL(f);
+    char line[4096];
+    int lines = 0;
+    int admitted = 0;
+    int below = 0;
+    while (fgets(line, sizeof(line), f)) {
+        char *field[16];
+        int n = 0;
+        for (char *tok = strtok(line, "\t\n"); tok && n < 16; tok = strtok(NULL, "\t\n")) {
+            field[n++] = tok;
+        }
+        ASSERT_EQ(n, 15);
+        float score = strtof(field[2], NULL);
+        bool is_admitted = strcmp(field[12], "1") == 0;
+        if (score < 0.3F) {
+            below++;
+            ASSERT_FALSE(is_admitted);
+        }
+        admitted += is_admitted ? 1 : 0;
+        lines++;
+    }
+    fclose(f);
+    ASSERT_EQ(admitted, edges);
+    ASSERT_GT(below, 0); /* the floor recorded pairs under the threshold */
+    ASSERT_GT(lines, admitted);
+    th_rmtree(tmp);
+    PASS();
+}
+
 TEST(pipeline_semantic_edges_no_functions) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_nofunc_XXXXXX");
@@ -19722,6 +19808,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_markdown_and_config_prose_reaches_fts_body);
     RUN_TEST(pipeline_semantic_edges_no_functions);
     RUN_TEST(pipeline_semantic_batched_matches_unbatched);
+    RUN_TEST(pipeline_semantic_pair_signals_never_change_the_graph);
     RUN_TEST(pipeline_cpp_static_factory_pointer_receiver_issue1153);
     RUN_TEST(pipeline_cpp_static_factory_reference_receiver_issue1153);
     RUN_TEST(pipeline_cpp_static_factory_unique_ptr_receiver_issue1153);

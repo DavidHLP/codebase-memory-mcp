@@ -206,11 +206,42 @@ const char *cbm_sem_corpus_token_at(const cbm_sem_corpus_t *corpus, int index,
 /* Free corpus. */
 void cbm_sem_corpus_free(cbm_sem_corpus_t *corpus);
 
+/* The TF-IDF terms of one function: one entry per distinct corpus token whose
+ * idf is above 0, weighted term frequency x idf, in ascending token-index
+ * order (the order the TF-IDF cosine merges on). `token_index[t]` is the
+ * corpus index of tokens[t] (-1 when unknown); NULL looks each token up by
+ * name. `indices` and `weights` hold at least `count` entries. Returns the
+ * number of terms written. */
+int cbm_sem_tfidf_terms(const cbm_sem_corpus_t *corpus, char *const *tokens, const int *token_index,
+                        int count, int *indices, float *weights);
+
 /* ── Combined scoring ────────────────────────────────────────────── */
 
 /* Compute combined similarity score between two functions. */
 float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
                              const cbm_sem_config_t *cfg);
+
+/* The signal values cbm_sem_combined_score weighs, for measuring them one by
+ * one: each similarity in [0, 1] (minhash 0 when either side has none),
+ * proximity a multiplier in [1.0, 1.10]. `near_copy`: the pair is a SIMILAR_TO
+ * copy, which the combined score sets to 0. */
+typedef struct {
+    float tfidf;
+    float ri;
+    float minhash;
+    float api;
+    float type;
+    float decorator;
+    float struct_profile;
+    float proximity;
+    bool near_copy;
+} cbm_sem_signals_t;
+
+void cbm_sem_signal_values(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
+                           cbm_sem_signals_t *out);
+
+/* cbm_sem_combined_score from the signal values (the same arithmetic). */
+float cbm_sem_combine(const cbm_sem_signals_t *s, const cbm_sem_config_t *cfg);
 
 /* Module proximity multiplier based on file paths. */
 float cbm_sem_proximity(const char *path_a, const char *path_b);

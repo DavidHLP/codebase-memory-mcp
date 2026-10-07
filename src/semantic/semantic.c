@@ -1619,6 +1619,47 @@ static float small_cosine(const float *a, const float *b, int dims) {
     return denom < CBM_SEM_DENOM_EPS ? 0.0F : dot / denom;
 }
 
+static int cmp_int_asc(const void *pa, const void *pb) {
+    int a = *(const int *)pa;
+    int b = *(const int *)pb;
+    return (a > b) - (a < b);
+}
+
+/* Terms are keyed by corpus token, so two functions share a term only when
+ * they share the word. (Until 2026-10 the key was the token's POSITION in the
+ * function: any two functions of similar length "shared" their first terms,
+ * and the TF-IDF signal measured length, not vocabulary.) */
+int cbm_sem_tfidf_terms(const cbm_sem_corpus_t *corpus, char *const *tokens, const int *token_index,
+                        int count, int *indices, float *weights) {
+    if (!corpus || !indices || !weights || count <= 0) {
+        return 0;
+    }
+    int known = 0;
+    for (int t = 0; t < count; t++) {
+        int idx = token_index ? token_index[t] : cbm_sem_corpus_token_index(corpus, tokens[t]);
+        if (idx >= 0 && cbm_sem_corpus_idf_at(corpus, idx) > 0.0F) {
+            indices[known++] = idx;
+        }
+    }
+    if (known > 1) {
+        qsort(indices, (size_t)known, sizeof(indices[0]), cmp_int_asc);
+    }
+    /* Each run of one index becomes one term; its weight is the idf added once
+     * per occurrence (equal indices have equal idf). */
+    int terms = 0;
+    for (int k = 0; k < known; k++) {
+        float idf = cbm_sem_corpus_idf_at(corpus, indices[k]);
+        if (terms > 0 && indices[terms - SKIP_ONE] == indices[k]) {
+            weights[terms - SKIP_ONE] += idf;
+        } else {
+            indices[terms] = indices[k];
+            weights[terms] = idf;
+            terms++;
+        }
+    }
+    return terms;
+}
+
 /* Sparse cosine over two pre-sorted (index, weight) vectors.  Returns 0 when
  * either side is empty or the magnitude product is below the epsilon guard. */
 static float sparse_tfidf_cosine(const cbm_sem_func_t *a, const cbm_sem_func_t *b) {
@@ -1651,49 +1692,47 @@ static float sparse_tfidf_cosine(const cbm_sem_func_t *a, const cbm_sem_func_t *
     return denom > CBM_SEM_DENOM_EPS ? (dot / denom) : 0.0F;
 }
 
-float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
-                             const cbm_sem_config_t *cfg) {
-    if (!a || !b || !cfg) {
-        return 0.0F;
+void cbm_sem_signal_values(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
+                           cbm_sem_signals_t *out) {
+    memset(out, 0, sizeof(*out));
+    out->proximity = CBM_SEM_UNIT_POS;
+    if (!a || !b) {
+        return;
     }
+    if (a->has_minhash && b->has_minhash) {
+        double j = cbm_minhash_jaccard((const cbm_minhash_t *)a->minhash,
+                                       (const cbm_minhash_t *)b->minhash);
+        out->minhash = (float)j;
+        out->near_copy = j >= CBM_MINHASH_JACCARD_THRESHOLD;
+    }
+    out->tfidf = sparse_tfidf_cosine(a, b);
+    out->ri = cbm_rsq_ip(&a->ri_code, &b->ri_code);            /* signal 2: Random Indexing */
+    out->api = cbm_rsq_ip(&a->api_code, &b->api_code);         /* signal 4: API signatures */
+    out->type = cbm_rsq_ip(&a->type_code, &b->type_code);      /* signal 5: type signatures */
+    out->decorator = cbm_rsq_ip(&a->deco_code, &b->deco_code); /* signal 7: decorators */
+    /* signals 8+9+11: structural profile + data flow + Halstead */
+    out->struct_profile =
+        small_cosine(a->struct_profile, b->struct_profile, CBM_SEM_AST_PROFILE_DIMS);
+    out->proximity = cbm_sem_proximity(a->file_path, b->file_path); /* signal 6: multiplier */
+}
 
+float cbm_sem_combine(const cbm_sem_signals_t *s, const cbm_sem_config_t *cfg) {
     /* Short-circuit: if MinHash Jaccard is already above the SIMILAR_TO threshold,
      * the pass_similarity pipeline already emitted a SIMILAR_TO edge for this pair.
      * Returning 0 here avoids flooding top-k with cross-service copy-paste boilerplate
      * (logging_middleware, shared push/pull handlers) that SIMILAR_TO already covers,
      * freeing the edge budget for true semantic leaps (vocabulary-bridged relations). */
-    if (a->has_minhash && b->has_minhash) {
-        double early_j = cbm_minhash_jaccard((const cbm_minhash_t *)a->minhash,
-                                             (const cbm_minhash_t *)b->minhash);
-        if (early_j >= CBM_MINHASH_JACCARD_THRESHOLD) {
-            return 0.0F;
-        }
+    if (!s || !cfg || s->near_copy) {
+        return 0.0F;
     }
-
-    float score = cfg->w_tfidf * sparse_tfidf_cosine(a, b);
-
-    /* Signal 2: Random Indexing */
-    score += cfg->w_ri * cbm_rsq_ip(&a->ri_code, &b->ri_code);
-
-    /* Signal 3: MinHash Jaccard */
-    if (a->has_minhash && b->has_minhash) {
-        double j = cbm_minhash_jaccard((const cbm_minhash_t *)a->minhash,
-                                       (const cbm_minhash_t *)b->minhash);
-        score += cfg->w_minhash * (float)j;
-    }
-
-    /* Signal 4: API Signatures */
-    score += cfg->w_api * cbm_rsq_ip(&a->api_code, &b->api_code);
-
-    /* Signal 5: Type Signatures */
-    score += cfg->w_type * cbm_rsq_ip(&a->type_code, &b->type_code);
-
-    /* Signal 7: Decorator Pattern */
-    score += cfg->w_decorator * cbm_rsq_ip(&a->deco_code, &b->deco_code);
-
-    /* Signal 8+9+11: Structural profile + data flow + Halstead */
-    float sp_score = small_cosine(a->struct_profile, b->struct_profile, CBM_SEM_AST_PROFILE_DIMS);
-    score += cfg->w_struct_profile * sp_score;
+    /* The terms in the historical order (float addition is not associative). */
+    float score = cfg->w_tfidf * s->tfidf;
+    score += cfg->w_ri * s->ri;
+    score += cfg->w_minhash * s->minhash;
+    score += cfg->w_api * s->api;
+    score += cfg->w_type * s->type;
+    score += cfg->w_decorator * s->decorator;
+    score += cfg->w_struct_profile * s->struct_profile;
 
     /* Signal 6: Module proximity (multiplier, not additive).
      * Proximity returns [1.0, 1.10] — a same-file/same-dir boost for ranking.
@@ -1701,15 +1740,24 @@ float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
      * cosine-similarity range.  Without the clamp, a 0.95 base × 1.10 proximity
      * would emit a 1.045 score which violates the semantic of "similarity" and
      * breaks downstream consumers that expect a normalized value. */
-    score *= cbm_sem_proximity(a->file_path, b->file_path);
+    score *= s->proximity;
     if (score > CBM_SEM_UNIT_POS) {
         score = CBM_SEM_UNIT_POS;
     }
     if (score < 0.0F) {
         score = 0.0F;
     }
-
     return score;
+}
+
+float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
+                             const cbm_sem_config_t *cfg) {
+    if (!a || !b || !cfg) {
+        return 0.0F;
+    }
+    cbm_sem_signals_t s;
+    cbm_sem_signal_values(a, b, &s);
+    return cbm_sem_combine(&s, cfg);
 }
 
 /* ── Graph diffusion ─────────────────────────────────────────────── */

@@ -1274,8 +1274,13 @@ int cbm_pipeline_build_fresh_semantic_manifest(cbm_pipeline_t *p, const char *pr
  *      sections and PDF pages hold MENTIONS edges into the code, ADR records
  *      are nodes, and AsciiDoc files, PDFs and a Sphinx project's extra
  *      source suffixes are indexed. An index built before has none of this
- *      for its unchanged documents, so it rebuilds once on upgrade. */
-enum { CBM_SEMANTIC_INDEX_VERSION = 6 };
+ *      for its unchanged documents, so it rebuilds once on upgrade.
+ *   7: SEMANTICALLY_RELATED changed: TF-IDF compares vocabulary, string
+ *      properties are read with their escapes, admission is best-first and
+ *      every edge carries "p"; doc_link_candidates holds doc section -> code
+ *      candidates. An index built before has the old pairs and no
+ *      candidates, so it rebuilds once on upgrade. */
+enum { CBM_SEMANTIC_INDEX_VERSION = 7 };
 
 typedef struct {
     cbm_gbuf_t *gbuf;

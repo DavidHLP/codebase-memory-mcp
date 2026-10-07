@@ -71,6 +71,7 @@ typedef struct {
     int64_t target_id;
     float score;
     bool same_file;
+    bool below; /* under the threshold: recorded for CBM_SEM_PAIR_SIGNALS only, never admitted */
     /* Canonical admission keys (determinism): func index of the discovering
      * side, its candidate rank, and the partner's func index. The sequential
      * admission pass replays pairs in (i, c) order so which pairs win the
@@ -93,7 +94,7 @@ static void deferred_buf_init(deferred_edge_buf_t *buf) {
 }
 
 static void deferred_buf_push(deferred_edge_buf_t *buf, int64_t src, int64_t tgt, float score,
-                              bool same_file, int i, int j, int c) {
+                              bool same_file, bool below, int i, int j, int c) {
     if (buf->count >= buf->cap) {
         int nc = buf->cap < CBM_SZ_256 ? CBM_SZ_256 : buf->cap * GROW;
         deferred_edge_t *grown =
@@ -108,6 +109,7 @@ static void deferred_buf_push(deferred_edge_buf_t *buf, int64_t src, int64_t tgt
                                                  .target_id = tgt,
                                                  .score = score,
                                                  .same_file = same_file,
+                                                 .below = below,
                                                  .i = i,
                                                  .j = j,
                                                  .c = c};
@@ -724,19 +726,10 @@ static void vec_build_worker(int worker_id, void *ctx_ptr) {
             token_index[t] = cbm_sem_corpus_token_index(vc->corpus, tokens[t]);
         }
 
-        /* TF-IDF weights */
+        /* TF-IDF terms, keyed by corpus token (cbm_sem_tfidf_terms). */
         int *indices = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)tc * sizeof(int));
         float *weights = cbm_alloc(CBM_MEM_CLASS_SEMANTIC, (size_t)tc * sizeof(float));
-        int tfidf_len = 0;
-        for (int t = 0; t < tc; t++) {
-            float idf = token_index ? cbm_sem_corpus_idf_at(vc->corpus, token_index[t])
-                                    : cbm_sem_corpus_idf(vc->corpus, tokens[t]);
-            if (idf > 0.0F) {
-                indices[tfidf_len] = t;
-                weights[tfidf_len] = idf;
-                tfidf_len++;
-            }
-        }
+        int tfidf_len = cbm_sem_tfidf_terms(vc->corpus, tokens, token_index, tc, indices, weights);
         vc->funcs[f].tfidf_indices = indices;
         vc->funcs[f].tfidf_weights = weights;
         vc->funcs[f].tfidf_len = tfidf_len;
@@ -833,6 +826,7 @@ typedef struct {
     uint64_t *signatures;
     int *edge_counts; /* budget applied sequentially in phase6b (determinism) */
     cbm_sem_config_t cfg;
+    float record_floor; /* kept from here up; under the threshold: signals dump only */
     int func_count;
 
     /* LSH buckets (read-only during scoring) */
@@ -927,13 +921,13 @@ static void score_try_emit(score_ctx_t *sc, int i, int j, int c, deferred_edge_b
         return;
     }
     float score = cbm_sem_combined_score(&sc->funcs[i], &sc->funcs[j], &sc->cfg);
-    if (score < sc->cfg.threshold) {
+    if (score < sc->record_floor) {
         return;
     }
     bool same_file = sc->funcs[i].file_path && sc->funcs[j].file_path &&
                      strcmp(sc->funcs[i].file_path, sc->funcs[j].file_path) == 0;
-    deferred_buf_push(my_buf, sc->funcs[i].node_id, sc->funcs[j].node_id, score, same_file, i, j,
-                      c);
+    deferred_buf_push(my_buf, sc->funcs[i].node_id, sc->funcs[j].node_id, score, same_file,
+                      score < sc->cfg.threshold, i, j, c);
 }
 
 static void score_worker(int worker_id, void *ctx_ptr) {
@@ -1138,8 +1132,31 @@ static int cmp_deferred_edge_canonical(const void *pa, const void *pb) {
  * and apply the per-node max_edges budget HERE — single-threaded — so the
  * admitted edge set is a pure function of the (canonically sorted) inputs,
  * independent of worker count and scheduling. */
+/* CBM_SEM_PAIR_SIGNALS=<path>: one line per recorded pair (from the record
+ * floor up, CBM_SEM_PAIR_SIGNALS_FLOOR, default the threshold), in canonical
+ * order: both qualified names, the score, every signal value and whether the
+ * pair was admitted. The measuring harness for the semantic engine: judged
+ * samples are drawn from it, stratified by score. Off unless set. */
+static void pair_signals_line(FILE *f, const cbm_gbuf_t *gbuf, const cbm_sem_func_t *funcs,
+                              const deferred_edge_t *de, bool admitted) {
+    cbm_sem_signals_t s;
+    cbm_sem_signal_values(&funcs[de->i], &funcs[de->j], &s);
+    const cbm_gbuf_node_t *a = cbm_gbuf_find_by_id(gbuf, de->source_id);
+    const cbm_gbuf_node_t *b = cbm_gbuf_find_by_id(gbuf, de->target_id);
+    (void)fprintf(
+        f,
+        "%s\t%s\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.6f\t%.4f\t%d\t%d"
+        "\t%s:%d-%d\t%s:%d-%d\n",
+        a && a->qualified_name ? a->qualified_name : "?",
+        b && b->qualified_name ? b->qualified_name : "?", (double)de->score, (double)s.tfidf,
+        (double)s.ri, (double)s.minhash, (double)s.api, (double)s.type, (double)s.decorator,
+        (double)s.struct_profile, (double)s.proximity, de->same_file ? 1 : 0, admitted ? 1 : 0,
+        a && a->file_path ? a->file_path : "?", a ? a->start_line : 0, a ? a->end_line : 0,
+        b && b->file_path ? b->file_path : "?", b ? b->start_line : 0, b ? b->end_line : 0);
+}
+
 static int phase6b_merge_edges(cbm_gbuf_t *gbuf, deferred_edge_buf_t *worker_bufs, int worker_count,
-                               int *edge_counts, int max_edges) {
+                               int *edge_counts, int max_edges, const cbm_sem_func_t *funcs) {
     int total_pairs = 0;
     for (int w = 0; w < worker_count; w++) {
         total_pairs += worker_bufs[w].count;
@@ -1175,20 +1192,34 @@ static int phase6b_merge_edges(cbm_gbuf_t *gbuf, deferred_edge_buf_t *worker_buf
      * chase the near-threshold SEMANTICALLY_RELATED flicker: find the pair that
      * flips, then compare its score between runs. */
     FILE *pair_dump = NULL;
+    FILE *signals = NULL;
     {
         char dump_path[CBM_SZ_1K];
         if (cbm_safe_getenv("CBM_SEM_PAIR_DUMP", dump_path, sizeof(dump_path), NULL)) {
             pair_dump = cbm_fopen(dump_path, "w");
+        }
+        if (funcs && cbm_safe_getenv("CBM_SEM_PAIR_SIGNALS", dump_path, sizeof(dump_path), NULL)) {
+            signals = cbm_fopen(dump_path, "w");
         }
     }
 
     int total_edges = 0;
     for (int e = 0; e < n; e++) {
         deferred_edge_t *de = &pairs[e];
+        if (de->below) {
+            if (signals) {
+                pair_signals_line(signals, gbuf, funcs, de, false);
+            }
+            continue;
+        }
         if (pair_dump) {
             fprintf(pair_dump, "%d %d %.9g\n", de->i, de->j, (double)de->score);
         }
-        if (edge_counts[de->i] >= max_edges || edge_counts[de->j] >= max_edges) {
+        bool admitted = edge_counts[de->i] < max_edges && edge_counts[de->j] < max_edges;
+        if (signals) {
+            pair_signals_line(signals, gbuf, funcs, de, admitted);
+        }
+        if (!admitted) {
             continue;
         }
         char props[PROPS_BUF];
@@ -1201,6 +1232,9 @@ static int phase6b_merge_edges(cbm_gbuf_t *gbuf, deferred_edge_buf_t *worker_buf
     }
     if (pair_dump) {
         (void)fclose(pair_dump);
+    }
+    if (signals) {
+        (void)fclose(signals);
     }
     cbm_free(CBM_MEM_CLASS_SEMANTIC, pairs);
     return total_edges;
@@ -1542,13 +1576,14 @@ static void sem_corpus_dump(const cbm_sem_corpus_t *corpus, const char *suffix) 
 /* Phase 6a: score candidate pairs in parallel and collect deferred edges. */
 static void phase6a_score_candidates(cbm_sem_func_t *funcs, uint64_t *signatures, int *edge_counts,
                                      sem_bucket_t **band_buckets, cbm_sem_config_t cfg,
-                                     deferred_edge_buf_t *worker_bufs, int func_count,
-                                     int worker_count) {
+                                     float record_floor, deferred_edge_buf_t *worker_bufs,
+                                     int func_count, int worker_count) {
     score_ctx_t sc = {
         .funcs = funcs,
         .signatures = signatures,
         .edge_counts = edge_counts,
         .cfg = cfg,
+        .record_floor = record_floor,
         .func_count = func_count,
         .band_buckets = (void *)band_buckets,
         .worker_bufs = worker_bufs,
@@ -1619,14 +1654,30 @@ static int run_scoring_phase(cbm_gbuf_t *gbuf, cbm_sem_func_t *funcs, uint64_t *
         deferred_buf_init(&worker_bufs[w]);
     }
 
+    /* The measuring harness may record pairs below the threshold (never
+     * admitted): CBM_SEM_PAIR_SIGNALS_FLOOR, only with CBM_SEM_PAIR_SIGNALS. */
+    float record_floor = cfg.threshold;
+    {
+        char path[CBM_SZ_1K]; /* the dump path: a buffer too short reads as unset */
+        char buf[CBM_SZ_64];
+        if (cbm_safe_getenv("CBM_SEM_PAIR_SIGNALS", path, sizeof(path), NULL) &&
+            cbm_safe_getenv("CBM_SEM_PAIR_SIGNALS_FLOOR", buf, sizeof(buf), NULL)) {
+            float floor_value = strtof(buf, NULL);
+            if (floor_value > 0.0F && floor_value < cfg.threshold) {
+                record_floor = floor_value;
+            }
+        }
+    }
+
     CBM_PROF_START(t_phase6a);
     sem_state_dump(funcs, func_count);
-    phase6a_score_candidates(funcs, signatures, edge_counts, band_buckets, cfg, worker_bufs,
-                             func_count, worker_count);
+    phase6a_score_candidates(funcs, signatures, edge_counts, band_buckets, cfg, record_floor,
+                             worker_bufs, func_count, worker_count);
     CBM_PROF_END_N("semantic_edges", "6a_score_parallel", t_phase6a, func_count);
 
     CBM_PROF_START(t_phase6b);
-    int total = phase6b_merge_edges(gbuf, worker_bufs, worker_count, edge_counts, cfg.max_edges);
+    int total =
+        phase6b_merge_edges(gbuf, worker_bufs, worker_count, edge_counts, cfg.max_edges, funcs);
     CBM_PROF_END_N("semantic_edges", "6b_edge_merge_seq", t_phase6b, total);
 
     cbm_free(CBM_MEM_CLASS_SEMANTIC, worker_bufs);
