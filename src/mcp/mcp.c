@@ -12859,6 +12859,68 @@ static char *snippet_budget_floor(bool json_format, int max_output_tokens) {
     return json;
 }
 
+/* Doc -> code candidates (doc_link_candidates): on a Section, the functions it
+ * is possibly about; on a function or method, the sections that possibly
+ * describe it -- highest p first. Candidates with a judged probability for the
+ * agent to verify, never links. A row whose other end no longer resolves (a
+ * delta update renamed or removed it) is skipped. */
+enum { MCP_DOC_CANDIDATES_MAX = 5 };
+static void add_doc_candidates(yyjson_mut_doc *doc, yyjson_mut_val *root, cbm_store_t *store,
+                               const cbm_node_t *node) {
+    if (!store || !node->label || !node->qualified_name || !node->project) {
+        return;
+    }
+    bool section = strcmp(node->label, "Section") == 0;
+    if (!section && strcmp(node->label, "Function") != 0 && strcmp(node->label, "Method") != 0) {
+        return;
+    }
+    cbm_doc_candidate_t *rows = NULL;
+    int n = 0;
+    if (cbm_store_doc_candidates_get(store, node->project, section ? node->qualified_name : NULL,
+                                     section ? NULL : node->qualified_name, MCP_DOC_CANDIDATES_MAX,
+                                     &rows, &n) != CBM_STORE_OK) {
+        return;
+    }
+    yyjson_mut_val *arr = yyjson_mut_arr(doc);
+    int added = 0;
+    for (int i = 0; i < n; i++) {
+        cbm_node_t other = {0};
+        if (cbm_store_find_node_by_qn(store, node->project,
+                                      section ? rows[i].target_qn : rows[i].section_qn,
+                                      &other) != CBM_STORE_OK) {
+            continue;
+        }
+        yyjson_mut_val *o = yyjson_mut_obj(doc);
+        yyjson_mut_obj_add_strcpy(doc, o, section ? "qualified_name" : "section",
+                                  other.qualified_name ? other.qualified_name : "");
+        yyjson_mut_obj_add_strcpy(doc, o, "file_path", other.file_path ? other.file_path : "");
+        yyjson_mut_obj_add_int(doc, o, "start_line", other.start_line);
+        if (section) {
+            yyjson_mut_obj_add_int(doc, o, "end_line", other.end_line);
+        }
+        yyjson_mut_obj_add_real(doc, o, "p", (double)(int)(rows[i].p * 1000.0 + 0.5) / 1000.0);
+        int shared = 0;
+        int name_tokens = 0;
+        if (section && rows[i].evidence &&
+            sscanf(rows[i].evidence, "{\"shared_terms\":%d,\"name_tokens\":%d}", &shared,
+                   &name_tokens) == 2) {
+            yyjson_mut_obj_add_int(doc, o, "shared_terms", shared);
+            yyjson_mut_obj_add_int(doc, o, "name_tokens", name_tokens);
+        }
+        yyjson_mut_arr_append(arr, o);
+        added++;
+        free_node_contents(&other);
+    }
+    cbm_store_doc_candidates_free(rows, n);
+    if (added > 0) {
+        yyjson_mut_obj_add_val(doc, root, section ? "possibly_about" : "possibly_described_in",
+                               arr);
+        yyjson_mut_obj_add_str(doc, root, "candidates_note",
+                               "doc<->code candidates by shared terms, not links: p is the "
+                               "judged probability the section is about the function; verify");
+    }
+}
+
 static char *build_snippet_response(cbm_mcp_server_t *srv, cbm_node_t *node,
                                     const char *match_method, bool include_neighbors,
                                     cbm_node_t *alternatives, int alt_count, const char *args) {
@@ -13074,6 +13136,8 @@ static char *build_snippet_response(cbm_mcp_server_t *srv, cbm_node_t *node,
         }
         yyjson_mut_obj_add_val(doc, root_obj, "alternatives", arr);
     }
+
+    add_doc_candidates(doc, root_obj, store, node);
 
     bool bounded_default = max_output_tokens > 0;
     size_t snippet_byte_budget =

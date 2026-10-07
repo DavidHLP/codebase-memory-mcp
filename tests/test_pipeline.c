@@ -18948,6 +18948,117 @@ TEST(pipeline_semantic_edges_carry_p) {
     PASS();
 }
 
+/* Count a section's stored doc -> code candidates (section QN containing
+ * heading) and check each row's shape: rank within the top
+ * CBM_SEM_DOC_TOP_K, score at or above the floor, p the doc curve's band at
+ * two decimals, never a test function. Returns -1 on a bad row. */
+static int doc_candidate_rows_for(cbm_store_t *s, const char *heading, char *top, size_t top_sz) {
+    sqlite3_stmt *st = NULL;
+    if (sqlite3_prepare_v2(cbm_store_get_db(s),
+                           "SELECT target_qn, rank, score, p FROM doc_link_candidates "
+                           "WHERE instr(section_qn, ?1) > 0 ORDER BY rank",
+                           -1, &st, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    sqlite3_bind_text(st, 1, heading, -1, SQLITE_TRANSIENT);
+    int n = 0;
+    bool ok = true;
+    while (ok && sqlite3_step(st) == SQLITE_ROW) {
+        const char *target = (const char *)sqlite3_column_text(st, 0);
+        int rank = sqlite3_column_int(st, 1);
+        double score = sqlite3_column_double(st, 2);
+        double p = sqlite3_column_double(st, 3);
+        double want = (double)(int)(cbm_sem_doc_calibrated_p((float)score) * 100.0F + 0.5F) / 100.0;
+        ok = target && rank >= 1 && rank <= CBM_SEM_DOC_TOP_K &&
+             score >= (double)CBM_SEM_DOC_MIN_SCORE && p == want && !strstr(target, ".Test");
+        if (ok && n == 0 && top) {
+            snprintf(top, top_sz, "%s", target);
+        }
+        n++;
+    }
+    sqlite3_finalize(st);
+    return ok ? n : -1;
+}
+
+/* Doc -> code candidates end to end: a full index publishes a section's
+ * calibrated candidates (the best match first, a test function never, a
+ * changelog section none), and a delta-route reindex keeps them -- its proxy
+ * buffer cannot recompute them, so the clone's rows must survive. */
+TEST(pipeline_doc_candidates_published_and_kept_by_delta) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_doccand_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    static const char *const subjects[] = {"User", "Server", "Client", "Cache", "Queue", "Mail"};
+    for (size_t i = 0; i < sizeof(subjects) / sizeof(subjects[0]); i++) {
+        char file[64];
+        snprintf(file, sizeof(file), "%s_config.go", subjects[i]);
+        write_sem_family(tmp, file, subjects[i]);
+    }
+    /* A test whose comment is the section's own text: the best match of all,
+     * and still never a candidate. */
+    write_temp_file(tmp, "mail_config_test.go",
+                    "package main\n\n"
+                    "// TestParseMailConfig: the mail config file is parsed by ParseMailConfig,\n"
+                    "// which loads the mail config from disk and validates the mail config\n"
+                    "// fields before anything reads them. Missing fields fail the validation,\n"
+                    "// and the parsed mail config can be written back to disk afterwards.\n"
+                    "func TestParseMailConfig(t *testing.T) {\n"
+                    "\tParseMailConfig(\"mail.conf\")\n}\n");
+    write_temp_file(tmp, "README.md",
+                    "# Mail configuration\n\n"
+                    "The mail config file is parsed by ParseMailConfig, which loads the mail "
+                    "config from disk and validates the mail config fields before anything "
+                    "reads them. Missing fields fail the validation, and the parsed mail "
+                    "config can be written back to disk afterwards.\n\n"
+                    "## Changelog\n\n"
+                    "The mail config loader now validates missing fields and writes the mail "
+                    "config back to disk after parsing, so a parsed mail config file always "
+                    "carries every field it needs.\n");
+    char db[512];
+    snprintf(db, sizeof(db), "%s/doccand.db", tmp);
+
+    cbm_pipeline_incremental_test_reset_faults();
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(cbm_pipeline_run(p), 0);
+    cbm_pipeline_free(p);
+
+    cbm_store_t *s = cbm_store_open_path(db);
+    ASSERT_NOT_NULL(s);
+    char top[512] = "";
+    int mail = doc_candidate_rows_for(s, "Mail-configuration", top, sizeof(top));
+    int changelog = doc_candidate_rows_for(s, "Changelog", NULL, 0);
+    cbm_store_close(s);
+    ASSERT_GT(mail, 0);
+    ASSERT_NOT_NULL(strstr(top, "Mail"));
+    ASSERT_EQ(changelog, 0);
+
+    /* Delta route: an edit that keeps every definition name (closure repair
+     * declines added names); the candidates are kept as they were. */
+    char edited[512];
+    snprintf(edited, sizeof(edited), "%s/user_config.go", tmp);
+    FILE *ef = cbm_fopen(edited, "a");
+    ASSERT_NOT_NULL(ef);
+    (void)fputs("\n// edited after the first index\n", ef);
+    (void)fclose(ef);
+    cbm_pipeline_incremental_test_reset_faults();
+    p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(cbm_pipeline_run(p), 0);
+    ASSERT_EQ(cbm_pipeline_incremental_test_last_route(), CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+    cbm_pipeline_free(p);
+    s = cbm_store_open_path(db);
+    ASSERT_NOT_NULL(s);
+    char top_after[512] = "";
+    int mail_after = doc_candidate_rows_for(s, "Mail-configuration", top_after, sizeof(top_after));
+    cbm_store_close(s);
+    ASSERT_EQ(mail_after, mail);
+    ASSERT_STR_EQ(top_after, top);
+    th_rmtree(tmp);
+    cbm_pipeline_incremental_test_reset_faults();
+    PASS();
+}
+
 TEST(pipeline_semantic_edges_no_functions) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_nofunc_XXXXXX");
@@ -19862,6 +19973,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_semantic_batched_matches_unbatched);
     RUN_TEST(pipeline_semantic_pair_signals_never_change_the_graph);
     RUN_TEST(pipeline_semantic_edges_carry_p);
+    RUN_TEST(pipeline_doc_candidates_published_and_kept_by_delta);
     RUN_TEST(pipeline_cpp_static_factory_pointer_receiver_issue1153);
     RUN_TEST(pipeline_cpp_static_factory_reference_receiver_issue1153);
     RUN_TEST(pipeline_cpp_static_factory_unique_ptr_receiver_issue1153);

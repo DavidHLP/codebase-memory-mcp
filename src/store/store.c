@@ -10746,6 +10746,137 @@ int cbm_adr_validate_section_keys(const char **keys, int count, char *errbuf, in
     return CBM_STORE_OK;
 }
 
+/* ── Doc -> code candidates ─────────────────────────────────────── */
+
+static const char DOC_CANDIDATES_DDL[] =
+    "CREATE TABLE IF NOT EXISTS doc_link_candidates ("
+    "  project TEXT NOT NULL,"
+    "  section_qn TEXT NOT NULL,"
+    "  target_qn TEXT NOT NULL,"
+    "  rank INTEGER NOT NULL,"
+    "  score REAL NOT NULL,"
+    "  p REAL NOT NULL,"
+    "  evidence TEXT NOT NULL DEFAULT ''"
+    ");"
+    "CREATE INDEX IF NOT EXISTS idx_doc_link_candidates_section "
+    "ON doc_link_candidates(project, section_qn);"
+    "CREATE INDEX IF NOT EXISTS idx_doc_link_candidates_target "
+    "ON doc_link_candidates(project, target_qn);";
+
+int cbm_store_doc_candidates_replace(cbm_store_t *s, const char *project,
+                                     const cbm_doc_candidate_t *rows, int count) {
+    if (!s || !s->db || !project || count < 0 || (count > 0 && !rows)) {
+        return CBM_STORE_ERR;
+    }
+    if (exec_sql(s, DOC_CANDIDATES_DDL) != CBM_STORE_OK || exec_sql(s, "BEGIN;") != CBM_STORE_OK) {
+        return CBM_STORE_ERR;
+    }
+    sqlite3_stmt *del = NULL;
+    sqlite3_stmt *ins = NULL;
+    bool ok = sqlite3_prepare_v2(s->db, "DELETE FROM doc_link_candidates WHERE project = ?1;",
+                                 CBM_NOT_FOUND, &del, NULL) == SQLITE_OK &&
+              sqlite3_prepare_v2(s->db,
+                                 "INSERT INTO doc_link_candidates "
+                                 "(project, section_qn, target_qn, rank, score, p, evidence) "
+                                 "VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7);",
+                                 CBM_NOT_FOUND, &ins, NULL) == SQLITE_OK;
+    if (ok) {
+        bind_text(del, SKIP_ONE, project);
+        ok = sqlite3_step(del) == SQLITE_DONE;
+    }
+    for (int i = 0; ok && i < count; i++) {
+        if (!rows[i].section_qn || !rows[i].target_qn) {
+            continue;
+        }
+        bind_text(ins, SKIP_ONE, project);
+        bind_text(ins, ST_COL_2, rows[i].section_qn);
+        bind_text(ins, ST_COL_3, rows[i].target_qn);
+        sqlite3_bind_int(ins, ST_COL_4, rows[i].rank);
+        sqlite3_bind_double(ins, ST_COL_5, rows[i].score);
+        sqlite3_bind_double(ins, ST_COL_6, rows[i].p);
+        bind_text(ins, CBM_SZ_7, rows[i].evidence ? rows[i].evidence : "");
+        ok = sqlite3_step(ins) == SQLITE_DONE;
+        sqlite3_reset(ins);
+    }
+    sqlite3_finalize(del);
+    sqlite3_finalize(ins);
+    if (!ok) {
+        store_set_error_sqlite(s, "doc_candidates replace");
+        (void)exec_sql(s, "ROLLBACK;");
+        return CBM_STORE_ERR;
+    }
+    return exec_sql(s, "COMMIT;");
+}
+
+int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char *section_qn,
+                                 const char *target_qn, int limit, cbm_doc_candidate_t **out,
+                                 int *count) {
+    if (!s || !s->db || !project || !out || !count || (!section_qn == !target_qn) || limit <= 0) {
+        return CBM_STORE_ERR;
+    }
+    *out = NULL;
+    *count = 0;
+    sqlite3_stmt *probe = NULL;
+    if (sqlite3_prepare_v2(s->db,
+                           "SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                           "name='doc_link_candidates' LIMIT 1;",
+                           CBM_NOT_FOUND, &probe, NULL) != SQLITE_OK) {
+        store_set_error_sqlite(s, "doc_candidates probe");
+        return CBM_STORE_ERR;
+    }
+    int rc = sqlite3_step(probe);
+    sqlite3_finalize(probe);
+    if (rc == SQLITE_DONE) {
+        return CBM_STORE_NOT_FOUND;
+    }
+    if (rc != SQLITE_ROW) {
+        store_set_error_sqlite(s, "doc_candidates probe step");
+        return CBM_STORE_ERR;
+    }
+    const char *sql = section_qn ? "SELECT section_qn, target_qn, rank, score, p, evidence FROM "
+                                   "doc_link_candidates WHERE project=?1 AND section_qn=?2 "
+                                   "ORDER BY p DESC, score DESC, target_qn LIMIT ?3;"
+                                 : "SELECT section_qn, target_qn, rank, score, p, evidence FROM "
+                                   "doc_link_candidates WHERE project=?1 AND target_qn=?2 "
+                                   "ORDER BY p DESC, score DESC, section_qn LIMIT ?3;";
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(s->db, sql, CBM_NOT_FOUND, &stmt, NULL) != SQLITE_OK) {
+        store_set_error_sqlite(s, "doc_candidates get");
+        return CBM_STORE_ERR;
+    }
+    bind_text(stmt, SKIP_ONE, project);
+    bind_text(stmt, ST_COL_2, section_qn ? section_qn : target_qn);
+    sqlite3_bind_int(stmt, ST_COL_3, limit);
+    cbm_doc_candidate_t *rows = calloc((size_t)limit, sizeof(*rows));
+    if (!rows) {
+        sqlite3_finalize(stmt);
+        return CBM_STORE_ERR;
+    }
+    int n = 0;
+    while (n < limit && sqlite3_step(stmt) == SQLITE_ROW) {
+        rows[n].section_qn = heap_strdup((const char *)sqlite3_column_text(stmt, 0));
+        rows[n].target_qn = heap_strdup((const char *)sqlite3_column_text(stmt, SKIP_ONE));
+        rows[n].rank = sqlite3_column_int(stmt, ST_COL_2);
+        rows[n].score = sqlite3_column_double(stmt, ST_COL_3);
+        rows[n].p = sqlite3_column_double(stmt, ST_COL_4);
+        rows[n].evidence = heap_strdup((const char *)sqlite3_column_text(stmt, ST_COL_5));
+        n++;
+    }
+    sqlite3_finalize(stmt);
+    *out = rows;
+    *count = n;
+    return CBM_STORE_OK;
+}
+
+void cbm_store_doc_candidates_free(cbm_doc_candidate_t *rows, int count) {
+    for (int i = 0; rows && i < count; i++) {
+        free((void *)rows[i].section_qn);
+        free((void *)rows[i].target_qn);
+        free((void *)rows[i].evidence);
+    }
+    free(rows);
+}
+
 void cbm_adr_sections_free(cbm_adr_sections_t *s) {
     if (!s) {
         return;

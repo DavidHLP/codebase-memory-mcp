@@ -18508,6 +18508,89 @@ TEST(snippet_exact_qn) {
     PASS();
 }
 
+/* Doc -> code candidates on get_code_snippet: a Section lists the functions
+ * it is possibly about (highest p first, evidence included), a function the
+ * sections that possibly describe it; a row whose other end no longer exists
+ * is skipped, and a node without rows gets no candidate keys at all. */
+TEST(snippet_doc_candidates_both_directions) {
+    char tmp[256];
+    cbm_mcp_server_t *srv = setup_snippet_server(tmp, sizeof(tmp));
+    ASSERT_NOT_NULL(srv);
+    cbm_store_t *st = cbm_mcp_server_store(srv);
+    cbm_node_t sec = {.project = "test-project",
+                      .label = "Section",
+                      .name = "Orders",
+                      .qualified_name = "test-project.README.Orders",
+                      .file_path = "README.md",
+                      .start_line = 1,
+                      .end_line = 4};
+    ASSERT_TRUE(cbm_store_upsert_node(st, &sec) > 0);
+    const cbm_doc_candidate_t rows[] = {
+        {.section_qn = "test-project.README.Orders",
+         .target_qn = "test-project.cmd.server.main.HandleRequest",
+         .rank = 2,
+         .score = 0.25,
+         .p = 0.36,
+         .evidence = "{\"shared_terms\":2,\"name_tokens\":0}"},
+        {.section_qn = "test-project.README.Orders",
+         .target_qn = "test-project.cmd.server.main.ProcessOrder",
+         .rank = 1,
+         .score = 0.45,
+         .p = 0.548,
+         .evidence = "{\"shared_terms\":5,\"name_tokens\":2}"},
+        {.section_qn = "test-project.README.Orders",
+         .target_qn = "test-project.gone.Missing",
+         .rank = 3,
+         .score = 0.31,
+         .p = 0.42,
+         .evidence = "{\"shared_terms\":1,\"name_tokens\":0}"},
+    };
+    ASSERT_EQ(cbm_store_doc_candidates_replace(st, "test-project", rows, 3), CBM_STORE_OK);
+
+    char *resp = call_snippet(srv, "{\"qualified_name\":\"test-project.README.Orders\","
+                                   "\"project\":\"test-project\"}");
+    ASSERT_NOT_NULL(resp);
+    yyjson_doc *doc = yyjson_read(resp, strlen(resp), 0);
+    ASSERT_NOT_NULL(doc);
+    yyjson_val *about = yyjson_obj_get(yyjson_doc_get_root(doc), "possibly_about");
+    ASSERT_EQ((int)yyjson_arr_size(about), 2);
+    yyjson_val *first = yyjson_arr_get(about, 0);
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(first, "qualified_name")),
+                  "test-project.cmd.server.main.ProcessOrder");
+    ASSERT_FLOAT_EQ(yyjson_get_num(yyjson_obj_get(first, "p")), 0.548, 1e-9);
+    ASSERT_EQ((int)yyjson_get_int(yyjson_obj_get(first, "shared_terms")), 5);
+    ASSERT_EQ((int)yyjson_get_int(yyjson_obj_get(first, "start_line")), 7);
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(about, 1), "qualified_name")),
+                  "test-project.cmd.server.main.HandleRequest");
+    ASSERT_NOT_NULL(yyjson_obj_get(yyjson_doc_get_root(doc), "candidates_note"));
+    yyjson_doc_free(doc);
+    free(resp);
+
+    resp = call_snippet(srv, "{\"qualified_name\":\"test-project.cmd.server.main.ProcessOrder\","
+                             "\"project\":\"test-project\"}");
+    ASSERT_NOT_NULL(resp);
+    doc = yyjson_read(resp, strlen(resp), 0);
+    ASSERT_NOT_NULL(doc);
+    yyjson_val *in = yyjson_obj_get(yyjson_doc_get_root(doc), "possibly_described_in");
+    ASSERT_EQ((int)yyjson_arr_size(in), 1);
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(in, 0), "section")),
+                  "test-project.README.Orders");
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(in, 0), "file_path")), "README.md");
+    yyjson_doc_free(doc);
+    free(resp);
+
+    resp = call_snippet(srv, "{\"qualified_name\":\"test-project.cmd.server.Run\","
+                             "\"project\":\"test-project\"}");
+    ASSERT_NOT_NULL(resp);
+    ASSERT_NULL(strstr(resp, "possibly_"));
+    ASSERT_NULL(strstr(resp, "candidates_note"));
+    free(resp);
+
+    cbm_mcp_server_free(srv);
+    cleanup_snippet_dir(tmp);
+    PASS();
+}
+
 /* ── TestSnippet_QNSuffix ─────────────────────────────────────── */
 
 TEST(snippet_qn_suffix) {
@@ -23952,6 +24035,7 @@ SUITE(mcp) {
 
     /* Snippet resolution (port of snippet_test.go) */
     RUN_TEST(snippet_exact_qn);
+    RUN_TEST(snippet_doc_candidates_both_directions);
     RUN_TEST(snippet_qn_suffix);
     RUN_TEST(snippet_unique_short_name);
     RUN_TEST(snippet_c_macro_namespace_c1);

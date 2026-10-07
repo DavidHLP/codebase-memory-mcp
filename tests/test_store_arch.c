@@ -621,6 +621,88 @@ TEST(adr_delete_not_found) {
     PASS();
 }
 
+/* Doc -> code candidates: a database without the table reads as "none";
+ * a replace swaps exactly one project's rows; reads go highest p first (then
+ * score) in both directions. */
+TEST(doc_candidates_replace_and_get) {
+    cbm_store_t *s = cbm_store_open_memory();
+    ASSERT_NOT_NULL(s);
+    cbm_doc_candidate_t *got = NULL;
+    int n = -1;
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", "p.secA", NULL, 5, &got, &n),
+              CBM_STORE_NOT_FOUND);
+
+    const cbm_doc_candidate_t rows[] = {
+        {.section_qn = "p.secA",
+         .target_qn = "p.f2",
+         .rank = 2,
+         .score = 0.25,
+         .p = 0.36,
+         .evidence = "{\"shared_terms\":3,\"name_tokens\":0}"},
+        {.section_qn = "p.secA",
+         .target_qn = "p.f1",
+         .rank = 1,
+         .score = 0.45,
+         .p = 0.548,
+         .evidence = "{\"shared_terms\":6,\"name_tokens\":1}"},
+        {.section_qn = "p.secB",
+         .target_qn = "p.f1",
+         .rank = 1,
+         .score = 0.32,
+         .p = 0.42,
+         .evidence = ""},
+    };
+    ASSERT_EQ(cbm_store_doc_candidates_replace(s, "p", rows, 3), CBM_STORE_OK);
+    const cbm_doc_candidate_t other = {.section_qn = "q.secA",
+                                       .target_qn = "q.f9",
+                                       .rank = 1,
+                                       .score = 0.5,
+                                       .p = 0.548,
+                                       .evidence = ""};
+    ASSERT_EQ(cbm_store_doc_candidates_replace(s, "q", &other, 1), CBM_STORE_OK);
+
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", "p.secA", NULL, 5, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 2);
+    ASSERT_STR_EQ(got[0].target_qn, "p.f1");
+    ASSERT_EQ(got[0].rank, 1);
+    ASSERT_STR_EQ(got[0].evidence, "{\"shared_terms\":6,\"name_tokens\":1}");
+    ASSERT_STR_EQ(got[1].target_qn, "p.f2");
+    cbm_store_doc_candidates_free(got, n);
+
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", NULL, "p.f1", 5, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 2);
+    ASSERT_STR_EQ(got[0].section_qn, "p.secA");
+    ASSERT_STR_EQ(got[1].section_qn, "p.secB");
+    cbm_store_doc_candidates_free(got, n);
+
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", NULL, "p.f1", 1, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 1);
+    cbm_store_doc_candidates_free(got, n);
+
+    /* a replace drops every earlier row of the project, and only of it */
+    ASSERT_EQ(cbm_store_doc_candidates_replace(s, "p", &rows[2], 1), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", "p.secA", NULL, 5, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 0);
+    cbm_store_doc_candidates_free(got, n);
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", "p.secB", NULL, 5, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 1);
+    cbm_store_doc_candidates_free(got, n);
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "q", "q.secA", NULL, 5, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 1);
+    cbm_store_doc_candidates_free(got, n);
+
+    ASSERT_EQ(cbm_store_doc_candidates_replace(s, "p", NULL, 0), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", NULL, "p.f1", 5, &got, &n), CBM_STORE_OK);
+    ASSERT_EQ(n, 0);
+    cbm_store_doc_candidates_free(got, n);
+
+    /* exactly one of section / target */
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", NULL, NULL, 5, &got, &n), CBM_STORE_ERR);
+    ASSERT_EQ(cbm_store_doc_candidates_get(s, "p", "p.secA", "p.f1", 5, &got, &n), CBM_STORE_ERR);
+    cbm_store_close(s);
+    PASS();
+}
+
 TEST(adr_parse_sections_basic) {
     cbm_adr_sections_t sec = cbm_adr_parse_sections("## PURPOSE\nFoo\n\n## STACK\nBar");
     ASSERT_EQ(sec.count, 2);
@@ -1695,6 +1777,7 @@ SUITE(store_arch) {
     RUN_TEST(adr_upsert);
     RUN_TEST(adr_delete);
     RUN_TEST(adr_delete_not_found);
+    RUN_TEST(doc_candidates_replace_and_get);
     RUN_TEST(adr_parse_sections_basic);
     RUN_TEST(adr_parse_sections_all_six);
     RUN_TEST(adr_parse_sections_non_canonical);

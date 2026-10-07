@@ -513,6 +513,25 @@ TEST(sem_calibrated_p_bands) {
     PASS();
 }
 
+/* Doc -> code candidates: the judged bands (sample 4), monotone, with nothing
+ * stored below CBM_SEM_DOC_MIN_SCORE (that band judged 0.06). */
+TEST(sem_doc_calibrated_p_bands) {
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.10F), 0.06F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.199F), 0.06F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(CBM_SEM_DOC_MIN_SCORE), 0.36F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.299F), 0.36F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.30F), 0.42F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.40F), 0.548F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(1.00F), 0.548F, 0.0);
+    float last = 0.0F;
+    for (int milli = 0; milli <= 1000; milli++) {
+        float p = cbm_sem_doc_calibrated_p((float)milli / 1000.0F);
+        ASSERT_TRUE(p >= last);
+        last = p;
+    }
+    PASS();
+}
+
 /* A properties string holding a quote is read whole, and escapes are not
  * glued to the next word (until 2026-10 the read stopped at the first quote
  * and kept "\n" raw, so "\nreturn" became the token "nreturn"). */
@@ -711,6 +730,7 @@ SUITE(semantic) {
     RUN_TEST(sem_combine_weighs_signals);
     RUN_TEST(sem_admit_best_first_keeps_the_best);
     RUN_TEST(sem_calibrated_p_bands);
+    RUN_TEST(sem_doc_calibrated_p_bands);
     RUN_TEST(sem_json_str_honours_escapes);
     RUN_TEST(sem_corpus_add_null_doc);
     RUN_TEST(sem_corpus_free_null);

@@ -1861,6 +1861,23 @@ float cbm_sem_calibrated_p(float score) {
     return SEM_P_BANDS[band];
 }
 
+/* Doc -> code candidates by their tfidf: each band's p the judged share of
+ * sections that are about the function (2026-10-07: 274 blind-judged
+ * candidates -- a section's best five non-test functions -- from five held-out
+ * repositories, three reading rounds; the top three measured bands pooled to
+ * stay monotone). Below the first cut (judged 0.06) nothing is stored. */
+static const float SEM_DOC_P_CUTS[] = {CBM_SEM_DOC_MIN_SCORE, 0.30F, 0.40F};
+static const float SEM_DOC_P_BANDS[] = {0.06F, 0.36F, 0.42F, 0.548F};
+
+float cbm_sem_doc_calibrated_p(float score) {
+    size_t band = 0;
+    while (band < sizeof(SEM_DOC_P_CUTS) / sizeof(SEM_DOC_P_CUTS[0]) &&
+           score >= SEM_DOC_P_CUTS[band]) {
+        band++;
+    }
+    return SEM_DOC_P_BANDS[band];
+}
+
 float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,
                              const cbm_sem_config_t *cfg) {
     if (!a || !b || !cfg) {

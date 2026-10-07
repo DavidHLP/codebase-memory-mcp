@@ -264,6 +264,14 @@ const char *cbm_sem_json_str(const char *json, const char *key, char *buf, int b
  * held-out samples (the edge property "p"). */
 float cbm_sem_calibrated_p(float score);
 
+/* Doc -> code candidates: a section's best CBM_SEM_DOC_TOP_K non-test
+ * functions by TF-IDF, stored when their tfidf is at least
+ * CBM_SEM_DOC_MIN_SCORE, each with the judged probability that the section is
+ * about the function. */
+#define CBM_SEM_DOC_TOP_K 5
+#define CBM_SEM_DOC_MIN_SCORE 0.20F
+float cbm_sem_doc_calibrated_p(float score);
+
 /* Module proximity multiplier based on file paths. */
 float cbm_sem_proximity(const char *path_a, const char *path_b);
 
