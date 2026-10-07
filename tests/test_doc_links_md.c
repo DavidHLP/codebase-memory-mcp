@@ -783,6 +783,59 @@ TEST(doc_links_md_adr_reported) {
     PASS();
 }
 
+/* Held-out findings (AsciiDoc code names, which resolve like Markdown's): a
+ * `std::` name is the standard library's, not a specialization or header of
+ * this repository; a Java name written from its root package is absolute, not
+ * a relocated copy's tail; a type is named in its own case (`debug.log` is a
+ * log file, not Debug.log); a definition of another copy of the document's
+ * project (snapshots side by side) never answers the document. Each with a
+ * control that keeps its link. */
+TEST(doc_links_md_name_scope_rules) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlmdscope_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    /* a compatibility header named like the standard one (Boost.Typeof's) */
+    th_write_file(TH_PATH(tmp, "lib/include/mylib/std/complex.hpp"),
+                  "#include <complex>\nnamespace mylib { using cplx = int; }\n");
+    th_write_file(TH_PATH(tmp, "lib/include/mylib/widget.hpp"),
+                  "namespace mylib {\nclass Widget {\n  public:\n    int size() const;\n};\n}\n");
+    th_write_file(
+        TH_PATH(tmp, "shaded/src/main/java/org/acme/shaded/com/google/protobuf/Message.java"),
+        "package org.acme.shaded.com.google.protobuf;\npublic class Message {}\n");
+    th_write_file(TH_PATH(tmp, "core/src/main/java/com/acme/Widget.java"),
+                  "package com.acme;\npublic class Widget {}\n");
+    th_write_file(TH_PATH(tmp, "core/src/main/java/com/acme/Ref.java"),
+                  "package com.acme;\npublic class Ref {\n    public static class Debug {\n"
+                  "        public static void log(String s) {}\n    }\n}\n");
+    th_write_file(
+        TH_PATH(tmp, "v1/src/main/java/org/acme/Store.java"),
+        "package org.acme;\npublic class Store {\n    public static class Reader {}\n}\n");
+    th_write_file(TH_PATH(tmp, "v2/src/main/java/org/acme/Store.java"),
+                  "package org.acme;\npublic interface Store {}\n");
+    th_write_file(
+        TH_PATH(tmp, "docs/guide.md"),
+        "# Keys\n\nKeys use `std::complex`, and `mylib::Widget` holds them.\n\n"
+        "# Wire\n\nProtobuf's `com.google.protobuf.Message`; ours is `com.acme.Widget`.\n\n"
+        "# Logs\n\nRead `debug.log`.\n\n"
+        "# Debug\n\nCall `Debug.log`.\n");
+    th_write_file(TH_PATH(tmp, "v2/docs/design.md"), "# Design\n\nThe `Store.Reader` reads.\n");
+    th_write_file(TH_PATH(tmp, "v1/docs/notes.md"), "# Notes\n\nThe `Store.Reader` reads.\n");
+    char db[512];
+    snprintf(db, sizeof(db), "%s/md.db", tmp);
+    ASSERT_EQ(dm_index(tmp, db, NULL), 0);
+    char props[512];
+    ASSERT_EQ(md_edge(db, "guide.Keys", "complex.hpp.__file__", props, sizeof(props)), 0);
+    ASSERT_EQ(md_edge(db, "guide.Keys", "mylib.Widget", props, sizeof(props)), 1);
+    ASSERT_EQ(md_edge(db, "guide.Wire", "protobuf.Message", props, sizeof(props)), 0);
+    ASSERT_EQ(md_edge(db, "guide.Wire", "com.acme.Widget", props, sizeof(props)), 1);
+    ASSERT_EQ(md_edge(db, "guide.Logs", "Debug.log", props, sizeof(props)), 0);
+    ASSERT_EQ(md_edge(db, "guide.Debug", "Debug.log", props, sizeof(props)), 1);
+    ASSERT_EQ(md_edge(db, "design.Design", "Store.Reader", props, sizeof(props)), 0);
+    ASSERT_EQ(md_edge(db, "notes.Notes", "Store.Reader", props, sizeof(props)), 1);
+    th_cleanup(tmp);
+    PASS();
+}
+
 SUITE(doc_links_md) {
     dm_ship_held_families();
     RUN_TEST(doc_links_md_extract_tokens);
@@ -793,6 +846,7 @@ SUITE(doc_links_md) {
     RUN_TEST(doc_links_md_adr);
     RUN_TEST(doc_links_md_adr_label_choice);
     RUN_TEST(doc_links_md_adr_reported);
+    RUN_TEST(doc_links_md_name_scope_rules);
     cbm_doclink_test_reset_ships();
     RUN_TEST(doc_links_md_ship_gate);
 }

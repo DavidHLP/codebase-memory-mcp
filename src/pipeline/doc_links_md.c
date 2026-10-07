@@ -689,9 +689,12 @@ static bool mdr_split(const char *s, mdr_pieces_t *p) {
 /* Is the written qualifier q[0..nq) a piece-aligned suffix of `chain` (a
  * node's '.'-joined qualifier pieces), when chain pieces in MDR_TRANSPARENT
  * may be skipped? `exact`: every piece as written; otherwise lower-cased and
- * '-' read as '_' (`rootMulti.Store` names package rootmulti). */
-static bool mdr_chain_suffix(const char *chain, size_t clen, const mdr_pieces_t *q, int nq,
-                             bool exact) {
+ * '-' read as '_' (`rootMulti.Store` names package rootmulti), except that
+ * with `types_exact` a capitalized piece (a type) must be written as is
+ * (`debug.log` is no member of class Debug). `left`: where the chain left of
+ * the match ends. */
+static bool mdr_chain_match(const char *chain, size_t clen, const mdr_pieces_t *q, int nq,
+                            bool exact, bool types_exact, size_t *left) {
     size_t ce = clen;
     bool more = clen > 0;
     int j = nq - SKIP_ONE;
@@ -705,8 +708,11 @@ static bool mdr_chain_suffix(const char *chain, size_t clen, const mdr_pieces_t 
         }
         const char *piece = chain + cs;
         size_t pl = ce - cs;
-        bool same = exact ? (pl == q->n[j] && memcmp(piece, q->s[j], pl) == 0)
-                          : mdr_norm_eq(piece, pl, q->s[j], q->n[j]);
+        bool as_written = pl == q->n[j] && memcmp(piece, q->s[j], pl) == 0;
+        bool same = exact ? as_written : mdr_norm_eq(piece, pl, q->s[j], q->n[j]);
+        if (same && !as_written && types_exact && piece[0] >= 'A' && piece[0] <= 'Z') {
+            same = false; /* a type is named in its own case */
+        }
         if (same) {
             j--;
         } else if (!mdr_in(piece, pl, MDR_TRANSPARENT)) {
@@ -715,7 +721,91 @@ static bool mdr_chain_suffix(const char *chain, size_t clen, const mdr_pieces_t 
         more = cs > 0;
         ce = more ? cs - SKIP_ONE : 0;
     }
+    if (left) {
+        *left = more ? ce : 0;
+    }
     return true;
+}
+
+/* Reverse-domain roots of JVM packages: a name written from one of them is
+ * absolute (`com.google.protobuf.Message`), never the tail of a relocated
+ * copy (`org.apache.hadoop.hbase.shaded.com.google.protobuf.Message`). */
+static const char *const MDR_JVM_ROOTS[] = {"com",      "org",    "net",     "io",      "edu",
+                                            "gov",      "java",   "javax",   "jakarta", "android",
+                                            "androidx", "kotlin", "kotlinx", NULL};
+
+/* After a match that left chain[0, left): the written name starts the chain
+ * or follows a source-root piece (`src/main/java`), so it is the package as
+ * declared, not a relocated copy's tail. */
+static bool mdr_rooted(const char *chain, size_t left) {
+    if (left == 0) {
+        return true;
+    }
+    size_t s = left;
+    while (s > 0 && chain[s - SKIP_ONE] != '.') {
+        s--;
+    }
+    return mdr_in(chain + s, left - s, MDR_TRANSPARENT);
+}
+
+static bool mdr_ext_in(const char *path, const char *const *exts) {
+    const char *dot = strrchr(path, '.');
+    return dot && !strchr(dot, '/') && mdr_in(dot + SKIP_ONE, strlen(dot + SKIP_ONE), exts);
+}
+
+/* Languages whose types are written in their own case (`Debug`, never `debug`). */
+static bool mdr_cased_types_file(const char *path) {
+    static const char *const exts[] = {"java", "kt", "kts", "scala", "groovy", "cs", NULL};
+    return mdr_ext_in(path, exts);
+}
+
+static bool mdr_jvm_file(const char *path) {
+    static const char *const exts[] = {"java", "kt", "kts", "scala", "groovy", NULL};
+    return mdr_ext_in(path, exts);
+}
+
+static bool mdr_c_family_file(const char *path) {
+    static const char *const exts[] = {"c",  "h",   "cc",  "cpp", "cxx", "hpp",
+                                       "hh", "hxx", "ipp", "inl", "tpp", NULL};
+    return mdr_ext_in(path, exts);
+}
+
+/* A repository can carry several copies of one project (snapshots side by
+ * side, a vendored copy). A definition of another copy never answers the
+ * document: below the directory where the document's path and the file's part,
+ * the document's own branch holds the same rest of the path, at least two
+ * directories deep, as a file with definitions. A shared file name alone
+ * (`__init__.py` of two packages) is no copy, and different modules of one
+ * build hold different paths there, so their links stay. */
+static bool mdr_other_copy(const mdr_index_t *x, const char *doc, const char *file) {
+    enum { MIN_SHARED_SLASHES = 3 }; /* "/dir/dir/file" */
+    size_t common = 0;
+    for (size_t i = 0; doc[i] && doc[i] == file[i]; i++) {
+        if (doc[i] == '/') {
+            common = i + SKIP_ONE;
+        }
+    }
+    const char *dslash = strchr(doc + common, '/');
+    const char *fslash = strchr(file + common, '/');
+    if (!dslash || !fslash) {
+        return false;
+    }
+    int slashes = 0;
+    for (const char *c = fslash; *c; c++) {
+        slashes += *c == '/';
+    }
+    if (slashes < MIN_SHARED_SLASHES) {
+        return false;
+    }
+    char twin[MDR_PATH_CAP];
+    int n = snprintf(twin, sizeof(twin), "%.*s%s", (int)(dslash - doc), doc, fslash);
+    if (n < 0 || (size_t)n >= sizeof(twin)) {
+        return false;
+    }
+    int lo = 0;
+    int hi = 0;
+    mdr_file_defs(x, twin, &lo, &hi);
+    return hi > lo;
 }
 
 /* The node's qualifier chain (its QN without the project and its own name);
@@ -855,6 +945,10 @@ static void mdr_resolve_name(const mdr_index_t *x, const cbm_gbuf_t *graph, cons
     memcpy(name, q.s[nq], name_len);
     name[name_len] = '\0';
     bool doc_test = mdr_test_path(doc);
+    /* `std::hash` is the standard library's, never a C/C++ definition of this
+     * repository (a specialization of it, a header named like it) */
+    bool std_root = q.n[0] == strlen("std") && memcmp(q.s[0], "std", q.n[0]) == 0;
+    bool jvm_root = mdr_in(q.s[0], q.n[0], MDR_JVM_ROOTS);
     enum { DEF_EXACT, MOD_EXACT, DEF_FOLDED, MOD_FOLDED, TALLIES };
     mdr_tally_t tally[TALLIES] = {{0}};
     int test_hits = 0;
@@ -887,28 +981,46 @@ static void mdr_resolve_name(const mdr_index_t *x, const cbm_gbuf_t *graph, cons
                 continue;
             }
         }
-        bool exact = mdr_chain_suffix(chain, clen, &q, nq, true);
-        if (!exact && !mdr_chain_suffix(chain, clen, &q, nq, false)) {
+        size_t left = 0;
+        bool exact = mdr_chain_match(chain, clen, &q, nq, true, false, &left);
+        bool folded = !exact && mdr_chain_match(chain, clen, &q, nq, false, false, &left);
+        if (!exact && !folded) {
             continue;
         }
+        /* The name-scope rules only ever take a link away: a refused candidate
+         * still counts (two candidates stay ambiguous) but is never linked. */
+        bool refused = (std_root && mdr_c_family_file(n->file_path)) ||
+                       (folded && mdr_cased_types_file(n->file_path) &&
+                        !mdr_chain_match(chain, clen, &q, nq, false, true, NULL)) ||
+                       (jvm_root && mdr_jvm_file(n->file_path) && !mdr_rooted(chain, left)) ||
+                       mdr_other_copy(x, doc, n->file_path);
         if (!doc_test && mdr_test_path(n->file_path)) {
             test_hits++;
             continue;
         }
-        mdr_tally(&tally[exact ? DEF_EXACT : DEF_FOLDED], n, NULL);
+        mdr_tally(&tally[exact ? DEF_EXACT : DEF_FOLDED], refused ? NULL : n, NULL);
     }
     /* modules and packages so named */
     for (const mdr_pkg_t *m = (const mdr_pkg_t *)cbm_ht_get(x->pkgs, name); m; m = m->next) {
         size_t cl = strlen(m->chain);
-        bool exact = mdr_chain_suffix(m->chain, cl, &q, nq, true);
-        if (!exact && !mdr_chain_suffix(m->chain, cl, &q, nq, false)) {
+        const char *mfile = m->file ? m->file : m->node->file_path;
+        size_t left = 0;
+        bool exact = mdr_chain_match(m->chain, cl, &q, nq, true, false, &left);
+        if (!exact && !mdr_chain_match(m->chain, cl, &q, nq, false, false, &left)) {
             continue;
         }
+        bool refused = mfile && ((std_root && mdr_c_family_file(mfile)) ||
+                                 (jvm_root && mdr_jvm_file(mfile) && !mdr_rooted(m->chain, left)) ||
+                                 mdr_other_copy(x, doc, mfile));
         if (!doc_test && mdr_test_path(m->file ? m->file : m->node->file_path)) {
             test_hits++;
             continue;
         }
-        mdr_tally(&tally[exact ? MOD_EXACT : MOD_FOLDED], m->node, m);
+        if (refused) {
+            mdr_tally(&tally[exact ? MOD_EXACT : MOD_FOLDED], NULL, NULL);
+        } else {
+            mdr_tally(&tally[exact ? MOD_EXACT : MOD_FOLDED], m->node, m);
+        }
     }
     for (int k = 0; k < TALLIES; k++) {
         if (tally[k].hits == 0) {
@@ -917,6 +1029,9 @@ static void mdr_resolve_name(const mdr_index_t *x, const cbm_gbuf_t *graph, cons
         if (tally[k].hits > SKIP_ONE) {
             out->reason = CBM_DOCLINK_REASON_AMBIGUOUS;
             return;
+        }
+        if (!tally[k].node) {
+            break; /* its one candidate is refused: no link, and no later class decides */
         }
         const mdr_pkg_t *mod = tally[k].pkg;
         const cbm_gbuf_node_t *item = mod && mod->file ? mdr_module_item(x, mod->file, name) : NULL;
