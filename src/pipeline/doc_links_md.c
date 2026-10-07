@@ -770,6 +770,32 @@ static bool mdr_c_family_file(const char *path) {
     return mdr_ext_in(path, exts);
 }
 
+/* Is `dir` a JVM package folder: is the first code definition at or below it
+ * in a Java/Kotlin/Scala/Groovy file? A dotted name in documentation that
+ * matches such a folder is far more often a configuration key, an OSGi or JMX
+ * id or a Maven coordinate than the package (`snapshot.mode` of
+ * io/debezium/snapshot/mode), so a code name never binds one; a Python
+ * package is what its dotted name says and keeps binding. */
+static bool mdr_jvm_folder(const mdr_index_t *x, const char *dir) {
+    char prefix[MDR_PATH_CAP];
+    int n = snprintf(prefix, sizeof(prefix), "%s/", dir);
+    if (n < 0 || (size_t)n >= sizeof(prefix)) {
+        return false;
+    }
+    int a = 0;
+    int b = x->ndefs;
+    while (a < b) {
+        int mid = a + ((b - a) / PAIR_LEN);
+        if (strcmp(x->defs[mid].file, prefix) < 0) {
+            a = mid + SKIP_ONE;
+        } else {
+            b = mid;
+        }
+    }
+    return a < x->ndefs && strncmp(x->defs[a].file, prefix, (size_t)n) == 0 &&
+           mdr_jvm_file(x->defs[a].file);
+}
+
 /* A repository can carry several copies of one project (snapshots side by
  * side, a vendored copy). A definition of another copy never answers the
  * document: below the directory where the document's path and the file's part,
@@ -1009,9 +1035,12 @@ static void mdr_resolve_name(const mdr_index_t *x, const cbm_gbuf_t *graph, cons
         if (!exact && !mdr_chain_match(m->chain, cl, &q, nq, false, false, &left)) {
             continue;
         }
-        bool refused = mfile && ((std_root && mdr_c_family_file(mfile)) ||
-                                 (jvm_root && mdr_jvm_file(mfile) && !mdr_rooted(m->chain, left)) ||
-                                 mdr_other_copy(x, doc, mfile));
+        bool refused =
+            mfile && ((std_root && mdr_c_family_file(mfile)) ||
+                      (jvm_root && mdr_jvm_file(mfile) && !mdr_rooted(m->chain, left)) ||
+                      mdr_other_copy(x, doc, mfile) ||
+                      (!m->file && m->node->label && strcmp(m->node->label, "Folder") == 0 &&
+                       mdr_jvm_folder(x, mfile)));
         if (!doc_test && mdr_test_path(m->file ? m->file : m->node->file_path)) {
             test_hits++;
             continue;

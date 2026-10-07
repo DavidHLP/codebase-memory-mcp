@@ -820,6 +820,15 @@ TEST(doc_links_md_name_scope_rules) {
         "# Debug\n\nCall `Debug.log`.\n");
     th_write_file(TH_PATH(tmp, "v2/docs/design.md"), "# Design\n\nThe `Store.Reader` reads.\n");
     th_write_file(TH_PATH(tmp, "v1/docs/notes.md"), "# Notes\n\nThe `Store.Reader` reads.\n");
+    /* a configuration key that spells a Java package's tail; a Python package */
+    th_write_file(TH_PATH(tmp, "core/src/main/java/io/acme/snapshot/mode/SnapshotMode.java"),
+                  "package io.acme.snapshot.mode;\npublic enum SnapshotMode { INITIAL }\n");
+    th_write_file(TH_PATH(tmp, "pyapp/__init__.py"), "");
+    th_write_file(TH_PATH(tmp, "pyapp/sub/__init__.py"), "from .core import run\n");
+    th_write_file(TH_PATH(tmp, "pyapp/sub/core.py"), "def run():\n    return 1\n");
+    th_write_file(TH_PATH(tmp, "docs/config.md"),
+                  "# Config\n\nSet `snapshot.mode` to `initial`.\n\n"
+                  "# Py\n\nThe `pyapp.sub` package runs it.\n");
     char db[512];
     snprintf(db, sizeof(db), "%s/md.db", tmp);
     ASSERT_EQ(dm_index(tmp, db, NULL), 0);
@@ -832,6 +841,8 @@ TEST(doc_links_md_name_scope_rules) {
     ASSERT_EQ(md_edge(db, "guide.Debug", "Debug.log", props, sizeof(props)), 1);
     ASSERT_EQ(md_edge(db, "design.Design", "Store.Reader", props, sizeof(props)), 0);
     ASSERT_EQ(md_edge(db, "notes.Notes", "Store.Reader", props, sizeof(props)), 1);
+    ASSERT_EQ(md_edge(db, "config.Config", "snapshot.mode", props, sizeof(props)), 0);
+    ASSERT_EQ(md_edge(db, "config.Py", "sub.__init__.py.__file__", props, sizeof(props)), 1);
     th_cleanup(tmp);
     PASS();
 }
