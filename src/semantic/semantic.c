@@ -1798,14 +1798,60 @@ bool cbm_sem_admit_best_first(const float *scores, const int *fa, const int *fb,
     return true;
 }
 
-/* Score bands at the quartiles of the admitted scores, each band's p the
- * judged share of related pairs (2026-10-07: 120 blind-judged admitted pairs
- * from held-out repositories in six languages, three reading rounds; the
- * curve is monotone as measured). Ships as the edge property "p". The cuts
- * (measured 0.777752, 0.805782, 0.851543) are at the stored score's three
- * decimals, so one shown score always carries one p. */
-static const float SEM_P_CUTS[] = {0.778F, 0.806F, 0.852F};
-static const float SEM_P_BANDS[] = {0.556F, 0.640F, 0.731F, 0.857F};
+/* Until 2026-10 the reader stopped at the first '"' and kept escapes raw:
+ * a docstring holding a quote lost everything after it, and "\nreturn" gave
+ * the token "nreturn". */
+const char *cbm_sem_json_str(const char *json, const char *key, char *buf, int bufsize) {
+    if (!json || !key || !buf || bufsize <= 0) {
+        return NULL;
+    }
+    char search[CBM_SZ_64];
+    snprintf(search, sizeof(search), "\"%s\":\"", key);
+    const char *p = strstr(json, search);
+    if (!p) {
+        return NULL;
+    }
+    p += strlen(search);
+    int n = 0;
+    for (; *p && *p != '"' && n + SKIP_ONE < bufsize; p++) {
+        char c = *p;
+        if (c == '\\' && p[SKIP_ONE]) {
+            p++;
+            switch (*p) {
+            case 'n':
+            case 't':
+            case 'r':
+            case 'b':
+            case 'f':
+                c = ' ';
+                break;
+            case 'u':
+                c = ' ';
+                for (int k = 0; k < 4 && isxdigit((unsigned char)p[SKIP_ONE]); k++) {
+                    p++;
+                }
+                break;
+            default:
+                c = *p; /* \" \\ \/ */
+                break;
+            }
+        }
+        buf[n++] = c;
+    }
+    buf[n] = '\0';
+    return buf;
+}
+
+/* Score bands at the quartiles of the admitted scores (0.773, 0.802, 0.838 at
+ * the stored score's three decimals, so one shown score always carries one p),
+ * each band's p the judged share of related pairs, pooled where a higher band
+ * judged lower: the upper three pool to one. Judged 2026-10-07 in eleven
+ * held-out repositories: the pairs this scoring admits that the previous one
+ * did not (100, blind, three reading rounds) and the earlier samples' pairs it
+ * keeps (65), each weighted by its share of the admitted set. Ships as the
+ * edge property "p". */
+static const float SEM_P_CUTS[] = {0.773F};
+static const float SEM_P_BANDS[] = {0.626F, 0.760F};
 
 float cbm_sem_calibrated_p(float score) {
     size_t band = 0;

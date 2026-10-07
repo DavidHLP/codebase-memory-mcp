@@ -496,22 +496,38 @@ TEST(sem_admit_best_first_keeps_the_best) {
 
 /* p by the stored (three-decimal) score: the judged bands, monotone. */
 TEST(sem_calibrated_p_bands) {
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.750F), 0.556F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.777F), 0.556F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.778F), 0.640F, 0.0);
-    /* the cut sits at the stored precision (0.778), not the raw quartile
-     * 0.777752: a stored "0.778" and a stored "0.777" never share a band */
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.7779F), 0.556F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.805F), 0.640F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.806F), 0.731F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.852F), 0.857F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(1.000F), 0.857F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.750F), 0.626F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.772F), 0.626F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.773F), 0.760F, 0.0);
+    /* the cut sits at the stored precision (0.773), not the raw quartile:
+     * a stored "0.773" and a stored "0.772" never share a band */
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.7729F), 0.626F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(0.838F), 0.760F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_calibrated_p(1.000F), 0.760F, 0.0);
     float last = 0.0F;
     for (int milli = 750; milli <= 1000; milli++) {
         float p = cbm_sem_calibrated_p((float)milli / 1000.0F);
         ASSERT_TRUE(p >= last);
         last = p;
     }
+    PASS();
+}
+
+/* A properties string holding a quote is read whole, and escapes are not
+ * glued to the next word (until 2026-10 the read stopped at the first quote
+ * and kept "\n" raw, so "\nreturn" became the token "nreturn"). */
+TEST(sem_json_str_honours_escapes) {
+    static const char json[] =
+        "{\"docstring\":\"Say \\\"hi\\\" to\\nthe user \\u00e9 now\",\"bt\":\"x\"}";
+    char buf[64];
+    ASSERT_NOT_NULL(cbm_sem_json_str(json, "docstring", buf, sizeof(buf)));
+    ASSERT_STR_EQ(buf, "Say \"hi\" to the user   now");
+    ASSERT_NOT_NULL(cbm_sem_json_str(json, "bt", buf, sizeof(buf)));
+    ASSERT_STR_EQ(buf, "x");
+    ASSERT_NULL(cbm_sem_json_str(json, "absent", buf, sizeof(buf)));
+    char small[6];
+    ASSERT_NOT_NULL(cbm_sem_json_str(json, "docstring", small, sizeof(small)));
+    ASSERT_STR_EQ(small, "Say \""); /* cut at the buffer, still terminated */
     PASS();
 }
 
@@ -695,6 +711,7 @@ SUITE(semantic) {
     RUN_TEST(sem_combine_weighs_signals);
     RUN_TEST(sem_admit_best_first_keeps_the_best);
     RUN_TEST(sem_calibrated_p_bands);
+    RUN_TEST(sem_json_str_honours_escapes);
     RUN_TEST(sem_corpus_add_null_doc);
     RUN_TEST(sem_corpus_free_null);
     RUN_TEST(sem_get_config_defaults);

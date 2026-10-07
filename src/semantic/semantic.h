@@ -253,6 +253,12 @@ bool cbm_sem_admit_best_first(const float *scores, const int *fa, const int *fb,
                               const bool *eligible, int n, int max_edges, int *counts,
                               bool *admitted);
 
+/* The string value of "key" in a properties JSON object, unescaped into buf
+ * (cut at bufsize - 1); NULL when the key is absent. Escapes are honoured:
+ * \" \\ \/ keep their character, \n \t \r \b \f and \uXXXX become a space (a
+ * separator for the tokenizer), so a value holding a quote is read whole. */
+const char *cbm_sem_json_str(const char *json, const char *key, char *buf, int bufsize);
+
 /* The probability that an admitted SEMANTICALLY_RELATED pair is related, by
  * its score as stored (three decimals): the judged precision of blind-judged
  * held-out samples (the edge property "p"). */

@@ -327,29 +327,9 @@ static const char *file_ext(const char *path) {
     return dot ? dot : "";
 }
 
-/* Extract a JSON string value by key (simple strstr-based, no full parse). */
+/* Extract a JSON string value by key, escapes honoured (cbm_sem_json_str). */
 static const char *json_str_value(const char *json, const char *key, char *buf, int bufsize) {
-    if (!json || !key) {
-        return NULL;
-    }
-    char search[CBM_SZ_64];
-    snprintf(search, sizeof(search), "\"%s\":\"", key);
-    const char *start = strstr(json, search);
-    if (!start) {
-        return NULL;
-    }
-    start += strlen(search);
-    const char *end = strchr(start, '"');
-    if (!end) {
-        return NULL;
-    }
-    int len = (int)(end - start);
-    if (len >= bufsize) {
-        len = bufsize - SKIP_ONE;
-    }
-    memcpy(buf, start, (size_t)len);
-    buf[len] = '\0';
-    return buf;
+    return cbm_sem_json_str(json, key, buf, bufsize);
 }
 
 /* Extract a JSON array of strings by key. Returns count. */
