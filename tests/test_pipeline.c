@@ -19034,9 +19034,11 @@ TEST(pipeline_doc_candidates_published_and_kept_by_delta) {
     ASSERT_EQ(changelog, 0);
 
     /* Delta route: an edit that keeps every definition name (closure repair
-     * declines added names); the candidates are kept as they were. */
+     * declines added names and new files -- the name must match the fixture's
+     * case exactly, or a case-sensitive filesystem gets a new file); the
+     * candidates are kept as they were. */
     char edited[512];
-    snprintf(edited, sizeof(edited), "%s/user_config.go", tmp);
+    snprintf(edited, sizeof(edited), "%s/User_config.go", tmp);
     FILE *ef = cbm_fopen(edited, "a");
     ASSERT_NOT_NULL(ef);
     (void)fputs("\n// edited after the first index\n", ef);
