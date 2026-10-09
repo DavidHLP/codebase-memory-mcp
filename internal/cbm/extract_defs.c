@@ -1,5 +1,6 @@
 #include "cbm.h"
-#include "arena.h" // CBMArena, cbm_arena_alloc/strdup/sprintf
+#include "arena.h"   // CBMArena, cbm_arena_alloc/strdup/sprintf
+#include "doclink.h" // cbm_doclink_note_doc_line
 #include "helpers.h"
 #include "lang_specs.h"
 #include "foundation/constants.h"
@@ -1366,6 +1367,7 @@ typedef struct {
     doc_span_t *items; /* trivia directly before the anchor, in source order */
     int count;
     int cap;
+    bool failed;           /* a missing span must not become shared documentation */
     bool code_before;      /* a non-trivia sibling precedes items[0] */
     uint32_t code_erow;    /* ... its effective end row */
     uint32_t code_eb;      /* ... its end byte (Kotlin gap scan) */
@@ -1493,8 +1495,17 @@ static doc_span_t doc_span_of(TSNode n, const char *src, uint8_t kind) {
 static void doc_push_span(CBMArena *a, doc_trivia_t *t, const doc_span_t *sp) {
     if (t->count == t->cap) {
         int ncap = t->cap ? t->cap * DOC_SPAN_GROW : DOC_SPAN_INIT_CAP;
-        doc_span_t *grown = (doc_span_t *)cbm_arena_alloc(a, (size_t)ncap * sizeof(doc_span_t));
+        doc_span_t *grown;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+        if (cbm_doclink_test_fail_alloc(CBM_DOCLINK_ALLOC_SPAN)) {
+            grown = NULL;
+        } else
+#endif
+        {
+            grown = (doc_span_t *)cbm_arena_alloc(a, (size_t)ncap * sizeof(doc_span_t));
+        }
         if (!grown) {
+            t->failed = true;
             return;
         }
         if (t->count > 0) {
@@ -1917,6 +1928,15 @@ static void doc_collect_kotlin(CBMExtractCtx *ctx, TSNode parent, TSNode anchor,
     }
 }
 
+/* A doc comment was lost because memory ran out. For a language whose doc
+ * comments are read for links, the doc-link layer must not then report a
+ * complete graph (CBMDocLinkArray.failed). */
+static void doc_lost(CBMExtractCtx *ctx) {
+    if (ctx->result && cbm_doclink_lang_supported(ctx->language)) {
+        ctx->result->doc_links.failed = true;
+    }
+}
+
 /* Leading trivia of `anchor`, in source order. */
 static void doc_collect_trivia(CBMExtractCtx *ctx, TSNode anchor, doc_trivia_t *t) {
     memset(t, 0, sizeof(*t));
@@ -1933,11 +1953,14 @@ static void doc_collect_trivia(CBMExtractCtx *ctx, TSNode anchor, doc_trivia_t *
         found = doc_collect_cursor(ctx, parent, anchor, t);
     }
     if (!found) {
+        bool failed = t->failed;
         memset(t, 0, sizeof(*t));
-        return;
-    }
-    if (t->count == 0 && ctx->language == CBM_LANG_KOTLIN) {
+        t->failed = failed;
+    } else if (t->count == 0 && ctx->language == CBM_LANG_KOTLIN) {
         doc_collect_kotlin(ctx, parent, anchor, t);
+    }
+    if (t->failed) {
+        doc_lost(ctx);
     }
 }
 
@@ -2034,10 +2057,14 @@ static const char *doc_run_text(CBMExtractCtx *ctx, const doc_trivia_t *t, int f
     int kept = 0;
     bool words = false;
     size_t total = 0;
+    uint32_t first_row = 0;
     for (int k = first; k <= last; k++) {
         const doc_span_t *sp = &t->items[k];
         if (!doc_span_kept(src, sp, go_directives)) {
             continue;
+        }
+        if (kept == 0) {
+            first_row = sp->srow;
         }
         total += (size_t)(sp->eb - sp->sb) + SKIP_ONE;
         words = words || doc_has_words(src + sp->sb, sp->eb - sp->sb);
@@ -2046,8 +2073,17 @@ static const char *doc_run_text(CBMExtractCtx *ctx, const doc_trivia_t *t, int f
     if (kept == 0 || !words) {
         return NULL;
     }
-    char *buf = (char *)cbm_arena_alloc(ctx->arena, total + SKIP_ONE);
+    char *buf;
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+    if (cbm_doclink_test_fail_alloc(CBM_DOCLINK_ALLOC_TEXT)) {
+        buf = NULL;
+    } else
+#endif
+    {
+        buf = (char *)cbm_arena_alloc(ctx->arena, total + SKIP_ONE);
+    }
     if (!buf) {
+        doc_lost(ctx);
         return NULL;
     }
     size_t w = 0;
@@ -2065,9 +2101,16 @@ static const char *doc_run_text(CBMExtractCtx *ctx, const doc_trivia_t *t, int f
             buf[w++] = '\n';
         }
         memcpy(buf + w, src + sp->sb, eb - sp->sb);
+#if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
+        cbm_doclink_test_note_doc_work(eb - sp->sb, 0, 0);
+#endif
         w += eb - sp->sb;
     }
     buf[w] = '\0';
+    /* Doc-link references need their source lines: the text's line k is the
+     * source line first_row + k (one comment per line, or a block keeping
+     * its own newlines). */
+    cbm_doclink_note_doc_line(ctx, buf, first_row + SKIP_ONE);
     return buf;
 }
 
@@ -2149,10 +2192,17 @@ static const char *doc_from_trivia(CBMExtractCtx *ctx, const doc_trivia_t *t,
     return doc_run_text(ctx, t, doc_run_first(lang, t, near), near, lang == CBM_LANG_GO);
 }
 
-static const char *doc_for_anchor(CBMExtractCtx *ctx, TSNode anchor) {
+static const char *doc_for_anchor_status(CBMExtractCtx *ctx, TSNode anchor, bool *complete) {
     doc_trivia_t t;
     doc_collect_trivia(ctx, anchor, &t);
+    if (complete) {
+        *complete = !t.failed;
+    }
     return doc_from_trivia(ctx, &t, ts_node_start_point(anchor).row);
+}
+
+static const char *doc_for_anchor(CBMExtractCtx *ctx, TSNode anchor) {
+    return doc_for_anchor_status(ctx, anchor, NULL);
 }
 
 static bool doc_kind_is(TSNode n, const char *kind) {
@@ -2641,11 +2691,19 @@ static const char *extract_docstring(CBMExtractCtx *ctx, TSNode node, const char
 }
 
 /* Doc of a Field, Variable, enum member or Macro (code languages only). */
-static const char *extract_member_docstring(CBMExtractCtx *ctx, TSNode node) {
+static const char *extract_member_docstring_status(CBMExtractCtx *ctx, TSNode node,
+                                                   bool *complete) {
     if (!doc_lang_member_docs(ctx->language)) {
+        if (complete) {
+            *complete = true;
+        }
         return NULL;
     }
-    return doc_for_anchor(ctx, doc_anchor(ctx, node));
+    return doc_for_anchor_status(ctx, doc_anchor(ctx, node), complete);
+}
+
+static const char *extract_member_docstring(CBMExtractCtx *ctx, TSNode node) {
+    return extract_member_docstring_status(ctx, node, NULL);
 }
 
 /* Go package comment: the comment group touching `package`, directives
@@ -8523,8 +8581,8 @@ static void extract_elixir_call(CBMExtractCtx *ctx, TSNode node, const CBMLangSp
  * from `name` only where a language scopes a variable below the module — Nix,
  * whose binding names are attrpaths (`a.b.c = …` is name `c`, QN suffix `a.b.c`).
  * Pass NULL to use `name` for both. */
-static void push_var_def_qn(CBMExtractCtx *ctx, const char *name, const char *qn_name,
-                            TSNode node) {
+static void push_var_def_qn_doc(CBMExtractCtx *ctx, const char *name, const char *qn_name,
+                                TSNode node, const char *doc) {
     if (!name || !name[0] || strcmp(name, "_") == 0) {
         return;
     }
@@ -8546,8 +8604,16 @@ static void push_var_def_qn(CBMExtractCtx *ctx, const char *name, const char *qn
     def.start_line = ts_node_start_point(node).row + TS_LINE_OFFSET;
     def.end_line = ts_node_end_point(node).row + TS_LINE_OFFSET;
     def.is_exported = cbm_is_exported(name, ctx->language);
-    def.docstring = extract_member_docstring(ctx, node);
+    def.docstring = doc;
     cbm_defs_push(&ctx->result->defs, a, def);
+}
+
+static void push_var_def_qn(CBMExtractCtx *ctx, const char *name, const char *qn_name,
+                            TSNode node) {
+    if (!name || !name[0] || strcmp(name, "_") == 0) {
+        return;
+    }
+    push_var_def_qn_doc(ctx, name, qn_name, node, extract_member_docstring(ctx, node));
 }
 
 static void push_var_def(CBMExtractCtx *ctx, const char *name, TSNode node) {
@@ -8619,6 +8685,17 @@ static void extract_csharp_vars(CBMExtractCtx *ctx, TSNode node, CBMArena *a) {
         push_var_def(ctx, fname, node);
         return;
     }
+    /* All declarators have this field as their documentation anchor. Keep one
+     * immutable arena string, while each variable retains its own identity:
+     * the doc-link driver takes the references of that one text once, from
+     * the first declarator. A text that could not be collected whole is no
+     * doc of any of them (doc_lost has marked the file's doc links failed);
+     * it is not looked up again per declarator. */
+    bool complete = false;
+    const char *doc = extract_member_docstring_status(ctx, node, &complete);
+    if (!complete) {
+        doc = NULL;
+    }
     uint32_t n = ts_node_named_child_count(node);
     for (uint32_t i = 0; i < n; i++) {
         TSNode child = ts_node_named_child(node, i);
@@ -8634,7 +8711,8 @@ static void extract_csharp_vars(CBMExtractCtx *ctx, TSNode node, CBMArena *a) {
                     id = cbm_find_child_by_kind(decl, "identifier");
                 }
                 if (!ts_node_is_null(id)) {
-                    push_var_def(ctx, cbm_node_text(a, id, ctx->source), decl);
+                    const char *name = cbm_node_text(a, id, ctx->source);
+                    push_var_def_qn_doc(ctx, name, NULL, decl, doc);
                 }
             }
         }
