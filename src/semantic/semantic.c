@@ -1866,16 +1866,111 @@ float cbm_sem_calibrated_p(float score) {
  * candidates -- a section's best five non-test functions -- from five held-out
  * repositories, three reading rounds; the top three measured bands pooled to
  * stay monotone). Below the first cut (judged 0.06) nothing is stored. */
-static const float SEM_DOC_P_CUTS[] = {CBM_SEM_DOC_MIN_SCORE, 0.30F, 0.40F};
-static const float SEM_DOC_P_BANDS[] = {0.06F, 0.36F, 0.42F, 0.548F};
+enum { SEM_DOC_P_NBANDS = 4 };
+static const float SEM_DOC_P_CUTS[SEM_DOC_P_NBANDS - 1] = {CBM_SEM_DOC_MIN_SCORE, 0.30F, 0.40F};
+/* Per format, p below the first cut and in each band; 0 = not stored (a
+ * band judged below 0.20). Blind-judged, three reading rounds, pooled where
+ * a higher band judged lower:
+ *   Markdown  by kind and position since SEM7: SEM_DOC_P_MD_* below (its
+ *             first curve, 2026-10-07: 274 candidates of five repositories,
+ *             0.06 / 0.36 / 0.42 / 0.55, did not separate positions).
+ *   reST      2026-10-08, 120 candidates, three Sphinx projects; 0.20-0.30
+ *             judged 0.125, so reST starts at 0.30.
+ *   AsciiDoc  2026-10-08, 114 candidates, one repository (the only one of
+ *             its search that qualified).
+ *   PDF       no qualifying repository: not measured, nothing stored. */
+static const float SEM_DOC_P_BANDS[CBM_SEM_DOC_FMT_COUNT][SEM_DOC_P_NBANDS] = {
+    [CBM_SEM_DOC_FMT_OTHER] = {0.0F, 0.0F, 0.0F, 0.0F},
+    [CBM_SEM_DOC_FMT_MARKDOWN] = {0.0F, 0.0F, 0.0F, 0.0F}, /* SEM_DOC_P_MD_* */
+    [CBM_SEM_DOC_FMT_RST] = {0.0F, 0.0F, 0.35F, 0.625F},
+    [CBM_SEM_DOC_FMT_ADOC] = {0.0F, 0.225F, 0.25F, 0.50F},
+    [CBM_SEM_DOC_FMT_PDF] = {0.0F, 0.0F, 0.0F, 0.0F},
+};
 
-float cbm_sem_doc_calibrated_p(float score) {
+cbm_sem_doc_format_t cbm_sem_doc_format(const char *path) {
+    static const struct {
+        const char *ext;
+        cbm_sem_doc_format_t fmt;
+    } exts[] = {{".md", CBM_SEM_DOC_FMT_MARKDOWN},       {".mdx", CBM_SEM_DOC_FMT_MARKDOWN},
+                {".markdown", CBM_SEM_DOC_FMT_MARKDOWN}, {".rst", CBM_SEM_DOC_FMT_RST},
+                {".rest", CBM_SEM_DOC_FMT_RST},          {".txt", CBM_SEM_DOC_FMT_RST},
+                {".adoc", CBM_SEM_DOC_FMT_ADOC},         {".asciidoc", CBM_SEM_DOC_FMT_ADOC},
+                {".asc", CBM_SEM_DOC_FMT_ADOC},          {".pdf", CBM_SEM_DOC_FMT_PDF}};
+    const char *dot = path ? strrchr(path, '.') : NULL;
+    if (!dot || strchr(dot, '/')) {
+        return CBM_SEM_DOC_FMT_OTHER;
+    }
+    for (size_t i = 0; i < sizeof(exts) / sizeof(exts[0]); i++) {
+        if (strcasecmp(dot, exts[i].ext) == 0) {
+            return exts[i].fmt;
+        }
+    }
+    return CBM_SEM_DOC_FMT_OTHER;
+}
+
+double cbm_sem_p_2dp(float p) {
+    /* 1e-4 on the x100 scale: a float holds 0.325 as 0.32499998..., 1.2e-6
+     * below the half; judged values have at most three decimals, so the
+     * nearest one that must round down (x.xx4) is 0.1 away */
+    return (double)(long)((double)p * 100.0 + 0.5 + 1e-4) / 100.0;
+}
+
+/* Markdown by kind and position (SEM7, 2026-10-08: 490 blind-judged
+ * candidates from four monorepos with per-component docs, three reading
+ * rounds, pooled where a higher band judged lower). A doc's position decides
+ * most: functions outside the doc's home were right 6 of 90 (none stored);
+ * inside it 0.18 / 0.33 / 0.53. A doc of the whole project: SEM7's and
+ * sample 4's judged items pooled (the user's choice; 158 items, nine
+ * repositories): 0.17 / 0.22 / 0.51. Local extras (home functions below the
+ * top 5) 19 of 60 = 0.32 at every band; whole files 0.12 below 0.40, then
+ * 0.30. Below 0.20 nothing. */
+static const float SEM_DOC_P_MD_FUNCTION[CBM_SEM_DOC_POS_COUNT][SEM_DOC_P_NBANDS] = {
+    [CBM_SEM_DOC_POS_GLOBAL] = {0.0F, 0.0F, 0.217F, 0.509F},
+    [CBM_SEM_DOC_POS_LOCAL] = {0.0F, 0.0F, 0.325F, 0.525F},
+    [CBM_SEM_DOC_POS_OUTSIDE] = {0.0F, 0.0F, 0.0F, 0.0F},
+};
+static const float SEM_DOC_P_MD_LOCAL[SEM_DOC_P_NBANDS] = {0.0F, 0.317F, 0.317F, 0.317F};
+static const float SEM_DOC_P_MD_FILE[SEM_DOC_P_NBANDS] = {0.0F, 0.0F, 0.0F, 0.30F};
+
+float cbm_sem_doc_calibrated_p(cbm_sem_doc_format_t fmt, cbm_sem_doc_kind_t kind,
+                               cbm_sem_doc_pos_t pos, float score) {
+    if ((int)fmt < 0 || fmt >= CBM_SEM_DOC_FMT_COUNT || (int)pos < 0 ||
+        pos >= CBM_SEM_DOC_POS_COUNT) {
+        return 0.0F;
+    }
     size_t band = 0;
-    while (band < sizeof(SEM_DOC_P_CUTS) / sizeof(SEM_DOC_P_CUTS[0]) &&
-           score >= SEM_DOC_P_CUTS[band]) {
+    while (band < SEM_DOC_P_NBANDS - 1 && score >= SEM_DOC_P_CUTS[band]) {
         band++;
     }
-    return SEM_DOC_P_BANDS[band];
+    if (fmt != CBM_SEM_DOC_FMT_MARKDOWN) {
+        /* measured for function candidates only, without position (SEM6) */
+        return kind == CBM_SEM_DOC_KIND_FUNCTION ? SEM_DOC_P_BANDS[fmt][band] : 0.0F;
+    }
+    switch (kind) {
+    case CBM_SEM_DOC_KIND_FUNCTION:
+        return SEM_DOC_P_MD_FUNCTION[pos][band];
+    case CBM_SEM_DOC_KIND_LOCAL:
+        return pos == CBM_SEM_DOC_POS_LOCAL ? SEM_DOC_P_MD_LOCAL[band] : 0.0F;
+    case CBM_SEM_DOC_KIND_FILE:
+        return SEM_DOC_P_MD_FILE[band];
+    default:
+        return 0.0F; /* a folder candidate: cbm_sem_doc_folder_p */
+    }
+}
+
+/* A doc's home folder as its candidate (SEM7): a README or index doc was
+ * right 26 of 30 (0.87); any other doc 5 of 30 (not stored). Markdown only. */
+float cbm_sem_doc_folder_p(cbm_sem_doc_format_t fmt, const char *doc_path) {
+    if (fmt != CBM_SEM_DOC_FMT_MARKDOWN || !doc_path) {
+        return 0.0F;
+    }
+    const char *base = strrchr(doc_path, '/');
+    base = base ? base + 1 : doc_path;
+    const char *dot = strrchr(base, '.');
+    size_t n = dot ? (size_t)(dot - base) : strlen(base);
+    bool readme = (n == sizeof("readme") - 1 && strncasecmp(base, "readme", n) == 0) ||
+                  (n == sizeof("index") - 1 && strncasecmp(base, "index", n) == 0);
+    return readme ? 0.867F : 0.0F;
 }
 
 float cbm_sem_combined_score(const cbm_sem_func_t *a, const cbm_sem_func_t *b,

@@ -513,22 +513,132 @@ TEST(sem_calibrated_p_bands) {
     PASS();
 }
 
-/* Doc -> code candidates: the judged bands (sample 4), monotone, with nothing
- * stored below CBM_SEM_DOC_MIN_SCORE (that band judged 0.06). */
+static float docp(cbm_sem_doc_format_t fmt, cbm_sem_doc_kind_t kind, cbm_sem_doc_pos_t pos,
+                  float score) {
+    return cbm_sem_doc_calibrated_p(fmt, kind, pos, score);
+}
+
+/* Doc -> code candidates, Markdown (sample 7): p by kind and position --
+ * functions outside the doc's home never stored, inside it from 0.30, for a
+ * doc of the whole project (samples 4 and 7 pooled) from 0.30 too; local
+ * extras 0.32 inside the home
+ * only; whole files from 0.40; nothing below CBM_SEM_DOC_MIN_SCORE; every
+ * curve monotone. A format without a judged curve stores nothing. */
 TEST(sem_doc_calibrated_p_bands) {
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.10F), 0.06F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.199F), 0.06F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(CBM_SEM_DOC_MIN_SCORE), 0.36F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.299F), 0.36F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.30F), 0.42F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(0.40F), 0.548F, 0.0);
-    ASSERT_FLOAT_EQ(cbm_sem_doc_calibrated_p(1.00F), 0.548F, 0.0);
-    float last = 0.0F;
-    for (int milli = 0; milli <= 1000; milli++) {
-        float p = cbm_sem_doc_calibrated_p((float)milli / 1000.0F);
-        ASSERT_TRUE(p >= last);
-        last = p;
+    const cbm_sem_doc_format_t md = CBM_SEM_DOC_FMT_MARKDOWN;
+    const cbm_sem_doc_kind_t fn = CBM_SEM_DOC_KIND_FUNCTION;
+    const cbm_sem_doc_pos_t global = CBM_SEM_DOC_POS_GLOBAL;
+    const cbm_sem_doc_pos_t local = CBM_SEM_DOC_POS_LOCAL;
+    const cbm_sem_doc_pos_t outside = CBM_SEM_DOC_POS_OUTSIDE;
+    ASSERT_FLOAT_EQ(docp(md, fn, local, 0.199F), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, local, CBM_SEM_DOC_MIN_SCORE), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, local, 0.30F), 0.325F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, local, 0.40F), 0.525F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, global, 0.299F), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, global, 0.30F), 0.217F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, global, 0.40F), 0.509F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, fn, outside, 0.90F), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, CBM_SEM_DOC_KIND_LOCAL, local, 0.199F), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, CBM_SEM_DOC_KIND_LOCAL, local, 0.20F), 0.317F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, CBM_SEM_DOC_KIND_LOCAL, local, 0.90F), 0.317F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, CBM_SEM_DOC_KIND_FILE, outside, 0.399F), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, CBM_SEM_DOC_KIND_FILE, outside, 0.40F), 0.30F, 0.0);
+    ASSERT_FLOAT_EQ(docp(md, CBM_SEM_DOC_KIND_FOLDER, local, 0.90F), 0.0F, 0.0);
+    static const cbm_sem_doc_kind_t KINDS[] = {CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_KIND_LOCAL,
+                                               CBM_SEM_DOC_KIND_FILE};
+    for (size_t k = 0; k < sizeof(KINDS) / sizeof(KINDS[0]); k++) {
+        for (int pos = 0; pos < CBM_SEM_DOC_POS_COUNT; pos++) {
+            float last = 0.0F;
+            for (int milli = 0; milli <= 1000; milli++) {
+                float s = (float)milli / 1000.0F;
+                float p = docp(md, KINDS[k], (cbm_sem_doc_pos_t)pos, s);
+                ASSERT_TRUE(p >= last);
+                last = p;
+                ASSERT_TRUE(pos != CBM_SEM_DOC_POS_OUTSIDE || KINDS[k] == CBM_SEM_DOC_KIND_FILE ||
+                            p == 0.0F);
+                ASSERT_FLOAT_EQ(docp(CBM_SEM_DOC_FMT_OTHER, KINDS[k], (cbm_sem_doc_pos_t)pos, s),
+                                0.0F, 0.0);
+                ASSERT_FLOAT_EQ(docp(CBM_SEM_DOC_FMT_PDF, KINDS[k], (cbm_sem_doc_pos_t)pos, s),
+                                0.0F, 0.0);
+            }
+        }
     }
+    ASSERT_FLOAT_EQ(docp(CBM_SEM_DOC_FMT_COUNT, fn, global, 0.9F), 0.0F, 0.0);
+    /* a home folder: README and index docs only, Markdown only */
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(md, "pkg/mail/README.md"), 0.867F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(md, "pkg/mail/docs/index.mdx"), 0.867F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(md, "pkg/mail/readme"), 0.867F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(md, "pkg/mail/guide.md"), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(md, "pkg/mail/README-old.md"), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(CBM_SEM_DOC_FMT_RST, "pkg/mail/index.rst"), 0.0F, 0.0);
+    ASSERT_FLOAT_EQ(cbm_sem_doc_folder_p(md, NULL), 0.0F, 0.0);
+    /* reST (sample 6): 0.20-0.30 judged 0.125, not stored */
+    const cbm_sem_doc_format_t rst = CBM_SEM_DOC_FMT_RST;
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(rst, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.25F),
+        0.0F, 0.0);
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(rst, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.30F),
+        0.35F, 0.0);
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(rst, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.40F),
+        0.625F, 0.0);
+    /* AsciiDoc (sample 6): every band at or above the floor is stored */
+    const cbm_sem_doc_format_t adoc = CBM_SEM_DOC_FMT_ADOC;
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(adoc, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.199F),
+        0.0F, 0.0);
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(adoc, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.20F),
+        0.225F, 0.0);
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(adoc, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.35F),
+        0.25F, 0.0);
+    ASSERT_FLOAT_EQ(
+        cbm_sem_doc_calibrated_p(adoc, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, 0.90F),
+        0.50F, 0.0);
+    for (int milli = 0; milli <= 1000; milli++) {
+        float s = (float)milli / 1000.0F;
+        ASSERT_TRUE(
+            cbm_sem_doc_calibrated_p(rst, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, s) >=
+            cbm_sem_doc_calibrated_p(rst, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL,
+                                     s - 0.001F));
+        ASSERT_TRUE(
+            cbm_sem_doc_calibrated_p(adoc, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL, s) >=
+            cbm_sem_doc_calibrated_p(adoc, CBM_SEM_DOC_KIND_FUNCTION, CBM_SEM_DOC_POS_GLOBAL,
+                                     s - 0.001F));
+    }
+    PASS();
+}
+
+/* p is stored and shown at two decimals, half up, whatever the float
+ * representation of the judged value (0.225F is 0.22499999...). */
+TEST(sem_p_two_decimals_half_up) {
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.225F), 0.23, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.325F), 0.33, 1e-12); /* float 0.32499998... */
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.525F), 0.53, 1e-12); /* float 0.52499997... */
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.324F), 0.32, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.317F), 0.32, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.867F), 0.87, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.625F), 0.63, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.548F), 0.55, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.36F), 0.36, 1e-12);
+    ASSERT_FLOAT_EQ(cbm_sem_p_2dp(0.0F), 0.0, 1e-12);
+    PASS();
+}
+
+/* A section's format comes from its file's extension, case-insensitively;
+ * a .txt section is reStructuredText (plain text has no sections). */
+TEST(sem_doc_format_by_extension) {
+    ASSERT_EQ(cbm_sem_doc_format("docs/guide.md"), CBM_SEM_DOC_FMT_MARKDOWN);
+    ASSERT_EQ(cbm_sem_doc_format("README.MARKDOWN"), CBM_SEM_DOC_FMT_MARKDOWN);
+    ASSERT_EQ(cbm_sem_doc_format("docs/index.rst"), CBM_SEM_DOC_FMT_RST);
+    ASSERT_EQ(cbm_sem_doc_format("docs/topics/db.txt"), CBM_SEM_DOC_FMT_RST);
+    ASSERT_EQ(cbm_sem_doc_format("manual/intro.adoc"), CBM_SEM_DOC_FMT_ADOC);
+    ASSERT_EQ(cbm_sem_doc_format("paper.pdf"), CBM_SEM_DOC_FMT_PDF);
+    ASSERT_EQ(cbm_sem_doc_format("src/main.go"), CBM_SEM_DOC_FMT_OTHER);
+    ASSERT_EQ(cbm_sem_doc_format("v1.2/NOTES"), CBM_SEM_DOC_FMT_OTHER);
+    ASSERT_EQ(cbm_sem_doc_format(NULL), CBM_SEM_DOC_FMT_OTHER);
     PASS();
 }
 
@@ -731,6 +841,8 @@ SUITE(semantic) {
     RUN_TEST(sem_admit_best_first_keeps_the_best);
     RUN_TEST(sem_calibrated_p_bands);
     RUN_TEST(sem_doc_calibrated_p_bands);
+    RUN_TEST(sem_doc_format_by_extension);
+    RUN_TEST(sem_p_two_decimals_half_up);
     RUN_TEST(sem_json_str_honours_escapes);
     RUN_TEST(sem_corpus_add_null_doc);
     RUN_TEST(sem_corpus_free_null);

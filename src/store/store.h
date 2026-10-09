@@ -1110,6 +1110,12 @@ int cbm_store_doc_candidates_replace(cbm_store_t *s, const char *project,
 int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char *section_qn,
                                  const char *target_qn, int limit, cbm_doc_candidate_t **out,
                                  int *count);
+
+/* The candidates that point at a file as a whole: at its File node, or at a
+ * Folder node that holds it (a doc's home folder), highest p first, then
+ * score, at most limit. Allocation and CBM_STORE_NOT_FOUND as above. */
+int cbm_store_doc_candidates_for_path(cbm_store_t *s, const char *project, const char *file_path,
+                                      int limit, cbm_doc_candidate_t **out, int *count);
 void cbm_store_doc_candidates_free(cbm_doc_candidate_t *rows, int count);
 
 /* ADR section parsing/rendering (pure functions, no store needed) */

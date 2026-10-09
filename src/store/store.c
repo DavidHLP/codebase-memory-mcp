@@ -10808,14 +10808,9 @@ int cbm_store_doc_candidates_replace(cbm_store_t *s, const char *project,
     return exec_sql(s, "COMMIT;");
 }
 
-int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char *section_qn,
-                                 const char *target_qn, int limit, cbm_doc_candidate_t **out,
-                                 int *count) {
-    if (!s || !s->db || !project || !out || !count || (!section_qn == !target_qn) || limit <= 0) {
-        return CBM_STORE_ERR;
-    }
-    *out = NULL;
-    *count = 0;
+/* Does the database hold the candidates table? CBM_STORE_NOT_FOUND: no (a
+ * database written by an older build). */
+static int doc_candidates_table(cbm_store_t *s) {
     sqlite3_stmt *probe = NULL;
     if (sqlite3_prepare_v2(s->db,
                            "SELECT 1 FROM sqlite_master WHERE type='table' AND "
@@ -10833,19 +10828,15 @@ int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char
         store_set_error_sqlite(s, "doc_candidates probe step");
         return CBM_STORE_ERR;
     }
-    const char *sql = section_qn ? "SELECT section_qn, target_qn, rank, score, p, evidence FROM "
-                                   "doc_link_candidates WHERE project=?1 AND section_qn=?2 "
-                                   "ORDER BY p DESC, score DESC, target_qn LIMIT ?3;"
-                                 : "SELECT section_qn, target_qn, rank, score, p, evidence FROM "
-                                   "doc_link_candidates WHERE project=?1 AND target_qn=?2 "
-                                   "ORDER BY p DESC, score DESC, section_qn LIMIT ?3;";
-    sqlite3_stmt *stmt = NULL;
-    if (sqlite3_prepare_v2(s->db, sql, CBM_NOT_FOUND, &stmt, NULL) != SQLITE_OK) {
-        store_set_error_sqlite(s, "doc_candidates get");
-        return CBM_STORE_ERR;
-    }
+    return CBM_STORE_OK;
+}
+
+/* Run a prepared candidates query (project ?1, key ?2, limit ?3; columns
+ * section_qn, target_qn, rank, score, p, evidence) into *out; finalizes it. */
+static int doc_candidates_read(sqlite3_stmt *stmt, const char *project, const char *key, int limit,
+                               cbm_doc_candidate_t **out, int *count) {
     bind_text(stmt, SKIP_ONE, project);
-    bind_text(stmt, ST_COL_2, section_qn ? section_qn : target_qn);
+    bind_text(stmt, ST_COL_2, key);
     sqlite3_bind_int(stmt, ST_COL_3, limit);
     cbm_doc_candidate_t *rows = cbm_calloc(CBM_MEM_CLASS_STORE, (size_t)limit * sizeof(*rows));
     if (!rows) {
@@ -10869,6 +10860,53 @@ int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char
     *out = rows;
     *count = n;
     return CBM_STORE_OK;
+}
+
+static int doc_candidates_query(cbm_store_t *s, const char *sql, const char *project,
+                                const char *key, int limit, cbm_doc_candidate_t **out, int *count) {
+    *out = NULL;
+    *count = 0;
+    int rc = doc_candidates_table(s);
+    if (rc != CBM_STORE_OK) {
+        return rc;
+    }
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(s->db, sql, CBM_NOT_FOUND, &stmt, NULL) != SQLITE_OK) {
+        store_set_error_sqlite(s, "doc_candidates get");
+        return CBM_STORE_ERR;
+    }
+    return doc_candidates_read(stmt, project, key, limit, out, count);
+}
+
+int cbm_store_doc_candidates_get(cbm_store_t *s, const char *project, const char *section_qn,
+                                 const char *target_qn, int limit, cbm_doc_candidate_t **out,
+                                 int *count) {
+    if (!s || !s->db || !project || !out || !count || (!section_qn == !target_qn) || limit <= 0) {
+        return CBM_STORE_ERR;
+    }
+    const char *sql = section_qn ? "SELECT section_qn, target_qn, rank, score, p, evidence FROM "
+                                   "doc_link_candidates WHERE project=?1 AND section_qn=?2 "
+                                   "ORDER BY p DESC, score DESC, target_qn LIMIT ?3;"
+                                 : "SELECT section_qn, target_qn, rank, score, p, evidence FROM "
+                                   "doc_link_candidates WHERE project=?1 AND target_qn=?2 "
+                                   "ORDER BY p DESC, score DESC, section_qn LIMIT ?3;";
+    return doc_candidates_query(s, sql, project, section_qn ? section_qn : target_qn, limit, out,
+                                count);
+}
+
+int cbm_store_doc_candidates_for_path(cbm_store_t *s, const char *project, const char *file_path,
+                                      int limit, cbm_doc_candidate_t **out, int *count) {
+    if (!s || !s->db || !project || !file_path || !file_path[0] || !out || !count || limit <= 0) {
+        return CBM_STORE_ERR;
+    }
+    static const char SQL[] = "SELECT c.section_qn, c.target_qn, c.rank, c.score, c.p, c.evidence "
+                              "FROM doc_link_candidates c JOIN nodes n "
+                              "ON n.project = c.project AND n.qualified_name = c.target_qn "
+                              "WHERE c.project=?1 AND ((n.label='File' AND n.file_path=?2) OR "
+                              "(n.label='Folder' AND n.file_path <> '' AND "
+                              "substr(?2, 1, length(n.file_path) + 1) = n.file_path || '/')) "
+                              "ORDER BY c.p DESC, c.score DESC, c.section_qn LIMIT ?3;";
+    return doc_candidates_query(s, SQL, project, file_path, limit, out, count);
 }
 
 void cbm_store_doc_candidates_free(cbm_doc_candidate_t *rows, int count) {

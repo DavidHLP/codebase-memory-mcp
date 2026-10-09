@@ -270,7 +270,58 @@ float cbm_sem_calibrated_p(float score);
  * about the function. */
 #define CBM_SEM_DOC_TOP_K 5
 #define CBM_SEM_DOC_MIN_SCORE 0.20F
-float cbm_sem_doc_calibrated_p(float score);
+
+/* A section's document format, by its file's extension: candidates are
+ * judged, and stored, per format. */
+typedef enum {
+    CBM_SEM_DOC_FMT_OTHER = 0,
+    CBM_SEM_DOC_FMT_MARKDOWN,
+    CBM_SEM_DOC_FMT_RST, /* .rst, and .txt: a .txt file only has sections as Sphinx source */
+    CBM_SEM_DOC_FMT_ADOC,
+    CBM_SEM_DOC_FMT_PDF,
+    CBM_SEM_DOC_FMT_COUNT,
+} cbm_sem_doc_format_t;
+cbm_sem_doc_format_t cbm_sem_doc_format(const char *path);
+
+/* Where a candidate sits relative to the doc's home folder (the folder whose
+ * code the doc documents, see pass_semantic_edges.c): the home is the
+ * repository root (the doc documents the whole project), or the candidate is
+ * inside or outside the home. */
+typedef enum {
+    CBM_SEM_DOC_POS_GLOBAL = 0,
+    CBM_SEM_DOC_POS_LOCAL,
+    CBM_SEM_DOC_POS_OUTSIDE,
+    CBM_SEM_DOC_POS_COUNT,
+} cbm_sem_doc_pos_t;
+
+/* What a candidate points at: one of a section's best CBM_SEM_DOC_TOP_K
+ * functions; a function inside the home below that top K (at most
+ * CBM_SEM_DOC_LOCAL_K per section); a whole file; the doc's home folder. */
+typedef enum {
+    CBM_SEM_DOC_KIND_FUNCTION = 0,
+    CBM_SEM_DOC_KIND_LOCAL,
+    CBM_SEM_DOC_KIND_FILE,
+    CBM_SEM_DOC_KIND_FOLDER,
+    CBM_SEM_DOC_KIND_COUNT,
+} cbm_sem_doc_kind_t;
+#define CBM_SEM_DOC_LOCAL_K 2
+#define CBM_SEM_DOC_FILE_K 3
+
+/* The probability that a section of format fmt is about a candidate of this
+ * kind and position with this tfidf, from the judged curves; 0 when that band
+ * is not stored (judged below 0.20) or has no judged curve. A folder
+ * candidate has no score: cbm_sem_doc_folder_p. */
+float cbm_sem_doc_calibrated_p(cbm_sem_doc_format_t fmt, cbm_sem_doc_kind_t kind,
+                               cbm_sem_doc_pos_t pos, float score);
+
+/* The probability that the doc at doc_path documents its home folder, by
+ * the doc's kind (a README or index file, or any other doc); 0 = not
+ * stored. */
+float cbm_sem_doc_folder_p(cbm_sem_doc_format_t fmt, const char *doc_path);
+
+/* p as stored and shown: two decimals, half up (0.225 -> 0.23, 0.325 ->
+ * 0.33; the epsilon absorbs the float representation of a judged x.xx5). */
+double cbm_sem_p_2dp(float p);
 
 /* Module proximity multiplier based on file paths. */
 float cbm_sem_proximity(const char *path_a, const char *path_b);

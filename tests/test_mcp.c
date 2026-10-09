@@ -2546,6 +2546,98 @@ TEST(tool_get_file_outline_returns_bounded_filtered_columnar_rows_issue469) {
     PASS();
 }
 
+/* get_file_outline shows the sections possibly about the file as a whole or
+ * about a folder holding it (highest p first, kind shown), in both formats,
+ * on the first page only; a candidate for a function in the file is not one
+ * of them. */
+TEST(tool_get_file_outline_shows_doc_candidates_of_file_and_folders) {
+    cbm_mcp_server_t *srv = setup_mcp_with_data();
+    cbm_store_t *store = cbm_mcp_server_store(srv);
+    ASSERT_NOT_NULL(store);
+    ASSERT_EQ(cbm_store_upsert_project(store, "doc-outline", "/tmp/doc-outline"), CBM_STORE_OK);
+    cbm_mcp_server_set_project(srv, "doc-outline");
+    const struct {
+        const char *label, *qn, *path;
+        int start;
+    } nodes[] = {{"File", "doc-outline.pkg.mail.parse.__file__", "pkg/mail/parse.py", 0},
+                 {"Function", "doc-outline.pkg.mail.parse.parse_mail", "pkg/mail/parse.py", 3},
+                 {"Folder", "doc-outline.pkg.mail", "pkg/mail", 0},
+                 {"Section", "doc-outline.pkg.mail.README.Mail", "pkg/mail/README.md", 1},
+                 {"Section", "doc-outline.docs.parsing.Parsing", "docs/parsing.md", 5}};
+    for (size_t i = 0; i < sizeof(nodes) / sizeof(nodes[0]); i++) {
+        cbm_node_t node = {.project = "doc-outline",
+                           .label = nodes[i].label,
+                           .name = nodes[i].qn,
+                           .qualified_name = nodes[i].qn,
+                           .file_path = nodes[i].path,
+                           .start_line = nodes[i].start,
+                           .end_line = nodes[i].start + 2};
+        ASSERT_GT(cbm_store_upsert_node(store, &node), 0);
+    }
+    const cbm_doc_candidate_t rows[] = {
+        {.section_qn = "doc-outline.docs.parsing.Parsing",
+         .target_qn = "doc-outline.pkg.mail.parse.__file__",
+         .rank = 1,
+         .score = 0.41,
+         .p = 0.5,
+         .evidence = "{\"shared_terms\":4,\"name_tokens\":0,\"kind\":\"file\","
+                     "\"position\":\"global\"}"},
+        {.section_qn = "doc-outline.pkg.mail.README.Mail",
+         .target_qn = "doc-outline.pkg.mail",
+         .rank = 1,
+         .p = 0.8,
+         .evidence = "{\"shared_terms\":0,\"name_tokens\":0,\"kind\":\"folder\","
+                     "\"position\":\"local\"}"},
+        {.section_qn = "doc-outline.docs.parsing.Parsing",
+         .target_qn = "doc-outline.pkg.mail.parse.parse_mail",
+         .rank = 1,
+         .score = 0.5,
+         .p = 0.9,
+         .evidence = "{\"shared_terms\":5,\"name_tokens\":1,\"kind\":\"function\","
+                     "\"position\":\"global\"}"},
+    };
+    ASSERT_EQ(cbm_store_doc_candidates_replace(store, "doc-outline", rows, 3), CBM_STORE_OK);
+
+    char *raw =
+        cbm_mcp_handle_tool(srv, "get_file_outline",
+                            "{\"project\":\"doc-outline\",\"file_path\":\"pkg/mail/parse.py\","
+                            "\"format\":\"json\"}");
+    char *text = extract_text_content(raw);
+    free(raw);
+    ASSERT_NOT_NULL(text);
+    yyjson_doc *doc = yyjson_read(text, strlen(text), 0);
+    ASSERT_NOT_NULL(doc);
+    yyjson_val *in = yyjson_obj_get(yyjson_doc_get_root(doc), "possibly_described_in");
+    ASSERT_EQ((int)yyjson_arr_size(in), 2);
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(in, 0), "section")),
+                  "doc-outline.pkg.mail.README.Mail");
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(in, 0), "kind")), "folder");
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(in, 1), "kind")), "file");
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(in, 1), "file_path")),
+                  "docs/parsing.md");
+    ASSERT_NOT_NULL(yyjson_obj_get(yyjson_doc_get_root(doc), "candidates_note"));
+    yyjson_doc_free(doc);
+    free(text);
+
+    raw = cbm_mcp_handle_tool(srv, "get_file_outline",
+                              "{\"project\":\"doc-outline\",\"file_path\":\"pkg/mail/parse.py\"}");
+    ASSERT_NOT_NULL(raw);
+    ASSERT_NOT_NULL(strstr(raw, "possibly_described_in"));
+    ASSERT_NOT_NULL(strstr(raw, "doc-outline.pkg.mail.README.Mail"));
+    ASSERT_NOT_NULL(strstr(raw, "folder"));
+    free(raw);
+
+    raw = cbm_mcp_handle_tool(srv, "get_file_outline",
+                              "{\"project\":\"doc-outline\",\"file_path\":\"pkg/mail/parse.py\","
+                              "\"offset\":1}");
+    ASSERT_NOT_NULL(raw);
+    ASSERT_NULL(strstr(raw, "possibly_described_in"));
+    free(raw);
+
+    cbm_mcp_server_free(srv);
+    PASS();
+}
+
 TEST(tool_get_file_outline_validates_json_path_limit_and_cancel_issue469) {
     cbm_mcp_server_t *srv = setup_mcp_with_data();
     cbm_store_t *store = cbm_mcp_server_store(srv);
@@ -7618,9 +7710,10 @@ TEST(tool_trace_call_path_qn_fallback_frees_name_miss) {
     cbm_store_free_nodes(by_name, by_name_count);
 
     char *resp = cbm_mcp_server_handle(
-        srv, "{\"jsonrpc\":\"2.0\",\"id\":63,\"method\":\"tools/call\","
-             "\"params\":{\"name\":\"trace_call_path\",\"arguments\":{\"function_name\":"
-             "\"qnfb-proj.src.qnfb_entry\",\"project\":\"qnfb-proj\",\"direction\":\"outbound\"}}}");
+        srv,
+        "{\"jsonrpc\":\"2.0\",\"id\":63,\"method\":\"tools/call\","
+        "\"params\":{\"name\":\"trace_call_path\",\"arguments\":{\"function_name\":"
+        "\"qnfb-proj.src.qnfb_entry\",\"project\":\"qnfb-proj\",\"direction\":\"outbound\"}}}");
     ASSERT_NOT_NULL(resp);
     char *inner = extract_text_content(resp);
     ASSERT_NOT_NULL(inner);
@@ -18537,7 +18630,8 @@ TEST(snippet_doc_candidates_both_directions) {
          .rank = 1,
          .score = 0.45,
          .p = 0.548,
-         .evidence = "{\"shared_terms\":5,\"name_tokens\":2}"},
+         .evidence = "{\"shared_terms\":5,\"name_tokens\":2,\"kind\":\"function\","
+                     "\"position\":\"local\"}"},
         {.section_qn = "test-project.README.Orders",
          .target_qn = "test-project.gone.Missing",
          .rank = 3,
@@ -18560,6 +18654,9 @@ TEST(snippet_doc_candidates_both_directions) {
     ASSERT_FLOAT_EQ(yyjson_get_num(yyjson_obj_get(first, "p")), 0.548, 1e-9);
     ASSERT_EQ((int)yyjson_get_int(yyjson_obj_get(first, "shared_terms")), 5);
     ASSERT_EQ((int)yyjson_get_int(yyjson_obj_get(first, "start_line")), 7);
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(first, "label")), "Function");
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(first, "kind")), "function");
+    ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(first, "position")), "local");
     ASSERT_STR_EQ(yyjson_get_str(yyjson_obj_get(yyjson_arr_get(about, 1), "qualified_name")),
                   "test-project.cmd.server.main.HandleRequest");
     ASSERT_NOT_NULL(yyjson_obj_get(yyjson_doc_get_root(doc), "candidates_note"));
@@ -23784,6 +23881,7 @@ SUITE(mcp) {
     RUN_TEST(tool_compare_graphs_validation_and_scan_cap_are_atomic_issue525);
     RUN_TEST(tool_compare_graphs_cancel_and_readonly_handles_release_issue525);
     RUN_TEST(tool_get_file_outline_returns_bounded_filtered_columnar_rows_issue469);
+    RUN_TEST(tool_get_file_outline_shows_doc_candidates_of_file_and_folders);
     RUN_TEST(tool_get_file_outline_validates_json_path_limit_and_cancel_issue469);
     RUN_TEST(tool_search_graph_basic);
     RUN_TEST(tool_search_graph_empty_hint_describes_combined_filters_issue1366);
