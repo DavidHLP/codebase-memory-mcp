@@ -1144,9 +1144,14 @@ static void rr_c_role(const cbm_gbuf_t *graph, const char *doc, const char *rnam
         char *dot = strrchr(start, '.');
         const char *owner = NULL;
         if (dot) {
+            /* The owner is the segment before the last dot: back to the dot
+             * before it, or to the start of the name. */
+            char *seg = dot;
+            while (seg > start && seg[-SKIP_ONE] != '.') {
+                seg--;
+            }
             *dot = '\0';
-            char *prev = strrchr(start, '.');
-            owner = prev ? prev + SKIP_ONE : start;
+            owner = seg;
             name = dot + SKIP_ONE;
         }
         if (!rr_c_ident(name) || (owner && !rr_c_ident(owner))) {

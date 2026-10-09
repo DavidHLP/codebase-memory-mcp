@@ -364,6 +364,44 @@ TEST(rst_links_pipeline) {
     PASS();
 }
 
+/* :c:member: names a field through its struct: the owner is the segment
+ * before the last dot (-> reads as .), however far the name is qualified. */
+TEST(rst_c_member_owner) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlrst_cm_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    char repo[512];
+    char db[512];
+    snprintf(repo, sizeof(repo), "%s/repo", tmp);
+    snprintf(db, sizeof(db), "%s/g.db", tmp);
+    th_write_file(TH_PATH(repo, "csrc/shapes.c"), "struct point {\n"
+                                                  "    int x;\n"
+                                                  "    int y;\n"
+                                                  "};\n"
+                                                  "\n"
+                                                  "struct box {\n"
+                                                  "    struct point corner;\n"
+                                                  "    int x;\n"
+                                                  "};\n");
+    th_write_file(TH_PATH(repo, "docs/conf.py"), "project = 'x'\n");
+    th_write_file(TH_PATH(repo, "docs/api.rst"),
+                  "Shapes\n"
+                  "======\n"
+                  "\n"
+                  "Read :c:member:`point.x`, :c:member:`shapes.box.x` and\n"
+                  ":c:member:`struct point->y`; not :c:member:`box.corner.y`.\n");
+    ASSERT_EQ(dm_index(repo, db, NULL), 0);
+    /* the owner runs back to the start of the name */
+    ASSERT_TRUE(rst_edge(db, "docs.api.Shapes", "csrc.shapes.point.x", "\"syntax\":\"role\""));
+    /* the owner runs back to the dot before it */
+    ASSERT_TRUE(rst_edge(db, "docs.api.Shapes", "csrc.shapes.box.x", "\"syntax\":\"role\""));
+    ASSERT_TRUE(rst_edge(db, "docs.api.Shapes", "csrc.shapes.point.y", "\"syntax\":\"role\""));
+    /* corner is a field, not a struct with a y */
+    ASSERT_EQ(rst_rows(db, ":c:member:`box.corner.y`", "missing"), 1);
+    th_cleanup(tmp);
+    PASS();
+}
+
 TEST(rst_adr_record) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_dlrst_adr_XXXXXX");
@@ -525,6 +563,7 @@ SUITE(doc_links_rst) {
     RUN_TEST(rst_scan_structure);
     RUN_TEST(rst_python_scope_blob);
     RUN_TEST(rst_links_pipeline);
+    RUN_TEST(rst_c_member_owner);
     RUN_TEST(rst_object_and_open_lines);
     RUN_TEST(rst_adr_record);
     RUN_TEST(rst_links_incremental);
