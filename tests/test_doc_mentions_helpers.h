@@ -382,6 +382,20 @@ static inline char *dm_index_status(const char *project, bool full) {
     return text;
 }
 
+/* The doc_links block of an index_status text, cut at the next top-level key
+ * (the watch object follows it), so an assertion on the block never matches
+ * another block's lines. Truncates text in place; NULL when absent. */
+static inline const char *dm_doc_links_block(char *text) {
+    char *block = text ? strstr(text, "doc_links:\n") : NULL;
+    for (char *p = block ? strchr(block, '\n') : NULL; p && p[1]; p = strchr(p + 1, '\n')) {
+        if (p[1] != ' ') {
+            p[1] = '\0';
+            break;
+        }
+    }
+    return block;
+}
+
 /* Every reason the table holds is listed under doc_links.unresolved with its
  * row count. The number of reasons checked; -1 when a line is missing. */
 static inline int dm_reason_lines(const char *db, const char *block) {

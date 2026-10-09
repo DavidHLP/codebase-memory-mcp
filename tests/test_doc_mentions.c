@@ -327,7 +327,7 @@ static bool dm_namespace_published(const char *db, const char *project, bool val
     dm_row(db, "Healthy.cs", "Hidden", conflict_reason, sizeof(conflict_reason), NULL, 0);
     int errors = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'");
     char *status = dm_index_status(project, false);
-    const char *block = status ? strstr(status, "doc_links:\n") : NULL;
+    const char *block = dm_doc_links_block(status);
     bool status_ok = block && strstr(block, "\n  status: ok");
     int from_bad = dm_mentions_from(db, "Bad.FromBad");
     bool inside_ok = valid
@@ -687,7 +687,7 @@ static bool dm_control_published(const char *db, const char *project, const char
     dm_row(db, "Healthy.cs", "Hidden", conflict_reason, sizeof(conflict_reason), NULL, 0);
     int errors = dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'");
     char *status = dm_index_status(project, false);
-    const char *block = status ? strstr(status, "doc_links:\n") : NULL;
+    const char *block = dm_doc_links_block(status);
     bool status_ok = block && strstr(block, "\n  status: ok");
     bool correct = healthy == 1 && tail == 1 && !tail_reason[0] && conflict == 0 &&
                    strcmp(conflict_reason, "graph_gap") == 0 && errors == 0 && status_ok;
@@ -4356,7 +4356,7 @@ static int dm_index_status_checks(const char *tmp, const char *repo, const char 
     /* doc_links: the edge count, every reason with its row count, the status */
     char *text = dm_index_status(project, false);
     ASSERT_NOT_NULL(text);
-    const char *block = strstr(text, "doc_links:\n");
+    const char *block = dm_doc_links_block(text);
     ASSERT_NOT_NULL(block);
     char want[64];
     snprintf(want, sizeof(want), "\n  mentions: %d\n", edges);
@@ -4371,7 +4371,7 @@ static int dm_index_status_checks(const char *tmp, const char *repo, const char 
     free(text);
     text = dm_index_status(project, true);
     ASSERT_NOT_NULL(text);
-    block = strstr(text, "doc_links:\n");
+    block = dm_doc_links_block(text);
     ASSERT_NOT_NULL(block);
     ASSERT_NOT_NULL(strstr(block, "samples"));
     ASSERT_NOT_NULL(strstr(block, "TestOnlyThing"));
@@ -4389,7 +4389,7 @@ static int dm_index_status_checks(const char *tmp, const char *repo, const char 
     ASSERT_EQ(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved WHERE reason = 'error'"), 1);
     text = dm_index_status(project, false);
     ASSERT_NOT_NULL(text);
-    block = strstr(text, "doc_links:\n");
+    block = dm_doc_links_block(text);
     ASSERT_NOT_NULL(block);
     ASSERT_NOT_NULL(strstr(block, "\n  mentions: 0\n"));
     ASSERT_NOT_NULL(strstr(block, "\n  status: error"));
@@ -4421,7 +4421,7 @@ static int dm_index_status_checks(const char *tmp, const char *repo, const char 
     cbm_store_close(s);
     text = dm_index_status(project, true);
     ASSERT_NOT_NULL(text);
-    block = strstr(text, "doc_links:\n");
+    block = dm_doc_links_block(text);
     ASSERT_NOT_NULL(block);
     ASSERT_NOT_NULL(strstr(block, "\n  status: error"));
     ASSERT_NOT_NULL(strstr(block, "hint"));
@@ -4447,7 +4447,7 @@ static int dm_index_status_checks(const char *tmp, const char *repo, const char 
     sqlite3_close(h);
     text = dm_index_status(project, false);
     ASSERT_NOT_NULL(text);
-    block = strstr(text, "doc_links:\n");
+    block = dm_doc_links_block(text);
     ASSERT_NOT_NULL(block);
     ASSERT_NOT_NULL(strstr(block, "\n  status: error"));
     ASSERT_NOT_NULL(strstr(block, "predates"));
@@ -4458,7 +4458,7 @@ static int dm_index_status_checks(const char *tmp, const char *repo, const char 
     ASSERT_GT(dm_count(db, "SELECT COUNT(*) FROM doc_link_unresolved"), rows_before);
     text = dm_index_status(project, false);
     ASSERT_NOT_NULL(text);
-    block = strstr(text, "doc_links:\n");
+    block = dm_doc_links_block(text);
     ASSERT_NOT_NULL(block);
     ASSERT_NOT_NULL(strstr(block, "\n  status: ok"));
     free(text);
