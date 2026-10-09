@@ -5237,13 +5237,19 @@ static int dm_preview_failure_checks(const char *db, const char *project) {
                 yyjson_doc_free(retried);
                 uint64_t after_retry = cbm_mem_tracked_live_bytes();
                 bool clean = before == after_failure && before == after_retry;
-                correct = consumed && error && retry && clean && correct;
-                fprintf(stderr,
-                        "doc preview fault stage=%d nth=%d json=%d consumed=%d error=%d retry=%d "
-                        "before=%llu failed=%llu retried=%llu clean=%d\n",
-                        stage, nth ? 5 : 1, format, consumed, error, retry,
-                        (unsigned long long)before, (unsigned long long)after_failure,
-                        (unsigned long long)after_retry, clean);
+                bool round_ok = consumed && error && retry && clean;
+                correct = round_ok && correct;
+                if (!round_ok) {
+                    /* only for a round that fails; no "<n> failed" text, which
+                     * the VM leg's log guard counts as failed tests */
+                    fprintf(stderr,
+                            "doc preview fault stage=%d nth=%d json=%d consumed=%d error=%d "
+                            "retry=%d live_before=%llu live_after_fault=%llu "
+                            "live_after_retry=%llu\n",
+                            stage, nth ? 5 : 1, format, consumed, error, retry,
+                            (unsigned long long)before, (unsigned long long)after_failure,
+                            (unsigned long long)after_retry);
+                }
             }
         }
     }
@@ -6268,7 +6274,7 @@ TEST(doc_mentions_cs_shared_doc_allocation_failure) {
         }
         bool failed = r->doc_links.failed;
         cbm_free_result(r);
-        printf("  shared doc allocation: stage=%d counts=%d,%d,%d failed=%d\n", cases[k].kind,
+        printf("  shared doc allocation: stage=%d counts=%d,%d,%d layer_failed=%d\n", cases[k].kind,
                counts[0], counts[1], counts[2], failed);
         bool first = fail ? counts[0] < cases[k].refs : counts[0] == cases[k].refs;
         ok = ok && failed == fail && first && counts[1] == 0 && counts[2] == 0;
