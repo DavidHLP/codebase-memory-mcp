@@ -425,4 +425,20 @@ static inline int dm_reason_lines(const char *db, const char *block) {
     return n;
 }
 
+/* The document families held back from shipping (doclink.h: below the held-out
+ * audit's bar, or not yet audited). Their resolution is tested with them on,
+ * so it is the resolution an audit would ship; doc_links_md_ship_gate tests
+ * the production gate itself. */
+static const int DM_HELD_FAMILIES[] = {
+    CBM_DOCLINK_MD_BARE_PATH,   CBM_DOCLINK_MD_SUPERSEDES_PROSE, CBM_DOCLINK_RST_INCLUDE,
+    CBM_DOCLINK_RST_KERNEL_DOC, CBM_DOCLINK_ADOC_ATTRIBUTE,      CBM_DOCLINK_ADOC_CODE_PATH,
+    CBM_DOCLINK_ADOC_CODE_NAME,
+};
+
+static inline void dm_ship_held_families(void) {
+    for (size_t i = 0; i < sizeof(DM_HELD_FAMILIES) / sizeof(DM_HELD_FAMILIES[0]); i++) {
+        cbm_doclink_test_set_ships(DM_HELD_FAMILIES[i], true);
+    }
+}
+
 #endif /* TEST_DOC_MENTIONS_HELPERS_H */

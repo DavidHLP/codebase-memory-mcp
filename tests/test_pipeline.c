@@ -1690,6 +1690,74 @@ static int fixture_node_count(cbm_store_t *store, const char *project, const cha
     return found;
 }
 
+/* Edges of `edge_type` from the node named `source_name` to the node named
+ * `target_name` that carries `target_label`. */
+static int labeled_edge_count(cbm_store_t *s, const char *project, const char *edge_type,
+                              const char *source_name, const char *target_name,
+                              const char *target_label) {
+    cbm_edge_t *edges = NULL;
+    int edge_count = 0;
+    if (cbm_store_find_edges_by_type(s, project, edge_type, &edges, &edge_count) != CBM_STORE_OK) {
+        return -1;
+    }
+    int matches = 0;
+    for (int i = 0; i < edge_count; i++) {
+        cbm_node_t source = {0};
+        cbm_node_t target = {0};
+        int source_ok = cbm_store_find_node_by_id(s, edges[i].source_id, &source) == CBM_STORE_OK;
+        int target_ok = cbm_store_find_node_by_id(s, edges[i].target_id, &target) == CBM_STORE_OK;
+        if (source_ok && target_ok && source.name && target.name && target.label &&
+            strcmp(source.name, source_name) == 0 && strcmp(target.name, target_name) == 0 &&
+            strcmp(target.label, target_label) == 0) {
+            matches++;
+        }
+        cbm_node_free_fields(&source);
+        cbm_node_free_fields(&target);
+    }
+    if (edges) {
+        cbm_store_free_edges(edges, edge_count);
+    }
+    return matches;
+}
+
+/* A Java field and a same-named method of one class keep their own nodes (the
+ * field is fenced `<Owner>.<name>#field`), and a write or a read of the field
+ * reaches the field, never the method; the method keeps its calls. The setter
+ * writing its own namesake was a self-edge before, so it was dropped. */
+TEST(pipeline_field_named_like_method_keeps_its_reads_and_writes) {
+    char tmp[256];
+    snprintf(tmp, sizeof(tmp), "/tmp/cbm_fieldfence_XXXXXX");
+    ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+    th_write_file(TH_PATH(tmp, "src/demo/Starter.java"),
+                  "package demo;\n\npublic class Starter {\n"
+                  "    private String executable;\n\n"
+                  "    public Starter executable(String path) {\n"
+                  "        this.executable = path;\n"
+                  "        return this;\n    }\n\n"
+                  "    public String show() {\n        return executable;\n    }\n\n"
+                  "    public static void run() {\n"
+                  "        new Starter().executable(\"x\").show();\n    }\n}\n");
+    char db_path[512];
+    snprintf(db_path, sizeof(db_path), "%s/fence.db", tmp);
+    cbm_pipeline_t *p = cbm_pipeline_new(tmp, db_path, CBM_MODE_FULL);
+    ASSERT_NOT_NULL(p);
+    ASSERT_EQ(cbm_pipeline_run(p), 0);
+    const char *project = cbm_pipeline_project_name(p);
+    cbm_store_t *store = cbm_store_open_path(db_path);
+    ASSERT_NOT_NULL(store);
+    ASSERT_EQ(named_node_count(store, project, "executable"), 2);
+    ASSERT_EQ(labeled_edge_count(store, project, "WRITES", "executable", "executable", "Field"), 1);
+    ASSERT_EQ(labeled_edge_count(store, project, "WRITES", "executable", "executable", "Method"),
+              0);
+    ASSERT_EQ(labeled_edge_count(store, project, "USAGE", "show", "executable", "Field"), 1);
+    ASSERT_EQ(labeled_edge_count(store, project, "USAGE", "show", "executable", "Method"), 0);
+    ASSERT_EQ(labeled_edge_count(store, project, "CALLS", "run", "executable", "Method"), 1);
+    cbm_store_close(store);
+    cbm_pipeline_free(p);
+    th_cleanup(tmp);
+    PASS();
+}
+
 typedef struct {
     int run_rc;
     bool store_opened;
@@ -19314,6 +19382,7 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_nix_scoped_binding_calls_resolve);
     RUN_TEST(pipeline_hcl_block_reference_resolves_to_its_block);
     RUN_TEST(pipeline_incremental_preserves_cross_file_calls);
+    RUN_TEST(pipeline_field_named_like_method_keeps_its_reads_and_writes);
     RUN_TEST(pipeline_objectscript_export_preserves_calls_sequential_parallel);
     RUN_TEST(pipeline_objectscript_export_incremental_matches_full_relationships);
     RUN_TEST(pipeline_js_route_not_bound_to_python_builtin_sequential);

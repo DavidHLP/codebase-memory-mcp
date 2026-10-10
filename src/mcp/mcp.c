@@ -12582,6 +12582,36 @@ static char *resolve_path_owner(const char *path, char *derived) {
     return owner;
 }
 
+/* A PDF is read as its text layer at index time (doc_pdf.c); its bytes are no
+ * source text. Its page Sections carry the page's text as their docstring. */
+static bool snippet_is_pdf(const char *file_path) {
+    size_t n = file_path ? strlen(file_path) : 0;
+    return n >= 4 && file_path[n - 4] == '.' && (file_path[n - 3] | 0x20) == 'p' &&
+           (file_path[n - 2] | 0x20) == 'd' && (file_path[n - 1] | 0x20) == 'f';
+}
+
+static char *snippet_pdf_text(const cbm_node_t *node) {
+    if (!node->properties_json) {
+        return NULL;
+    }
+    yyjson_doc *pd = yyjson_read(node->properties_json, strlen(node->properties_json), 0);
+    if (!pd) {
+        return NULL;
+    }
+    yyjson_val *ds = yyjson_obj_get(yyjson_doc_get_root(pd), "docstring");
+    const char *text = yyjson_is_str(ds) ? yyjson_get_str(ds) : NULL;
+    char *out = NULL;
+    if (text && text[0]) {
+        /* the same builder read_file_lines returns its text from */
+        cbm_sb_t sb;
+        cbm_sb_init(&sb);
+        cbm_sb_append_n(&sb, text, strlen(text));
+        out = cbm_sb_finish(&sb);
+    }
+    yyjson_doc_free(pd);
+    return out;
+}
+
 static char *resolve_snippet_source(const char *root_path, const char *file_path, int start,
                                     int end, char **out_abs_path) {
     *out_abs_path = NULL;
@@ -12932,8 +12962,14 @@ static char *build_snippet_response(cbm_mcp_server_t *srv, cbm_node_t *node,
         snippet_clipped = true;
     }
     char *abs_path = NULL;
-    char *source =
-        outline ? NULL : resolve_snippet_source(root_path, node->file_path, start, end, &abs_path);
+    char *source = NULL;
+    if (outline) {
+        source = NULL;
+    } else if (snippet_is_pdf(node->file_path)) {
+        source = snippet_pdf_text(node); /* never the file's bytes */
+    } else {
+        source = resolve_snippet_source(root_path, node->file_path, start, end, &abs_path);
+    }
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root_obj = yyjson_mut_obj(doc);

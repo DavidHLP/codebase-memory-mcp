@@ -45,7 +45,8 @@ const char *cbm_doclink_reason_name(int reason) {
 /* One pointer per language with a resolver: the one line a language leg adds
  * to this file. */
 static const cbm_doclink_resolver_t *const DOCLINK_RESOLVERS[] = {
-    &cbm_doclink_cs_resolver,
+    &cbm_doclink_cs_resolver,  &cbm_doclink_md_resolver,   &cbm_doclink_pdf_resolver,
+    &cbm_doclink_rst_resolver, &cbm_doclink_adoc_resolver,
 };
 
 enum { DOCLINK_RESOLVER_COUNT = sizeof(DOCLINK_RESOLVERS) / sizeof(DOCLINK_RESOLVERS[0]) };
@@ -88,6 +89,10 @@ static const cbm_doclink_resolver_t *resolver_of_scope(const char *scope) {
 }
 
 /* ── Incremental scope rules ─────────────────────────────────────── */
+
+bool cbm_doclinks_binds_lines(CBMLanguage lang) {
+    return lang == CBM_LANG_MARKDOWN || lang == CBM_LANG_RST || lang == CBM_LANG_ASCIIDOC;
+}
 
 bool cbm_doclinks_is_scope_input(const char *rel_path) {
     for (int i = 0; rel_path && i < DOCLINK_RESOLVER_COUNT; i++) {
@@ -328,6 +333,9 @@ typedef struct {
     int64_t src;
     int64_t tgt;
     uint32_t line;
+    uint32_t target_first; /* the target lines the reference names; 0: none */
+    uint32_t target_last;
+    const char *via;
     uint16_t syntax;
     bool exact;
 } doclink_mention_t;
@@ -335,6 +343,10 @@ typedef struct {
 static int mention_cmp(const void *a, const void *b) {
     const doclink_mention_t *x = (const doclink_mention_t *)a;
     const doclink_mention_t *y = (const doclink_mention_t *)b;
+    int edge = strcmp(cbm_doclink_syntax_edge(x->syntax), cbm_doclink_syntax_edge(y->syntax));
+    if (edge != 0) {
+        return edge;
+    }
     if (x->src != y->src) {
         return x->src < y->src ? -1 : 1;
     }
@@ -368,7 +380,8 @@ void cbm_doclinks_test_fail_edge_insert_after(int nth) {
 #endif
 
 /* Insert one MENTIONS edge; 0 when it could not be stored. */
-static int64_t doclinks_insert_edge(cbm_gbuf_t *gb, int64_t src, int64_t tgt, const char *props) {
+static int64_t doclinks_insert_edge(cbm_gbuf_t *gb, int64_t src, int64_t tgt, const char *type,
+                                    const char *props) {
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
     int n = atomic_load(&doclinks_test_edge_fail_after);
     while (n > 0) {
@@ -380,10 +393,10 @@ static int64_t doclinks_insert_edge(cbm_gbuf_t *gb, int64_t src, int64_t tgt, co
         }
     }
 #endif
-    return cbm_gbuf_insert_edge(gb, src, tgt, "MENTIONS", props);
+    return cbm_gbuf_insert_edge(gb, src, tgt, type, props);
 }
 
-/* Emit one MENTIONS edge per (source, target): first line, its syntax, the
+/* Emit one edge per (edge type, source, target): first line, its syntax, the
  * mention count, and tier exact when any mention bound exactly. A failed
  * insert fails the layer: the edge is not there. */
 static void emit_mentions(cbm_doclinks_t *dl, const char *rel, doclink_mention_t *m, int n,
@@ -393,17 +406,24 @@ static void emit_mentions(cbm_doclinks_t *dl, const char *rel, doclink_mention_t
     while (i < n) {
         int j = i;
         bool exact = false;
-        while (j < n && m[j].src == m[i].src && m[j].tgt == m[i].tgt) {
+        const char *type = cbm_doclink_syntax_edge(m[i].syntax);
+        while (j < n && m[j].src == m[i].src && m[j].tgt == m[i].tgt &&
+               strcmp(cbm_doclink_syntax_edge(m[j].syntax), type) == 0) {
             exact = exact || m[j].exact;
             j++;
         }
         char props[CBM_SZ_256];
+        char lines[CBM_SZ_64] = "";
+        if (m[i].target_first > 0) {
+            snprintf(lines, sizeof(lines), ",\"target_lines\":[%u,%u]", m[i].target_first,
+                     m[i].target_last);
+        }
         snprintf(props, sizeof(props),
-                 "{\"via\":\"doc_comment\",\"syntax\":\"%s\",\"tier\":\"%s\",\"line\":%u,"
-                 "\"count\":%d}",
-                 cbm_doclink_syntax_name(m[i].syntax), exact ? "exact" : "unique", m[i].line,
-                 j - i);
-        if (doclinks_insert_edge(edge_out, m[i].src, m[i].tgt, props) == 0) {
+                 "{\"via\":\"%s\",\"syntax\":\"%s\",\"tier\":\"%s\",\"line\":%u,"
+                 "\"count\":%d%s}",
+                 m[i].via, cbm_doclink_syntax_name(m[i].syntax), exact ? "exact" : "unique",
+                 m[i].line, j - i, lines);
+        if (doclinks_insert_edge(edge_out, m[i].src, m[i].tgt, type, props) == 0) {
             mark_failed(dl, rel, "alloc"); /* an edge that is not there is not counted */
         } else {
             atomic_fetch_add_explicit(&dl->edges, 1, memory_order_relaxed);
@@ -446,7 +466,12 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
      * file-level doc resolves */
     const cbm_gbuf_node_t *file_node = NULL;
     bool file_node_looked_up = false;
-    void *state = (R && index && R->file_begin) ? R->file_begin(index, file_idx) : NULL;
+    void *state = NULL;
+    if (R && index && R->file_prepare) {
+        state = R->file_prepare(index, file_idx, result->doc_links.items, n, graph);
+    } else if (R && index && R->file_begin) {
+        state = R->file_begin(index, file_idx);
+    }
     for (int i = 0; i < n; i++) {
         const CBMDocLink *link = &result->doc_links.items[i];
         cbm_doclink_outcome_t out = {.kind = CBM_DOCLINK_UNRESOLVED,
@@ -488,6 +513,9 @@ void cbm_doclinks_resolve_file(cbm_doclinks_t *dl, int file_idx, const CBMFileRe
                 mentions[nm++] = (doclink_mention_t){.src = src->id,
                                                      .tgt = out.target->id,
                                                      .line = link->line,
+                                                     .target_first = out.target_first,
+                                                     .target_last = out.target_last,
+                                                     .via = R->via ? R->via : "doc_comment",
                                                      .syntax = link->syntax,
                                                      .exact = out.exact};
                 continue;

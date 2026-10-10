@@ -1269,8 +1269,13 @@ int cbm_pipeline_build_fresh_semantic_manifest(cbm_pipeline_t *p, const char *pr
  *      QNs for every unchanged file, so it is rebuilt in full once.
  *   5: doc-comment references became MENTIONS edges and doc_link_unresolved
  *      rows, and C# LSP surfaces carry the doc-link scope ("dl"); an index
- *      built before has neither, so it rebuilds once on upgrade. */
-enum { CBM_SEMANTIC_INDEX_VERSION = 5 };
+ *      built before has neither, so it rebuilds once on upgrade.
+ *   6: documents became link sources: Markdown, reStructuredText and AsciiDoc
+ *      sections and PDF pages hold MENTIONS edges into the code, ADR records
+ *      are nodes, and AsciiDoc files, PDFs and a Sphinx project's extra
+ *      source suffixes are indexed. An index built before has none of this
+ *      for its unchanged documents, so it rebuilds once on upgrade. */
+enum { CBM_SEMANTIC_INDEX_VERSION = 6 };
 
 typedef struct {
     cbm_gbuf_t *gbuf;

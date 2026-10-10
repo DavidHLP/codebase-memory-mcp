@@ -67,6 +67,10 @@ typedef struct {
     const cbm_gbuf_node_t *target;
     bool exact; /* tier: "exact" (qualified/doc ID/alias) vs "unique" (scope lookup) */
     int reason;
+    /* Lines of the target that the reference names (a document's `file#L3-L9`):
+     * the edge's "target_lines". 0 and 0: the reference names no lines. */
+    uint32_t target_first;
+    uint32_t target_last;
 } cbm_doclink_outcome_t;
 
 /* A file's stored doc-link scope (incremental runs: files not re-extracted). */
@@ -194,6 +198,12 @@ typedef struct {
      * of the file, released after its last. A NULL state (no hook, or memory
      * ran out) changes the cost of resolving, never an outcome. */
     void *(*file_begin)(const void *index, int run_file);
+    /* Optional, instead of file_begin: the file's state built from ALL its
+     * references before any is resolved (a PDF's cross-line joins decide
+     * which line fragments stand). `links` stays valid until file_end, and
+     * resolve's `link` points into it. */
+    void *(*file_prepare)(const void *index, int run_file, const CBMDocLink *links, int n,
+                          const cbm_gbuf_t *graph);
     void (*file_end)(void *state);
     /* Resolve one reference of run file `run_file` (its own scope is in the
      * index). Thread-safe: the index is read-only after build; `state` is the
@@ -222,9 +232,40 @@ typedef struct {
      * the run. */
     int (*scope_accepted)(const char *scope);
     char *(*rejected_scope)(const char *scope);
+    /* The `via` of its MENTIONS edges: what kind of text the reference is
+     * written in. NULL: "doc_comment". */
+    const char *via;
 } cbm_doclink_resolver_t;
 
 extern const cbm_doclink_resolver_t cbm_doclink_cs_resolver;
+/* Markdown documents (doc_links_md.c): via "markdown". */
+extern const cbm_doclink_resolver_t cbm_doclink_md_resolver;
+/* PDF documents (doc_links_pdf.c): via "pdf". */
+extern const cbm_doclink_resolver_t cbm_doclink_pdf_resolver;
+/* reStructuredText documents and the Python scope they read (doc_links_rst.c):
+ * via "rst". */
+extern const cbm_doclink_resolver_t cbm_doclink_rst_resolver;
+/* AsciiDoc documents and the Antora YAML scope they read (doc_links_adoc.c):
+ * via "asciidoc". */
+extern const cbm_doclink_resolver_t cbm_doclink_adoc_resolver;
+
+/* Over a Markdown resolver index (cbm_doclink_md_resolver.build), for the
+ * other document resolvers: the innermost code definition of `path` holding
+ * lines [first, last] (or the one named `member`), NULL for none; the Folder
+ * node at `path`; whether `path` is test code (a test directory or file). */
+const cbm_gbuf_node_t *cbm_doclink_md_segment(const void *md_index, const char *path,
+                                              uint32_t first, uint32_t last, const char *member);
+const cbm_gbuf_node_t *cbm_doclink_md_folder(const void *md_index, const char *path);
+/* The definition a region [first, last] of `path` (its text in `text`) binds,
+ * by the field test's rule (H8 bind_range): edge blank and comment lines
+ * trimmed; the innermost enclosing definition, unless it is a type (or there
+ * is none) and the definitions inside cover every other line of the region
+ * (an annotation right above one counts) -- then that one definition (the
+ * type for several). NULL: the file. */
+const cbm_gbuf_node_t *cbm_doclink_md_region(const void *md_index, const char *path,
+                                             const char *text, size_t text_len, uint32_t first,
+                                             uint32_t last);
+bool cbm_doclink_md_test_path(const char *path);
 
 #if defined(CBM_ENABLE_TEST_SEAMS) && CBM_ENABLE_TEST_SEAMS
 /* Test seam (doc_links_cs.c): the scope levels and overloads the C# resolver
@@ -247,6 +288,13 @@ bool cbm_doclink_cs_test_scope_parses(const char *scope);
  * directives), so a run can be held against one with it; true restores it. */
 void cbm_doclink_cs_test_unit_memo(bool on);
 #endif
+
+/* True for a document language whose references may bind the LINES of a file
+ * (Markdown `file#L3-L9`, reST :lines:, AsciiDoc tags and lines=): a body
+ * edit of that file keeps its
+ * names but can move what those lines hold, so an incremental run
+ * re-resolves such documents with the edited file. */
+bool cbm_doclinks_binds_lines(CBMLanguage lang);
 
 /* True when `rel_path` is a scope input of some language (scope_input). */
 bool cbm_doclinks_is_scope_input(const char *rel_path);

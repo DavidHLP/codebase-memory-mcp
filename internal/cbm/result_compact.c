@@ -276,6 +276,7 @@ static void cr_walk_def(cr_ctx_t *c, CBMDefinition *d) {
     cr_str(c, &d->http_client);
     cr_str(c, &d->http_base_url);
     cr_str(c, &d->variants);
+    cr_list(c, &d->extra_props);
     cr_str(c, &d->decl_namespace);
 }
 

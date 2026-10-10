@@ -221,7 +221,8 @@ static void walk_defs(CBMExtractCtx *ctx, TSNode root, const CBMLangSpec *spec, 
 static void extract_variables(CBMExtractCtx *ctx, TSNode root, const CBMLangSpec *spec);
 static void extract_var_names(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec);
 static void extract_class_variables(CBMExtractCtx *ctx, TSNode class_node, const char *class_qn,
-                                    const CBMLangSpec *spec);
+                                    const CBMLangSpec *spec, int fields_from);
+static void fence_fields_named_like_methods(CBMExtractCtx *ctx, int methods_from, int fields_from);
 static void extract_rust_impl(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec);
 static void extract_class_methods(CBMExtractCtx *ctx, TSNode class_node, const char *class_qn,
                                   const CBMLangSpec *spec);
@@ -7621,13 +7622,16 @@ static void emit_class_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *s
     }
 
     // Extract methods inside the class
+    int methods_from = ctx->result->defs.count;
     extract_class_methods(ctx, node, class_qn, spec);
 
     // Extract typed struct/class fields (for cross-file LSP type resolution)
+    int fields_from = ctx->result->defs.count;
     extract_class_fields(ctx, node, class_qn, spec);
+    fence_fields_named_like_methods(ctx, methods_from, fields_from);
 
-    // Extract class-level variables (field declarations)
-    extract_class_variables(ctx, node, class_qn, spec);
+    // Extract class-level variables (field declarations not already Fields)
+    extract_class_variables(ctx, node, class_qn, spec, fields_from);
 
     if (ctx->language == CBM_LANG_PYTHON) {
         extract_py_field_types(ctx, node, class_qn);
@@ -10263,6 +10267,15 @@ static TSNode resolve_field_name_node(TSNode child) {
         return null_node;
     }
     const char *nk = ts_node_type(name_node);
+    /* Java `private static final String PROP = "v";`: the declarator holds the
+     * initializer too, so its text named the Field `PROP = "v"`; its name is
+     * the declarator's own name field */
+    if (strcmp(nk, "variable_declarator") == 0) {
+        TSNode inner = ts_node_child_by_field_name(name_node, TS_FIELD("name"));
+        if (!ts_node_is_null(inner)) {
+            return inner;
+        }
+    }
     if (strcmp(nk, "pointer_declarator") == 0 || strcmp(nk, "array_declarator") == 0) {
         TSNode inner = ts_node_child_by_field_name(name_node, TS_FIELD("declarator"));
         if (!ts_node_is_null(inner)) {
@@ -10661,9 +10674,59 @@ static void extract_class_fields(CBMExtractCtx *ctx, TSNode class_node, const ch
     member_iter_done(&it);
 }
 
-// Extract class-level variables (field declarations inside class bodies)
+static int cmp_cstr_ptr(const void *pa, const void *pb) {
+    return strcmp(*(const char *const *)pa, *(const char *const *)pb);
+}
+
+// A field and a method of one class body may share a name (Java `count` and
+// `count()`), and the graph keeps one node per qualified name, so one of them
+// was lost. The field then takes the qualified name `<Owner>.<name>#field`
+// (the `base#suffix` fence of `#macro` and the Rust cfg twins; the registry
+// still files it under its plain name). Only a collision in the same body
+// renames, so every other field keeps its name. The body's methods are the
+// defs [methods_from, fields_from), its fields [fields_from, count); a sorted
+// copy of the method names keeps a large class linear-logarithmic.
+static void fence_fields_named_like_methods(CBMExtractCtx *ctx, int methods_from, int fields_from) {
+    CBMDefinition *defs = ctx->result->defs.items;
+    int fields_to = ctx->result->defs.count;
+    if (fields_from >= fields_to || methods_from >= fields_from) {
+        return;
+    }
+    const char **qns = (const char **)cbm_arena_alloc(
+        ctx->arena, (size_t)(fields_from - methods_from) * sizeof(const char *));
+    if (!qns) {
+        return;
+    }
+    size_t n = 0;
+    for (int i = methods_from; i < fields_from; i++) {
+        if (defs[i].qualified_name && strcmp(defs[i].label, "Method") == 0) {
+            qns[n++] = defs[i].qualified_name;
+        }
+    }
+    if (n == 0) {
+        return;
+    }
+    qsort(qns, n, sizeof(qns[0]), cmp_cstr_ptr);
+    for (int i = fields_from; i < fields_to; i++) {
+        const char *qn = defs[i].qualified_name;
+        if (qn && strcmp(defs[i].label, "Field") == 0 &&
+            bsearch(&qn, qns, n, sizeof(qns[0]), cmp_cstr_ptr)) {
+            char *fenced = cbm_arena_sprintf(ctx->arena, "%s#field", qn);
+            if (fenced) {
+                defs[i].qualified_name = fenced;
+            }
+        }
+    }
+}
+
+// Extract class-level variables (field declarations inside class bodies).
+// A declaration that extract_class_fields already made a Field (the defs from
+// `fields_from` on) is not minted again: Java, C# and Solidity list the same
+// kind as field and variable, and the second copy was a Variable with the
+// module's qualified name (`demo.query.filters` for field Query.filters),
+// which collided with package paths.
 static void extract_class_variables(CBMExtractCtx *ctx, TSNode class_node, const char *class_qn,
-                                    const CBMLangSpec *spec) {
+                                    const CBMLangSpec *spec, int fields_from) {
     if (!spec->variable_node_types || !spec->variable_node_types[0]) {
         return;
     }
@@ -10673,6 +10736,10 @@ static void extract_class_variables(CBMExtractCtx *ctx, TSNode class_node, const
         return;
     }
 
+    /* the Fields of this body, in body order: walked alongside the children */
+    int fields_to = ctx->result->defs.count;
+    int fi = fields_from;
+
     /* Record the declaring class on every variable minted from this body (see
      * push_var_def_qn); saved/restored so module-level minting stays bare. */
     const char *saved_parent = ctx->var_parent_class;
@@ -10681,9 +10748,19 @@ static void extract_class_variables(CBMExtractCtx *ctx, TSNode class_node, const
     member_iter_init(&it, body, ctx->language, true);
     TSNode child;
     while (member_iter_next(&it, &child)) {
-        if (cbm_kind_in_set(child, spec->variable_node_types)) {
-            extract_var_names(ctx, child, spec);
+        if (!cbm_kind_in_set(child, spec->variable_node_types)) {
+            continue;
         }
+        int line = (int)ts_node_start_point(child).row + TS_LINE_OFFSET;
+        while (fi < fields_to && (strcmp(ctx->result->defs.items[fi].label, "Field") != 0 ||
+                                  (int)ctx->result->defs.items[fi].start_line < line)) {
+            fi++;
+        }
+        if (fi < fields_to && (int)ctx->result->defs.items[fi].start_line == line &&
+            spec->field_node_types && cbm_kind_in_set(child, spec->field_node_types)) {
+            continue; /* already a Field of this class */
+        }
+        extract_var_names(ctx, child, spec);
     }
     member_iter_done(&it);
     ctx->var_parent_class = saved_parent;

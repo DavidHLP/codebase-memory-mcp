@@ -551,6 +551,10 @@ static void build_def_props(char *buf, size_t bufsize, const CBMDefinition *def)
     append_json_string(buf, bufsize, &pos, "route_method", def->route_method);
     append_json_string(buf, bufsize, &pos, "http_client", def->http_client);
     append_json_string(buf, bufsize, &pos, "http_base_url", def->http_base_url);
+    /* A document definition's facts (an ADR's id, status, date, ...): key, value pairs. */
+    for (const char **kv = def->extra_props; kv && kv[0] && kv[SKIP_ONE]; kv += PAIR_LEN) {
+        append_json_string(buf, bufsize, &pos, kv[0], kv[SKIP_ONE]);
+    }
 
     /* MinHash fingerprint — append if present and buffer has room.
      * Hex-encoded K=64 uint32 = 512 chars + key/quotes ≈ 520 chars. */
@@ -3551,7 +3555,13 @@ static void resolve_file_usages(resolve_ctx_t *rc, resolve_worker_state_t *ws,
                                                                    imp_keys, imp_count)) {
                 continue;
             }
-            tgt = cbm_gbuf_find_by_qn(rc->main_gbuf, res.qualified_name);
+            /* a plain value reference names the field twin of a same-named
+             * method; a callable-reference candidate keeps the method */
+            bool value_ref = usage->kind == CBM_USAGE_VALUE && !usage->may_be_call_reference;
+            tgt = cbm_gbuf_find_by_qn(
+                rc->main_gbuf, value_ref
+                                   ? cbm_registry_value_target(rc->registry, res.qualified_name)
+                                   : res.qualified_name);
             /* #1928: the registry fallback is a bare-name guess — never let it
              * bind a reference across a language boundary. Mirrors the
              * sequential twin (pass_usages.c). */
@@ -3672,7 +3682,8 @@ static void resolve_file_rw(resolve_ctx_t *rc, resolve_worker_state_t *ws, CBMFi
         if (!res.qualified_name || res.qualified_name[0] == '\0') {
             continue;
         }
-        const cbm_gbuf_node_t *tgt = cbm_gbuf_find_by_qn(rc->main_gbuf, res.qualified_name);
+        const cbm_gbuf_node_t *tgt = cbm_gbuf_find_by_qn(
+            rc->main_gbuf, cbm_registry_value_target(rc->registry, res.qualified_name));
         if (!tgt || src->id == tgt->id) {
             continue;
         }

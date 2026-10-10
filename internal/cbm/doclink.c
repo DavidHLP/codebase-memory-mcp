@@ -69,7 +69,8 @@ void cbm_doclink_test_note_doc_work(uint64_t copied, uint64_t parse_input, uint6
  * doclink.h (language, name, external, and the ship gate). */
 
 static const CBMDocLinkFamily DOCLINK_FAMILIES[CBM_DOCLINK_SYNTAX_COUNT] = {
-#define DOCLINK_FAMILY_ROW(id, lang, name, external, ships) [id] = {lang, name, external, ships},
+#define DOCLINK_FAMILY_ROW(id, lang, name, external, ships, edge) \
+    [id] = {lang, name, external, ships, edge},
     CBM_DOCLINK_FAMILY_LIST(DOCLINK_FAMILY_ROW)
 #undef DOCLINK_FAMILY_ROW
 };
@@ -85,6 +86,11 @@ const CBMDocLinkFamily *cbm_doclink_family(int syntax) {
 const char *cbm_doclink_syntax_name(int syntax) {
     const CBMDocLinkFamily *f = cbm_doclink_family(syntax);
     return f ? f->name : "";
+}
+
+const char *cbm_doclink_syntax_edge(int syntax) {
+    const CBMDocLinkFamily *f = cbm_doclink_family(syntax);
+    return f && f->edge ? f->edge : "MENTIONS";
 }
 
 bool cbm_doclink_syntax_is_external(int syntax) {
@@ -143,6 +149,9 @@ typedef struct {
      * the same doc): only the first label carries the doc's references. */
     const char *twin_label;
     const char *twin_of;
+    /* A document language: the whole file is the documentation, so one scan
+     * of its bytes replaces parse_doc, the file-level doc and the scope. */
+    void (*scan_file)(CBMExtractCtx *ctx);
 } doclink_lang_t;
 
 static const doclink_lang_t DOCLINK_LANGS[] = {
@@ -159,6 +168,18 @@ static const doclink_lang_t DOCLINK_LANGS[] = {
      .scan_scope = cbm_doclink_cs_project_scan_scope,
      .scope_tag = CBM_DOCLINK_CS_SCOPE_TAG,
      .portable_scope = cbm_doclink_cs_portable_scope},
+    {.lang = CBM_LANG_MARKDOWN, .scan_file = cbm_doclink_md_scan_file},
+    {.lang = CBM_LANG_RST, .scan_file = cbm_doclink_rst_scan_file},
+    /* Python: no doc references yet, only the scope the reST resolver reads
+     * (package re-exports, Sphinx conf.py settings) */
+    {.lang = CBM_LANG_PYTHON,
+     .scan_scope = cbm_doclink_py_scan_scope,
+     .scope_tag = CBM_DOCLINK_PY_SCOPE_TAG},
+    /* YAML: the Antora component and playbook settings the AsciiDoc resolver
+     * reads */
+    {.lang = CBM_LANG_YAML,
+     .scan_scope = cbm_doclink_antora_scan_scope,
+     .scope_tag = CBM_DOCLINK_ADOC_SCOPE_TAG},
 };
 
 static const doclink_lang_t *doclink_lang(CBMLanguage lang) {
@@ -171,7 +192,8 @@ static const doclink_lang_t *doclink_lang(CBMLanguage lang) {
 }
 
 bool cbm_doclink_lang_supported(CBMLanguage lang) {
-    return doclink_lang(lang) != NULL;
+    const doclink_lang_t *L = doclink_lang(lang);
+    return L && (L->parse_doc || L->scan_file);
 }
 
 /* ── Doc-line side map ───────────────────────────────────────────── */
@@ -386,6 +408,14 @@ void cbm_doclinks_extract(CBMExtractCtx *ctx) {
     }
     const doclink_lang_t *L = doclink_lang(ctx->language);
     if (!L) {
+        return;
+    }
+    if (L->scan_file) {
+        L->scan_file(ctx);
+        return;
+    }
+    if (!L->parse_doc) { /* a scope, and no references (Python) */
+        ctx->result->doc_scope = L->scan_scope ? L->scan_scope(ctx) : NULL;
         return;
     }
     int twin_count = 0;
