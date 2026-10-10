@@ -1,0 +1,19 @@
+src/pipeline/doc_links_pdf.c
+  s_47ea98f515fdf7::t_1a21109971be9d 418,421,423
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a1467632cbb50242d222f15e80f81fbbefe5f5b6",
+  "prompts": {},
+  "sessions": {
+    "s_47ea98f515fdf7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12540-7621-7d42-b8e1-77b2aa471e76",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
