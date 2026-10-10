@@ -1,0 +1,178 @@
+src/pipeline/pipeline_delta.c
+  s_47ea98f515fdf7::t_633b81affd92ba 40,258-301,338-340,342-347,358-362,380-387,390-393
+  s_47ea98f515fdf7::t_379a95279fd4f7 336-337,341
+internal/cbm/extract_defs.c
+  s_47ea98f515fdf7::t_633b81affd92ba 3-4,225-226,1372,1500-1508,1510,1933-1941,1958,1960-1961,1964-1966,2062,2068-2070,2078-2086,2088,2106-2108,2112-2115,2197,2200-2202,2206-2209,2696-2697,2699-2701,2704-2708,7643,7647,7649,7651-7652,8621-8622,8644,8648-8655,8725-8735,8751-8752,10303-10311,10710-10760,10762,10772-10775,10784-10794,10796
+Makefile.cbm
+  s_47ea98f515fdf7::t_adcfb57077834d 376-388,509-515,777
+README.md
+  s_47ea98f515fdf7::t_f65e41957b29aa 748-750
+THIRD_PARTY.md
+  s_47ea98f515fdf7::t_f84140f5c1e4dc 141-243
+docs/EVALUATION_PLAN.md
+  s_47ea98f515fdf7::t_ca56271c37a828 314,316,320-321,323
+internal/cbm/cbm.c
+  s_47ea98f515fdf7::t_54bbfab5e0a2c5 9-10,2805-2843,3644-3647
+internal/cbm/cbm.h
+  s_47ea98f515fdf7::t_0ff19974e01a54 212-213,300-305,641-665,778-785,882-893
+internal/cbm/doc_adoc.c
+  s_47ea98f515fdf7::t_081316245326ad 1-944
+internal/cbm/doc_adr.c
+  s_47ea98f515fdf7::t_59a58fa36fd7af 1-1535
+internal/cbm/doc_pdf.c
+  s_47ea98f515fdf7::t_04eb52c9ab194c 1-1392
+internal/cbm/doclink.c
+  s_47ea98f515fdf7::t_328b6f483006cb 1-490
+internal/cbm/doclink.h
+  s_47ea98f515fdf7::t_14a4a5a74d7490 1-389
+internal/cbm/doclink_cs.c
+  s_47ea98f515fdf7::t_ea0273201424bd 1-3790
+internal/cbm/doclink_md.c
+  s_47ea98f515fdf7::t_2f072f2d9db6ac 1-1812
+internal/cbm/doclink_py.c
+  s_47ea98f515fdf7::t_e59cb258803f52 1-419
+internal/cbm/doclink_rst.c
+  s_47ea98f515fdf7::t_cc6ddf77e3f1a5 1-1791
+internal/cbm/lang_specs.c
+  s_47ea98f515fdf7::t_47aa46de3deb5b 2716-2723
+internal/cbm/pdf/pdf.h
+  s_47ea98f515fdf7::t_74bc94a58319e8 1-63
+internal/cbm/pdf/pdf_font.c
+  s_47ea98f515fdf7::t_dca7a783ff0408 1-1983
+internal/cbm/pdf/pdf_internal.h
+  s_47ea98f515fdf7::t_4faec48cdf1eb6 1-330
+internal/cbm/pdf/pdf_obj.c
+  s_47ea98f515fdf7::t_a0de6b66d1333b 1-2771
+internal/cbm/pdf/pdf_tables.c
+  s_47ea98f515fdf7::t_a5ff4e285ddf9e 1-1624
+internal/cbm/pdf/pdf_text.c
+  s_47ea98f515fdf7::t_1d5c5d3e8e5e72 1-1054
+internal/cbm/pdf/pdf_unicode.c
+  s_47ea98f515fdf7::t_60221e04bdcca4 1-3126
+internal/cbm/pdf/pdf_unicode.h
+  s_47ea98f515fdf7::t_7e49f5b7bf97b6 1-103
+internal/cbm/result_compact.c
+  s_47ea98f515fdf7::t_8dd98bf61c97b0 279,405-410,550
+scripts/ci/generate-sbom.py
+  s_47ea98f515fdf7::t_624f2504ddbcc5 52-54
+scripts/gen-pdf-unicode.py
+  s_47ea98f515fdf7::t_eb0d1fc4ddc49a 1-103
+src/cli/cli.c
+  s_47ea98f515fdf7::t_00582a7748d78f 1569-1570
+src/discover/discover.c
+  s_47ea98f515fdf7::t_34b21b2a905835 19,892-1037,1043-1044,1056-1058,1069,1127,1176,1270-1274
+src/discover/language.c
+  s_47ea98f515fdf7::t_22afaf516bb640 621-624,836-837
+src/discover/userconfig.c
+  s_47ea98f515fdf7::t_95bfb4c852cadf 163-164
+src/foundation/sha256.c
+  s_47ea98f515fdf7::t_403a73f33f51bf 2-8,13-14,17-46,105-279,294-296,298-308,310-324,337,347
+src/foundation/sha256.h
+  s_47ea98f515fdf7::t_e299ef6400da82 44-52
+src/mcp/mcp.c
+  s_47ea98f515fdf7::t_445b171fe11ef9 67-68,753-755,6236-6564,7294-7300,7302-7304,7332-7333,7337-7339,7363,12585-12614,12909-13056,13113-13120,13273-13274,13540-13542,13578-13583
+src/mcp/mcp_internal.h
+  s_47ea98f515fdf7::t_fad0ca0e587dd3 16-20
+src/pipeline/doc_links.c
+  s_47ea98f515fdf7::t_0571c26e1fc41e 1-873
+src/pipeline/doc_links.h
+  s_47ea98f515fdf7::t_c0e4859527d0bd 1-317
+src/pipeline/doc_links_adoc.c
+  s_47ea98f515fdf7::t_fa7e33a29261b4 1-919
+src/pipeline/doc_links_cs.c
+  s_47ea98f515fdf7::t_c18a52ac470c1b 1-6751
+src/pipeline/doc_links_md.c
+  s_47ea98f515fdf7::t_b128d88831e4bc 1-1596
+src/pipeline/doc_links_msbuild.c
+  s_47ea98f515fdf7::t_b799513a89feb0 1-3915
+src/pipeline/doc_links_msbuild.h
+  s_47ea98f515fdf7::t_77bb91bbc7af88 1-146
+src/pipeline/doc_links_pdf.c
+  s_47ea98f515fdf7::t_7aaa4ad0ed0123 1-811
+src/pipeline/doc_links_rst.c
+  s_47ea98f515fdf7::t_bf204aad65e93e 1-1792
+src/pipeline/lsp_surface.c
+  s_47ea98f515fdf7::t_0ce882666be539 28-29,31,33,178-201
+src/pipeline/pass_definitions.c
+  s_47ea98f515fdf7::t_1f39eb771f8da9 332-335
+src/pipeline/pass_parallel.c
+  s_47ea98f515fdf7::t_e8761b35a218b9 76,562-565,2798-2805,2811,3603-3609,3730-3731,4298-4303
+src/pipeline/pass_semantic_edges.c
+  s_47ea98f515fdf7::t_df25bdb98b909a 33-34,76,99,114,332,334,711,714,811,906,911-912,1117-1139,1141,1177,1183-1206,1210,1212-1217,1221-1224,1227-1229,1231-1233,1237-1241,1245-1247,1588-1589,1595,1666-1680,1683-1684,1688-1689,1875-3101,3190-3192
+src/pipeline/pass_usages.c
+  s_47ea98f515fdf7::t_e659711835befc 258-263,389-390
+src/pipeline/pipeline.c
+  s_47ea98f515fdf7::t_ff63eb8d0cb662 17,22,270-281,923-939,953-988,1019-1022,1924,2181-2183,2438-2443,2447,3035-3059,3103-3110,3141-3149,3398-3403,3590
+src/pipeline/pipeline.h
+  s_47ea98f515fdf7::t_c47605ffa33046 452-457
+src/pipeline/pipeline_incremental.c
+  s_47ea98f515fdf7::t_95d7b1efb2a3dd 24,30,37,1392-1395,1401,1405-1419,1445-1446,1500-1711,1907,1911,1981-1983,2090-2095,2101-2103,2119-2123,2386-2391,2398-2403,2480-2487,2497-2517,2558,2560,2566,2584-2587,2590,2593-2598,2601,2607,2610-2613,2617-2630,2634-2637,2661-2678,2709-2710,2718,2724-2725,2731,2776-2782,2955-2960,2976-2977,3024-3036,3189-3192,3219-3221,3259-3277,3330-3334,3379-3381,3545-3546,3618-3619,3679,3683-3701,3791,3819-3827
+src/pipeline/pipeline_internal.h
+  s_47ea98f515fdf7::t_940ddf717aac07 395-404,531-536,1269-1283,1306-1322,1385-1399
+src/pipeline/registry.c
+  s_47ea98f515fdf7::t_11181ce3e75272 1284-1297
+src/semantic/semantic.c
+  s_47ea98f515fdf7::t_21a23a4d448da2 1622-1662,1695-1700,1702-1717,1719,1725-1726,1728-1735,1743,1753-1985
+src/semantic/semantic.h
+  s_47ea98f515fdf7::t_6d536b21e40bff 209-217,224-325
+src/store/store.c
+  s_47ea98f515fdf7::t_4dad9488853d33 81,2909-2910,2924-2947,4752-5254,10749-10920
+src/store/store.h
+  s_47ea98f515fdf7::t_7ffed8a9dc6f09 791-883,1086-1120
+tests/repro/repro_call_node_manifest.c
+  s_47ea98f515fdf7::t_6485e29264cd53 550-555
+tests/repro/repro_language_registry.c
+  s_47ea98f515fdf7::t_710134024866ff 21,47-49,220-221,229,281-282,314-315,318,320-321,334-335,446,450
+tests/test_cli.c
+  s_47ea98f515fdf7::t_970de80718f138 17177-17241,17737
+tests/test_doc_links_adoc.c
+  s_47ea98f515fdf7::t_22793f2a8cc761 1-289
+tests/test_doc_links_md.c
+  s_47ea98f515fdf7::t_a2b860f525ec81 1-863
+tests/test_doc_links_pdf.c
+  s_47ea98f515fdf7::t_208097a249624a 1-1317
+tests/test_doc_links_rst.c
+  s_47ea98f515fdf7::t_eeccf94269c631 1-572
+tests/test_doc_mentions.c
+  s_47ea98f515fdf7::t_f0ba16d8645965 1-10620
+tests/test_doc_mentions_helpers.h
+  s_47ea98f515fdf7::t_f4d2ba1300ac7c 1-444
+tests/test_edge_structural.c
+  s_47ea98f515fdf7::t_de7775cba4fd04 260
+tests/test_extraction.c
+  s_47ea98f515fdf7::t_d6c9ea6ecbab65 589-630,7515-7545,10605-10606
+tests/test_grammar_labels.c
+  s_47ea98f515fdf7::t_a2980e40a83ebb 198
+tests/test_grammar_probe_g.c
+  s_47ea98f515fdf7::t_c2d81cf7efbdfb 402-404,407-408,419,421,1067
+tests/test_lang_contract.c
+  s_47ea98f515fdf7::t_f2c0cf5837b18e 1069
+tests/test_main.c
+  s_47ea98f515fdf7::t_f0ff7fb0fa19a4 1821-1827,2291-2299
+tests/test_mcp.c
+  s_47ea98f515fdf7::t_aa418ea958519d 2549-2640,7713-7716,18604-18690,23884,24136
+tests/test_pipeline.c
+  s_47ea98f515fdf7::t_31d027a0798743 17,1694-1761,19517-20100,20791,21140-21144
+tests/test_registry.c
+  s_47ea98f515fdf7::t_0c6ab4cb71347e 216-236,1968
+tests/test_semantic.c
+  s_47ea98f515fdf7::t_2b6f2eb8cc268f 358-662,839-846
+tests/test_store_arch.c
+  s_47ea98f515fdf7::t_92e88a06412f89 278-279,625-763,1112-1116,1231-1233,1838-1839
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48107389fc9988f89d047072711a8c06a29d6f76",
+  "prompts": {},
+  "sessions": {
+    "s_47ea98f515fdf7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a12540-7621-7d42-b8e1-77b2aa471e76",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
