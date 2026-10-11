@@ -1,0 +1,33 @@
+tests/test_registry.c
+  s_d2997bf25a5364::t_76e32700482d0a 922-924,954,968,985-1077,2121-2123
+vendored/mimalloc/src/prim/unix/prim.c
+  s_d2997bf25a5364::t_76e32700482d0a 503-514
+src/pipeline/pass_semantic_edges.c
+  s_d2997bf25a5364::t_76e32700482d0a 34,2116-2122,2125-2128,2135-2168,2637,2670-2671,2691-2692,2696,2731-2732,2747-2750,2767-2768,2772-2773,2786,2801-2807,2819,2829-2830,3099
+scripts/vendored-checksums.txt
+  s_d2997bf25a5364::t_76e32700482d0a 1027
+tests/test_doc_links_rst.c
+  s_d2997bf25a5364::t_76e32700482d0a 561-598,602
+src/pipeline/registry.c
+  s_d2997bf25a5364::t_76e32700482d0a 233-238,253-273,275-283,292-310,316-320,323,328,330-331,334,1499-1501,1504,1506,1513-1515,1525-1526,1533-1534,1728,1730-1731,2529-2530,2544-2546
+  s_d2997bf25a5364::t_c416e584f6ba02 2185-2188,2220-2225,2239-2241,2244-2245,2284-2285
+  s_d2997bf25a5364::t_2ee944687aa51b 2217
+internal/cbm/doclink_rst.c
+  s_d2997bf25a5364::t_76e32700482d0a 1609-1610,1614,1621,1630
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67c46cb02c21724bb5b2bcc0dc2c36b8b828a493",
+  "prompts": {},
+  "sessions": {
+    "s_d2997bf25a5364": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a128b9-a689-7c70-99ec-1186ca79ce81",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
