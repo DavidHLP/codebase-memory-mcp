@@ -827,9 +827,13 @@ static void k8s_kusts_wire(cbm_pipeline_ctx_t *ctx, k8s_kusts_t *ks, CBMHashTabl
         }
     }
     for (int i = 0; i < ks->count; i++) {
-        qsort(ks->items[i].files, (size_t)ks->items[i].file_n, sizeof(*ks->items[i].files),
-              k8s_cmp_str);
-        qsort(ks->items[i].kids, (size_t)ks->items[i].kid_n, sizeof(int), k8s_cmp_int);
+        if (ks->items[i].file_n > 1) {
+            qsort(ks->items[i].files, (size_t)ks->items[i].file_n, sizeof(*ks->items[i].files),
+                  k8s_cmp_str);
+        }
+        if (ks->items[i].kid_n > 1) {
+            qsort(ks->items[i].kids, (size_t)ks->items[i].kid_n, sizeof(int), k8s_cmp_int);
+        }
     }
 }
 
@@ -1006,7 +1010,9 @@ static void k8s_bundles_build(cbm_pipeline_ctx_t *ctx, k8s_kusts_t *ks, k8s_bund
     if (!b->names || !b->members || !b->charts) {
         return;
     }
-    qsort(ks->items, (size_t)ks->count, sizeof(*ks->items), k8s_cmp_kust);
+    if (ks->count > 1) {
+        qsort(ks->items, (size_t)ks->count, sizeof(*ks->items), k8s_cmp_kust);
+    }
     CBMHashTable *by_path = cbm_ht_create(0);
     if (!by_path) {
         return;

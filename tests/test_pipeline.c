@@ -3525,9 +3525,9 @@ TEST(incremental_shell_deploy_edit_keeps_its_edges) {
 /* Deleting the only file that starts a program leaves no Process node
  * behind -- a full index never makes one without a SPAWNS edge. One script
  * (pass_shell.c) and one Python call (pass_spawns.c) go; the program a kept
- * script starts stays. `legacy`: through the full-load route, else the
- * closure-repair route. Returns the Process count after the deletion, or -1;
- * *route: the route taken. */
+ * script starts stays. The normal route falls back to full indexing because
+ * deleting app.py changes Python namespace metadata; `legacy` forces partial.
+ * Returns the Process count after the deletion, or -1; *route: the route taken. */
 static int incremental_spawner_delete(bool legacy, cbm_incremental_route_t *route) {
     char tmp[256];
     snprintf(tmp, sizeof(tmp), "/tmp/cbm_spawngc_XXXXXX");
@@ -3563,7 +3563,7 @@ static int incremental_spawner_delete(bool legacy, cbm_incremental_route_t *rout
 TEST(incremental_deleted_spawner_drops_its_process) {
     cbm_incremental_route_t route = CBM_INCREMENTAL_ROUTE_NONE;
     int left = incremental_spawner_delete(false, &route);
-    ASSERT_EQ(route, CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+    ASSERT_EQ(route, CBM_INCREMENTAL_ROUTE_FORCED_FULL);
     ASSERT_EQ(left, 1);
 #if defined(CBM_INCREMENTAL_TEST_API) && CBM_INCREMENTAL_TEST_API
     left = incremental_spawner_delete(true, &route);
