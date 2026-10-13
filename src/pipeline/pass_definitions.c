@@ -456,6 +456,7 @@ static void process_def(cbm_pipeline_ctx_t *ctx, const CBMDefinition *def, const
             cbm_gbuf_insert_edge(ctx->gbuf, parent->id, node_id, "DEFINES_METHOD", "{}");
         }
     }
+    cbm_pipeline_diagram_parent_edge(ctx, def, node_id);
 }
 
 /* Create Channel nodes + EMITS / LISTENS_ON edges for one file's channels.
@@ -565,20 +566,25 @@ static int create_import_edges_for_file(cbm_pipeline_ctx_t *ctx, const CBMFileRe
         free(file_qn);
         return 0;
     }
-    for (int j = 0; j < result->imports.count; j++) {
-        const CBMImport *imp = &result->imports.items[j];
-        if (!imp->module_path) {
-            continue;
-        }
-        const cbm_gbuf_node_t *target =
-            cbm_pipeline_resolve_import_node(ctx, rel, file_qn, imp, namespace_map);
-        if (target && target->id != source_node->id) {
-            char esc_ln[CBM_SZ_128];
-            cbm_json_escape(esc_ln, sizeof(esc_ln), imp->local_name ? imp->local_name : "");
-            char imp_props[CBM_SZ_256];
-            snprintf(imp_props, sizeof(imp_props), "{\"local_name\":\"%s\"}", esc_ln);
-            cbm_gbuf_insert_edge(ctx->gbuf, source_node->id, target->id, "IMPORTS", imp_props);
-            count++;
+    if (cbm_language_for_filename(rel) == CBM_LANG_PHP) {
+        count = cbm_pipeline_php_create_import_edges(ctx, result, rel, file_qn, source_node,
+                                                     namespace_map);
+    } else {
+        for (int j = 0; j < result->imports.count; j++) {
+            const CBMImport *imp = &result->imports.items[j];
+            if (!imp->module_path) {
+                continue;
+            }
+            const cbm_gbuf_node_t *target =
+                cbm_pipeline_resolve_import_node(ctx, rel, file_qn, imp, namespace_map);
+            if (target && target->id != source_node->id) {
+                char esc_ln[CBM_SZ_128];
+                cbm_json_escape(esc_ln, sizeof(esc_ln), imp->local_name ? imp->local_name : "");
+                char imp_props[CBM_SZ_256];
+                snprintf(imp_props, sizeof(imp_props), "{\"local_name\":\"%s\"}", esc_ln);
+                cbm_gbuf_insert_edge(ctx->gbuf, source_node->id, target->id, "IMPORTS", imp_props);
+                count++;
+            }
         }
     }
     free(file_qn);
@@ -744,9 +750,17 @@ bool cbm_pipeline_coverage_marker_test_join(CBMFileResult *aggregate, const CBMF
  * class independently (preserving the upstream parser behavior), then compose
  * every extracted carrier into one result for the normal registry/call/usage/
  * semantic passes. */
-CBMFileResult *cbm_pipeline_extract_objectscript_export(
+static CBM_TLS cbm_objectscript_export_extractor_t objectscript_export_test_extractor;
+
+void cbm_pipeline_set_objectscript_export_extractor_for_tests(
+    cbm_objectscript_export_extractor_t extractor) {
+    objectscript_export_test_extractor = extractor;
+}
+
+CBMFileResult *cbm_pipeline_extract_objectscript_export_with_timeout(
     const char *source, int source_len, const char *project_name, const char *rel_path,
-    const CBMMacroTable *macro_table, const CBMReturnTypeTable *return_type_table) {
+    const CBMMacroTable *macro_table, const CBMReturnTypeTable *return_type_table,
+    int64_t timeout_micros) {
     CBMArena export_arena;
     cbm_arena_init(&export_arena);
     int class_count = 0;
@@ -776,10 +790,13 @@ CBMFileResult *cbm_pipeline_extract_objectscript_export(
     }
     aggregate->cached_lang = CBM_LANG_OBJECTSCRIPT_UDL;
 
+    cbm_objectscript_export_extractor_t extract = objectscript_export_test_extractor
+                                                      ? objectscript_export_test_extractor
+                                                      : cbm_extract_file_ex;
     for (int ci = 0; ci < class_count; ci++) {
-        CBMFileResult *part = cbm_extract_file_ex(
-            udl_strings[ci], (int)strlen(udl_strings[ci]), CBM_LANG_OBJECTSCRIPT_UDL, project_name,
-            rel_path, CBM_EXTRACT_BUDGET, NULL, NULL, macro_table, return_type_table);
+        CBMFileResult *part = extract(udl_strings[ci], (int)strlen(udl_strings[ci]),
+                                      CBM_LANG_OBJECTSCRIPT_UDL, project_name, rel_path,
+                                      timeout_micros, NULL, NULL, macro_table, return_type_table);
         if (!part) {
             continue;
         }
@@ -827,6 +844,14 @@ CBMFileResult *cbm_pipeline_extract_objectscript_export(
     aggregate->imports_count = aggregate->imports.count;
     cbm_arena_destroy(&export_arena);
     return aggregate;
+}
+
+CBMFileResult *cbm_pipeline_extract_objectscript_export(
+    const char *source, int source_len, const char *project_name, const char *rel_path,
+    const CBMMacroTable *macro_table, const CBMReturnTypeTable *return_type_table) {
+    return cbm_pipeline_extract_objectscript_export_with_timeout(
+        source, source_len, project_name, rel_path, macro_table, return_type_table,
+        CBM_EXTRACT_BUDGET);
 }
 
 #undef OBJECTSCRIPT_EXPORT_APPEND_ARRAY
@@ -1014,6 +1039,7 @@ int cbm_pipeline_pass_definitions(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t
              * map is available without the cache (single-file scope). */
             total_imports += create_import_edges_for_file(ctx, result, rel, NULL);
             create_channel_edges_for_file(ctx, result, rel);
+            cbm_pipeline_diagram_arrows(ctx, result);
             cbm_pipeline_create_env_configures_for_file(ctx, result, rel);
             cbm_free_result(result);
         }
@@ -1047,6 +1073,7 @@ int cbm_pipeline_pass_definitions(cbm_pipeline_ctx_t *ctx, const cbm_file_info_t
             total_imports +=
                 create_import_edges_for_file(ctx, result, files[i].rel_path, namespace_map);
             create_channel_edges_for_file(ctx, result, files[i].rel_path);
+            cbm_pipeline_diagram_arrows(ctx, result);
             cbm_pipeline_create_env_configures_for_file(ctx, result, files[i].rel_path);
         }
         cbm_pipeline_namespace_map_free(namespace_map);

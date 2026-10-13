@@ -56,6 +56,7 @@ enum {
 #define SLEN(s) (sizeof(s) - 1)
 #include "mcp/mcp.h"
 #include "mcp/mcp_internal.h"
+#include "mcp/architecture_jobs.h"
 #include "mcp/test_impact.h"
 #include "mcp/test_impact_engine.h"
 #include "store/store.h"
@@ -72,6 +73,7 @@ enum {
 #include "watcher/watcher.h"
 #include "foundation/mem.h"
 #include "foundation/mem_core.h"
+#include "foundation/json_writer.h"
 #include "foundation/arena.h"
 #include "foundation/diagnostics.h"
 #include "foundation/platform.h"
@@ -546,6 +548,8 @@ static const tool_def_t TOOLS[] = {
      "\"Name override; Non-ASCII bytes are encoded; unsafe characters normalized.\"},"
      "\"persistence\":{\"type\":\"boolean\",\"default\":false,\"description\":"
      "\"Write .codebase-memory/graph.db.zst.\"},"
+     "\"doc_candidates\":{\"type\":\"boolean\",\"description\":"
+     "\"Doc-code candidates; default: the doc_candidates setting (on).\"},"
      "\"async\":{\"type\":\"boolean\",\"default\":false,\"description\":"
      "\"Start the index in the background and return immediately; it keeps running if this "
      "call is cancelled or times out. Not with status or cross-repo-intelligence. Refused for a "
@@ -562,6 +566,8 @@ static const tool_def_t TOOLS[] = {
      "\"query\":{\"type\":\"string\"},"
      "\"label\":{\"type\":\"string\"},\"name_pattern\":{\"type\":\"string\"},\"qn_pattern\":{"
      "\"type\":\"string\"},\"file_pattern\":{\"type\":\"string\"},"
+     "\"kind\":{\"type\":\"string\",\"description\":\"Resource kind, e.g. Deployment.\"},"
+     "\"namespace\":{\"type\":\"string\",\"description\":\"Resource namespace.\"},"
      "\"relationship\":{\"type\":\"string\"},\"min_degree\":{\"type\":\"integer\"},"
      "\"max_degree\":{\"type\":\"integer\"},\"exclude_entry_points\":{\"type\":\"boolean\"},"
      "\"include_connected\":{\"type\":\"boolean\"},\"semantic_query\":{"
@@ -619,8 +625,12 @@ static const tool_def_t TOOLS[] = {
      "\"cursor\":{\"type\":\"string\",\"description\":\"Pass next/next_cursor with traversal "
      "args unchanged; budget may increase.\"},"
      "\"mode\":{"
-     "\"type\":\"string\",\"enum\":[\"calls\",\"data_flow\",\"cross_service\"],\"default\":"
-     "\"calls\",\"description\":\"calls, argument-aware data_flow, or service edges.\"},"
+     "\"type\":\"string\",\"enum\":[\"calls\",\"data_flow\",\"cross_service\",\"topology\","
+     "\"deploy\",\"run\"],"
+     "\"default\":\"calls\",\"description\":\"calls; argument-aware data_flow; service edges; "
+     "topology: infra objects, routes, controllers (from a Resource/Route); deploy: what CI "
+     "jobs and scripts run and deploy; run: what a Service runs (image, Dockerfile, program, "
+     "env).\"},"
      "\"parameter_name\":{\"type\":\"string\",\"description\":\"data_flow parameter filter.\"},"
      "\"edge_types\":{\"type\":\"array\",\"items\":{"
      "\"type\":\"string\"}},\"risk_labels\":{\"type\":\"boolean\",\"default\":false,"
@@ -689,18 +699,26 @@ static const tool_def_t TOOLS[] = {
      "\"additionalProperties\":false}"},
 
     {"get_architecture",
-     "Compact counts, languages, packages, entry points. Request structure, dependencies, "
-     "routes, hotspots, boundaries, layers, clusters, cycles, or file_tree; path scopes a "
-     "directory.",
+     "Bounded static architecture; poll pending jobs. include_behavior_evidence=true adds "
+     "indexed call arguments, parameter declarations and return types; not full dataflow or "
+     "runtime traces.",
      /* The aspects enum mirrors VALID_ASPECTS (see aspect_is_valid) — update both together. */
      "{\"type\":\"object\",\"properties\":{\"project\":{\"type\":\"string\"},\"path\":{\"type\":"
-     "\"string\",\"description\":\"Directory prefix (for example apps/hoa).\"},"
+     "\"string\",\"description\":\"Directory prefix.\"},"
      "\"aspects\":{\"type\":\"array\",\"items\":{\"type\":\"string\",\"enum\":[\"all\","
      "\"overview\",\"structure\",\"dependencies\",\"routes\",\"languages\",\"packages\","
      "\"entry_points\",\"hotspots\",\"boundaries\",\"layers\",\"file_tree\",\"clusters\","
-     "\"cycles\"]},"
-     "\"description\":\"all=everything; overview=compact except file_tree; omitted=languages/"
-     "packages/entry_points; cycles is opt-in.\"},"
+     "\"cycles\",\"system_structure\"]},"
+     "\"description\":\"Default: languages/packages/entry_points. overview omits file_tree. "
+     "cycles/system_structure opt-in; system_structure alone, no path.\"},"
+     "\"entry_node_id\":{\"type\":\"integer\",\"minimum\":1,"
+     "\"description\":\"Start symbol.\"},"
+     "\"target_node_id\":{\"type\":\"integer\",\"minimum\":1,"
+     "\"description\":\"Requires entry_node_id.\"},"
+     "\"expected_generation\":{\"type\":\"string\",\"minLength\":1,"
+     "\"description\":\"Required generation.\"},"
+     "\"include_behavior_evidence\":{\"type\":\"boolean\",\"default\":false,"
+     "\"description\":\"system_structure only.\"},"
      "\"format\":{\"type\":\"string\",\"enum\":[\"tree\",\"json\"],\"default\":\"tree\"}},"
      "\"required\":[\"project\"]}"},
 
@@ -833,10 +851,20 @@ static const tool_def_t TOOLS[] = {
      "\"additionalProperties\":false,"
      "\"required\":[\"project\"]}"},
 
-    {"ingest_traces", "Validate and count traces; graph edge creation is not implemented",
+    {"ingest_traces",
+     "Record observed runtime calls so the graph can distinguish observed from merely possible "
+     "paths. Each trace is a call path (qualified names, adjacent = caller\xe2\x86\x92"
+     "callee) or a bare caller/callee pair. Stored per run label, keyed by qualified name "
+     "(reindex-proof). Only pairs whose both endpoints are indexed symbols are stored; the "
+     "response reports unresolved names (up to 10) so the producer can fix its naming.",
      "{\"type\":\"object\",\"properties\":{\"traces\":{\"type\":\"array\",\"items\":{\"type\":"
-     "\"object\",\"properties\":{\"caller\":{\"type\":\"string\"},\"callee\":{\"type\":\"string\"},"
-     "\"count\":{\"type\":\"integer\"}},\"additionalProperties\":false}},\"project\":{\"type\":"
+     "\"object\",\"properties\":{\"path\":{\"type\":\"array\",\"items\":{\"type\":\"string\"},"
+     "\"description\":\"Call path of qualified names, caller before callee; 2..256 entries\"},"
+     "\"caller\":{\"type\":\"string\"},\"callee\":{\"type\":\"string\"},"
+     "\"count\":{\"type\":\"integer\",\"description\":\"How often this trace was observed "
+     "(default 1)\"}},\"additionalProperties\":false}},\"label\":{\"type\":\"string\","
+     "\"description\":\"Run identity, e.g. 'pytest 2026-08-27' (default 'unlabeled'); counts "
+     "accumulate per label and whole runs age out together\"},\"project\":{\"type\":"
      "\"string\"}},\"required\":[\"traces\",\"project\"]}"},
 };
 
@@ -859,11 +887,11 @@ typedef struct {
  * for write-side opens (index_repository, manage_adr writes). That is what
  * makes readOnlyHint=true honest for them and lets plan-mode clients expose
  * them (the "read-only analysis tools" surface described in #1100).
- * get_file_outline reads through the same resolve_store() path, and
- * ingest_traces only validates and counts its input (edge creation is not
- * implemented), so both are read-only too (#2118). Only handlers that write
- * user-visible state -- index_repository, manage_adr, delete_project -- may
- * clear readOnlyHint. */
+ * get_file_outline reads through the same resolve_store() path (#2118).
+ * Only handlers that write user-visible state -- index_repository, manage_adr,
+ * delete_project, ingest_traces -- may clear readOnlyHint. Trace ingestion
+ * accumulates observation counts on retries and can evict old runs, so it is
+ * neither read-only nor idempotent and must advertise destructive effects. */
 static const tool_annotation_def_t TOOL_ANNOTATIONS[] = {
     {"index_repository", false, false, true, false},
     {"search_graph", true, false, true, false},
@@ -881,7 +909,7 @@ static const tool_annotation_def_t TOOL_ANNOTATIONS[] = {
     {"check_index_coverage", true, false, true, false},
     {"detect_changes", true, false, true, false},
     {"manage_adr", false, true, false, false},
-    {"ingest_traces", true, false, true, false},
+    {"ingest_traces", false, true, false, false},
 };
 
 static const tool_annotation_def_t *mcp_tool_annotations(const char *name) {
@@ -1531,6 +1559,23 @@ char *cbm_mcp_get_string_arg(const char *args_json, const char *key) {
     return result;
 }
 
+/* String argument `key` copied into `buf` (truncated to fit): buf, or NULL
+ * when absent or empty. Nothing to free. */
+static const char *mcp_string_arg_buf(const char *args_json, const char *key, char *buf,
+                                      size_t buf_sz) {
+    buf[0] = '\0';
+    yyjson_doc *doc = yyjson_read(args_json, strlen(args_json), 0);
+    if (!doc) {
+        return NULL;
+    }
+    yyjson_val *val = yyjson_obj_get(yyjson_doc_get_root(doc), key);
+    if (val && yyjson_is_str(val)) {
+        snprintf(buf, buf_sz, "%s", yyjson_get_str(val));
+    }
+    yyjson_doc_free(doc);
+    return buf[0] ? buf : NULL;
+}
+
 static char *canonicalize_repo_path_if_exists(char *repo_path) {
     if (!repo_path) {
         return NULL;
@@ -1835,6 +1880,7 @@ struct cbm_mcp_server {
     int64_t active_request_id;       /* JSON-RPC id of the in-progress tool call */
     char *active_request_id_str;     /* string JSON-RPC id of the in-progress tool call */
     cbm_mcp_tool_profile_t tool_profile;
+    cbm_architecture_jobs_t *architecture_jobs;
 };
 
 cbm_mcp_server_t *cbm_mcp_server_new(const char *store_path) {
@@ -1856,6 +1902,7 @@ cbm_mcp_server_t *cbm_mcp_server_new(const char *store_path) {
     srv->owns_store = true;
     srv->tool_profile = CBM_MCP_TOOL_PROFILE_ALL;
     srv->background_tasks = true;
+    srv->architecture_jobs = cbm_architecture_jobs_new();
 
     return srv;
 }
@@ -2024,6 +2071,7 @@ void cbm_mcp_server_free(cbm_mcp_server_t *srv) {
     if (!srv) {
         return;
     }
+    cbm_architecture_jobs_free(srv->architecture_jobs);
     if (srv->autoindex_active) {
         cbm_thread_join(&srv->autoindex_tid);
     }
@@ -3918,6 +3966,8 @@ enum {
     BM25_BIND_FILE = 6,
     BM25_BIND_LABEL = 7,
     BM25_BIND_EXACT = 8,
+    BM25_BIND_KIND = 9,
+    BM25_BIND_NS = 10,
     BM25_SQL_AUTO_LEN = -1,
     /* Inner FTS5 candidate cap.  SQLite can early-terminate a plain FTS5 query
      * (no JOIN/WHERE on outer table) of the form:
@@ -4175,8 +4225,9 @@ static char *bm25_render(const bm25_output_row_t *rows, int returned, int total,
  * Returns NULL if FTS5 is unavailable or the query produced no usable tokens,
  * in which case the caller falls back to the regex-based search path. */
 static char *bm25_search(cbm_store_t *store, const char *project, const char *query,
-                         const char *file_pattern, const char *label, int limit, int offset,
-                         bool tree_format, size_t max_output_bytes) {
+                         const char *file_pattern, const char *label, const char *kind,
+                         const char *ns, int limit, int offset, bool tree_format,
+                         size_t max_output_bytes) {
     sqlite3 *db = cbm_store_get_db(store);
     if (!db) {
         return NULL;
@@ -4239,6 +4290,14 @@ static char *bm25_search(cbm_store_t *store, const char *project, const char *qu
          * in the structural mode (2026-09-16 probe: `label=Class` was ignored
          * here and five Methods came back). MIRRORED in the count query. */
         "  AND (?7 IS NULL OR n.label = ?7) "
+        /* Infra filters, guarded (json_extract raises on malformed JSON).
+         * MIRRORED in the count query. */
+        "  AND (?9 IS NULL OR (CASE WHEN json_valid(n.properties) THEN "
+        "       json_extract(n.properties,'$.kind') END) = ?9) "
+        "  AND (?10 IS NULL OR (CASE WHEN json_valid(n.properties) THEN "
+        "       json_extract(n.properties,'$.obj_key') END) LIKE ('%/%/' || "
+        "       replace(replace(replace(?10,'\\','\\\\'),'%','\\%'),'_','\\_') || '/%') "
+        "       ESCAPE '\\') "
         /* rank ties are common (boosted floats) — the id tie-break makes
          * offset pages contractually stable across calls. */
         "ORDER BY rank, n.id "
@@ -4265,25 +4324,42 @@ static char *bm25_search(cbm_store_t *store, const char *project, const char *qu
         sqlite3_bind_null(stmt, BM25_BIND_LABEL);
     }
     sqlite3_bind_text(stmt, BM25_BIND_EXACT, query, BM25_SQL_AUTO_LEN, MCP_SQLITE_TRANSIENT);
+    if (kind && kind[0]) {
+        sqlite3_bind_text(stmt, BM25_BIND_KIND, kind, BM25_SQL_AUTO_LEN, MCP_SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, BM25_BIND_KIND);
+    }
+    if (ns && ns[0]) {
+        sqlite3_bind_text(stmt, BM25_BIND_NS, ns, BM25_SQL_AUTO_LEN, MCP_SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, BM25_BIND_NS);
+    }
 
     /* Count hits within the same inner-limit window — capped at BM25_INNER_LIMIT.
      * Uses the identical subquery structure so the FTS5 early-exit applies here too. */
     int total = 0;
     {
-        const char *count_sql = "SELECT COUNT(*) FROM ("
-                                "    SELECT fts.rowid FROM ("
-                                "        SELECT rowid FROM nodes_fts WHERE nodes_fts MATCH ?1"
-                                "        ORDER BY " BM25_WEIGHTS " LIMIT ?3"
-                                "    ) fts "
-                                "    JOIN nodes n ON n.id = fts.rowid "
-                                "    WHERE n.project = ?2 "
-                                /* MIRRORS the ranked query's filter verbatim — same weights, same
-                                 * label exclusions. Changing one alone reports a total that does
-                                 * not describe the rows returned. */
-                                "      AND n.label NOT IN ('File','Folder','Variable','Project')"
-                                "      AND (?6 IS NULL OR n.file_path LIKE ?6)"
-                                "      AND (?7 IS NULL OR n.label = ?7)"
-                                ")";
+        const char *count_sql =
+            "SELECT COUNT(*) FROM ("
+            "    SELECT fts.rowid FROM ("
+            "        SELECT rowid FROM nodes_fts WHERE nodes_fts MATCH ?1"
+            "        ORDER BY " BM25_WEIGHTS " LIMIT ?3"
+            "    ) fts "
+            "    JOIN nodes n ON n.id = fts.rowid "
+            "    WHERE n.project = ?2 "
+            /* MIRRORS the ranked query's filter verbatim — same weights, same
+             * label exclusions. Changing one alone reports a total that does
+             * not describe the rows returned. */
+            "      AND n.label NOT IN ('File','Folder','Variable','Project')"
+            "      AND (?6 IS NULL OR n.file_path LIKE ?6)"
+            "      AND (?7 IS NULL OR n.label = ?7)"
+            "      AND (?9 IS NULL OR (CASE WHEN json_valid(n.properties) "
+            "           THEN json_extract(n.properties,'$.kind') END) = ?9)"
+            "      AND (?10 IS NULL OR (CASE WHEN json_valid(n.properties) "
+            "           THEN json_extract(n.properties,'$.obj_key') END) "
+            "           LIKE ('%/%/' || replace(replace(replace(?10,'\\','\\\\'),'%','\\%'),"
+            "           '_','\\_') || '/%') ESCAPE '\\')"
+            ")";
         sqlite3_stmt *cs = NULL;
         if (sqlite3_prepare_v2(db, count_sql, BM25_SQL_AUTO_LEN, &cs, NULL) == SQLITE_OK) {
             sqlite3_bind_text(cs, BM25_BIND_QUERY, fts_query, BM25_SQL_AUTO_LEN,
@@ -4302,6 +4378,17 @@ static char *bm25_search(cbm_store_t *store, const char *project, const char *qu
                                   MCP_SQLITE_TRANSIENT);
             } else {
                 sqlite3_bind_null(cs, BM25_BIND_LABEL);
+            }
+            if (kind && kind[0]) {
+                sqlite3_bind_text(cs, BM25_BIND_KIND, kind, BM25_SQL_AUTO_LEN,
+                                  MCP_SQLITE_TRANSIENT);
+            } else {
+                sqlite3_bind_null(cs, BM25_BIND_KIND);
+            }
+            if (ns && ns[0]) {
+                sqlite3_bind_text(cs, BM25_BIND_NS, ns, BM25_SQL_AUTO_LEN, MCP_SQLITE_TRANSIENT);
+            } else {
+                sqlite3_bind_null(cs, BM25_BIND_NS);
             }
             if (sqlite3_step(cs) == SQLITE_ROW) {
                 total = sqlite3_column_int(cs, 0);
@@ -5281,8 +5368,12 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
     if (query && query[0]) {
         char *q_file_pattern = cbm_mcp_get_string_arg(args, "file_pattern");
         char *q_label = cbm_mcp_get_string_arg(args, "label");
-        char *bm25_json = bm25_search(store, project, query, q_file_pattern, q_label, limit, offset,
-                                      !json_format, max_output_bytes);
+        char q_kind_buf[CBM_SZ_256];
+        char q_ns_buf[CBM_SZ_256];
+        const char *q_kind = mcp_string_arg_buf(args, "kind", q_kind_buf, sizeof(q_kind_buf));
+        const char *q_ns = mcp_string_arg_buf(args, "namespace", q_ns_buf, sizeof(q_ns_buf));
+        char *bm25_json = bm25_search(store, project, query, q_file_pattern, q_label, q_kind, q_ns,
+                                      limit, offset, !json_format, max_output_bytes);
         free(q_file_pattern);
         free(q_label);
         if (bm25_json) {
@@ -5296,6 +5387,10 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
     free(query);
 
     char *label = cbm_mcp_get_string_arg(args, "label");
+    char kind_buf[CBM_SZ_256];
+    char ns_buf[CBM_SZ_256];
+    const char *kind_arg = mcp_string_arg_buf(args, "kind", kind_buf, sizeof(kind_buf));
+    const char *ns_arg = mcp_string_arg_buf(args, "namespace", ns_buf, sizeof(ns_buf));
     char *name_pattern = cbm_mcp_get_string_arg(args, "name_pattern");
     char *qn_pattern = cbm_mcp_get_string_arg(args, "qn_pattern");
     char *file_pattern = cbm_mcp_get_string_arg(args, "file_pattern");
@@ -5328,6 +5423,8 @@ static char *handle_search_graph(cbm_mcp_server_t *srv, const char *args) {
         .offset = offset,
         .min_degree = min_degree,
         .max_degree = max_degree,
+        .kind = kind_arg,
+        .namespace_name = ns_arg,
     };
     const char *fields[SG_MAX_EXTRA_FIELDS];
     yyjson_doc *fields_owner = NULL;
@@ -7454,10 +7551,10 @@ static char *handle_delete_project(cbm_mcp_server_t *srv, const char *args) {
  * of truth for the server-side validation (authoritative); the JSON-Schema
  * enum in the TOOLS entry above is the advisory client-side mirror — update
  * both together when the aspect set changes. */
-static const char *VALID_ASPECTS[] = {"all",      "overview",   "structure", "dependencies",
-                                      "routes",   "languages",  "packages",  "entry_points",
-                                      "hotspots", "boundaries", "layers",    "file_tree",
-                                      "clusters", "cycles",     NULL};
+static const char *VALID_ASPECTS[] = {"all",      "overview",   "structure",        "dependencies",
+                                      "routes",   "languages",  "packages",         "entry_points",
+                                      "hotspots", "boundaries", "layers",           "file_tree",
+                                      "clusters", "cycles",     "system_structure", NULL};
 
 /* ── SCC / cycle condensation (get_architecture "cycles") ─────────
  * Iterative Tarjan over the CALLS call graph. Recursion would overflow on a
@@ -7926,20 +8023,29 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
      * caught by the clang-analyzer unix.Malloc lane). */
     REQUIRE_STORE(store, project);
     char *scope_path = cbm_mcp_get_string_arg(args, "path");
+    yyjson_doc *aspects_doc = NULL;
+    char *result = NULL;
 
     char *not_indexed = verify_project_indexed(store, project);
     if (not_indexed) {
-        free(project);
-        free(scope_path);
-        return not_indexed;
+        result = not_indexed;
+        goto release_arguments;
     }
 
     /* Parse aspects array from args */
-    yyjson_doc *aspects_doc = NULL;
     yyjson_val *aspects_arr = NULL;
+    bool include_behavior_evidence = false;
     {
         yyjson_doc *args_doc = yyjson_read(args, strlen(args), 0);
         if (args_doc) {
+            yyjson_val *evidence =
+                yyjson_obj_get(yyjson_doc_get_root(args_doc), "include_behavior_evidence");
+            if (evidence && !yyjson_is_bool(evidence)) {
+                yyjson_doc_free(args_doc);
+                result = cbm_mcp_text_result("include_behavior_evidence must be a boolean.", true);
+                goto release_arguments;
+            }
+            include_behavior_evidence = yyjson_get_bool(evidence);
             yyjson_val *aval = yyjson_obj_get(yyjson_doc_get_root(args_doc), "aspects");
             if (yyjson_is_arr(aval)) {
                 aspects_doc = args_doc; /* keep alive */
@@ -7948,6 +8054,12 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
                 yyjson_doc_free(args_doc);
             }
         }
+    }
+
+    if (include_behavior_evidence && !aspect_explicitly_named(aspects_arr, "system_structure")) {
+        result = cbm_mcp_text_result(
+            "include_behavior_evidence=true requires aspects:[\"system_structure\"].", true);
+        goto release_arguments;
     }
 
     /* Build a C string array from aspects for cbm_store_get_architecture.
@@ -7985,14 +8097,42 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
             char msg[CBM_SZ_512];
             snprintf(msg, sizeof(msg), "Unknown aspect '%s'. Valid: %s.", aspects_strs[i],
                      valid_list);
-            char *err = cbm_mcp_text_result(msg, true);
-            free(project);
-            free(scope_path);
-            if (aspects_doc) {
-                yyjson_doc_free(aspects_doc);
-            }
-            return err;
+            result = cbm_mcp_text_result(msg, true);
+            goto release_arguments;
         }
+    }
+
+    if (aspect_explicitly_named(aspects_arr, "system_structure")) {
+        yyjson_val *entry = yyjson_obj_get(yyjson_doc_get_root(aspects_doc), "entry_node_id");
+        yyjson_val *target = yyjson_obj_get(yyjson_doc_get_root(aspects_doc), "target_node_id");
+        yyjson_val *generation =
+            yyjson_obj_get(yyjson_doc_get_root(aspects_doc), "expected_generation");
+        bool valid_entry = !entry || (yyjson_is_int(entry) && yyjson_get_sint(entry) > 0);
+        bool valid_target =
+            !target || (entry && yyjson_is_int(target) && yyjson_get_sint(target) > 0);
+        bool valid_generation =
+            !generation || (yyjson_is_str(generation) && yyjson_get_len(generation) > 0 &&
+                            yyjson_get_len(generation) < 512);
+        char *json = NULL;
+        char *reply = NULL;
+        if (yyjson_arr_size(aspects_arr) != 1 || (scope_path && scope_path[0]) || !valid_entry ||
+            !valid_target || !valid_generation) {
+            reply = cbm_mcp_text_result(
+                "Request system_structure alone, without path; entry_node_id must be a positive "
+                "integer when supplied. target_node_id requires entry_node_id; expected_generation "
+                "must be a nonempty generation token.",
+                true);
+        } else {
+            json = cbm_architecture_jobs_request_query(
+                srv->architecture_jobs, store, project, entry ? yyjson_get_sint(entry) : 0,
+                target ? yyjson_get_sint(target) : 0,
+                generation ? yyjson_get_str(generation) : NULL, include_behavior_evidence);
+            reply = cbm_mcp_text_result(json ? json : "Architecture request allocation failed.",
+                                        json == NULL);
+        }
+        cbm_free(CBM_MEM_CLASS_OTHER, json);
+        result = reply;
+        goto release_arguments;
     }
 
     /* Default (no aspects) = compact summary. The old default rendered ALL
@@ -8309,16 +8449,11 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
 
         cbm_store_architecture_free(&arch);
         cbm_store_schema_free(&schema);
-        if (aspects_doc) {
-            yyjson_doc_free(aspects_doc);
-        }
-        free(project);
-        free(scope_path);
         free(norm_path);
         char *text = cbm_sb_finish(&sb);
-        char *result = cbm_mcp_text_result(text ? text : "out of memory", text == NULL);
+        result = cbm_mcp_text_result(text ? text : "out of memory", text == NULL);
         free(text);
-        return result;
+        goto release_arguments;
     }
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
@@ -8566,15 +8701,14 @@ static char *handle_get_architecture(cbm_mcp_server_t *srv, const char *args) {
     yyjson_mut_doc_free(doc);
     cbm_store_architecture_free(&arch);
     cbm_store_schema_free(&schema);
-    if (aspects_doc) {
-        yyjson_doc_free(aspects_doc);
-    }
-    free(project);
-    free(scope_path);
     free(norm_path);
 
-    char *result = cbm_mcp_text_result(json, false);
+    result = cbm_mcp_text_result(json, false);
     free(json);
+release_arguments:
+    yyjson_doc_free(aspects_doc);
+    free(project);
+    free(scope_path);
     return result;
 }
 
@@ -8589,6 +8723,22 @@ static yyjson_doc *resolve_trace_edge_types(const char *args, const char *mode,
         "HTTP_CALLS",          "ASYNC_CALLS",       "DATA_FLOWS",    "CALLS",
         "CROSS_HTTP_CALLS",    "CROSS_ASYNC_CALLS", "CROSS_CHANNEL", "CROSS_GRPC_CALLS",
         "CROSS_GRAPHQL_CALLS", "CROSS_TRPC_CALLS"};
+    /* topology: traffic (INFRA_MAPS), object references (USAGE), ordering
+     * (DEPENDS_ON), controllers (HANDLES), what an object declares
+     * (DEFINES: an Ingress's routes) and what it deploys (DEPLOYS: a Flux
+     * Kustomization's path, a HelmRelease's chart) */
+    static const char *mode_topology[] = {"INFRA_MAPS", "USAGE",   "DEPENDS_ON",
+                                          "HANDLES",    "DEFINES", "DEPLOYS"};
+    /* deploy: what a CI job, script or Make rule starts (SPAWNS: scripts,
+     * make targets, programs), calls (CALLS: shell functions) and puts on a
+     * cluster (DEPLOYS) -- outbound from the job, inbound from a chart */
+    static const char *mode_deploy[] = {"DEPLOYS", "SPAWNS", "CALLS"};
+    /* run: what a Service or workload runs -- traffic to the workload
+     * (INFRA_MAPS), the Image its container runs (USAGE), the Dockerfile
+     * that builds it and what that builds on (DEPENDS_ON), the program the
+     * ENTRYPOINT starts (SPAWNS) and the environment each container is
+     * given (CONFIGURES) */
+    static const char *mode_run[] = {"INFRA_MAPS", "USAGE", "DEPENDS_ON", "SPAWNS", "CONFIGURES"};
 
     *out_count = 0;
 
@@ -8621,6 +8771,15 @@ static yyjson_doc *resolve_trace_edge_types(const char *args, const char *mode,
     } else if (mode && strcmp(mode, "cross_service") == 0) {
         defaults = mode_cross_svc;
         n_defaults = (int)(sizeof(mode_cross_svc) / sizeof(mode_cross_svc[0]));
+    } else if (mode && strcmp(mode, "topology") == 0) {
+        defaults = mode_topology;
+        n_defaults = (int)(sizeof(mode_topology) / sizeof(mode_topology[0]));
+    } else if (mode && strcmp(mode, "deploy") == 0) {
+        defaults = mode_deploy;
+        n_defaults = (int)(sizeof(mode_deploy) / sizeof(mode_deploy[0]));
+    } else if (mode && strcmp(mode, "run") == 0) {
+        defaults = mode_run;
+        n_defaults = (int)(sizeof(mode_run) / sizeof(mode_run[0]));
     }
     for (int i = 0; i < n_defaults; i++) {
         out_types[i] = defaults[i];
@@ -11678,14 +11837,32 @@ static bool resolve_session_repo_path(cbm_mcp_server_t *srv, char **repo_path) {
     return true;
 }
 
+/* doc_candidates for one index: an explicit boolean argument wins, else the
+ * doc_candidates setting (default on). The parent resolves it once and passes
+ * the decided value on, so a daemon job or supervised worker gets it as an
+ * argument instead of reading a config of its own. */
+static bool index_doc_candidates_enabled(cbm_mcp_server_t *srv, const char *args) {
+    yyjson_doc *doc = args ? yyjson_read(args, strlen(args), 0) : NULL;
+    yyjson_val *val = doc ? yyjson_obj_get(yyjson_doc_get_root(doc), "doc_candidates") : NULL;
+    bool explicit_value = val && yyjson_is_bool(val);
+    bool enabled = explicit_value ? yyjson_get_bool(val) : true;
+    yyjson_doc_free(doc);
+    if (!explicit_value && srv && srv->config) {
+        enabled = cbm_config_get_bool(srv->config, CBM_CONFIG_DOC_CANDIDATES, true);
+    }
+    return enabled;
+}
+
 /* Preserve every index option while replacing all caller-supplied repo_path
  * keys with the one canonical path that was actually authorized. A non-empty
  * project_name likewise replaces any caller "name" (#2134: the project key the
  * parent resolved for this root travels to the daemon job / worker verbatim,
- * so lease key and written index cannot diverge). */
+ * so lease key and written index cannot diverge). doc_candidates is replaced
+ * by the value the parent resolved. */
 static char *index_args_with_repo_path(const char *args, const char *canonical_repo_path,
                                        const char *project_name,
-                                       const cbm_index_resource_policy_t *policy) {
+                                       const cbm_index_resource_policy_t *policy,
+                                       bool doc_candidates) {
     if (!args || !canonical_repo_path || !policy) {
         return NULL;
     }
@@ -11723,9 +11900,13 @@ static char *index_args_with_repo_path(const char *args, const char *canonical_r
     while (has_name && yyjson_mut_obj_get(copy_root, "name")) {
         (void)yyjson_mut_obj_remove_key(copy_root, "name");
     }
+    while (yyjson_mut_obj_get(copy_root, "doc_candidates")) {
+        (void)yyjson_mut_obj_remove_key(copy_root, "doc_candidates");
+    }
     if ((has_name && !yyjson_mut_obj_add_strcpy(copy, copy_root, "name", project_name)) ||
         !yyjson_mut_obj_add_strcpy(copy, copy_root, "repo_path", canonical_repo_path) ||
-        !cbm_mcp_index_policy_add_to_args(copy, copy_root, policy)) {
+        !cbm_mcp_index_policy_add_to_args(copy, copy_root, policy) ||
+        !yyjson_mut_obj_add_bool(copy, copy_root, "doc_candidates", doc_candidates)) {
         yyjson_mut_doc_free(copy);
         return NULL;
     }
@@ -12091,12 +12272,13 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
         index_args_free(repo_path, mode_str, name_override);
         return cbm_mcp_text_result(policy_error, true);
     }
+    bool doc_candidates = index_doc_candidates_enabled(srv, args);
 
     /* A daemon session delegates the one physical write to its shared job
      * registry only after path canonicalization and workspace authorization. */
     if (srv->index_executor) {
-        char *worker_args =
-            index_args_with_repo_path(args, repo_path, name_override, &resource_policy);
+        char *worker_args = index_args_with_repo_path(args, repo_path, name_override,
+                                                      &resource_policy, doc_candidates);
         char *coordinated = worker_args ? srv->index_executor(srv->index_executor_context,
                                                               repo_path, worker_args, async_mode)
                                         : NULL;
@@ -12124,8 +12306,8 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
      * installs the same guard before running the in-process pipeline. A marked
      * host fails closed if preparation or worker startup cannot complete. */
     if (cbm_index_supervisor_should_wrap()) {
-        char *worker_args =
-            index_args_with_repo_path(args, repo_path, name_override, &resource_policy);
+        char *worker_args = index_args_with_repo_path(args, repo_path, name_override,
+                                                      &resource_policy, doc_candidates);
         if (!worker_args) {
             free(mutation_project);
             index_args_free(repo_path, mode_str, name_override);
@@ -12189,6 +12371,7 @@ static char *handle_index_repository(cbm_mcp_server_t *srv, const char *args) {
     free(name_override);
     cbm_pipeline_set_persistence(p, persistence);
     cbm_pipeline_set_resource_policy(p, &resource_policy);
+    cbm_pipeline_set_doc_candidates_enabled(p, doc_candidates);
 
     char *project_name = heap_strdup(cbm_pipeline_project_name(p));
 
@@ -19013,8 +19196,8 @@ static char *adr_read_legacy_file(const char *root_path) {
 /* resolve_store opens file-backed projects query-only. A mutation must release
  * that reader before opening a dedicated writer because atomic publication uses
  * a self-contained DELETE-mode database that switches back to WAL on write. */
-static cbm_store_t *open_adr_store_for_write(cbm_mcp_server_t *srv, cbm_store_t *resolved,
-                                             cbm_store_t **owned_rw) {
+static cbm_store_t *open_store_for_write(cbm_mcp_server_t *srv, cbm_store_t *resolved,
+                                         cbm_store_t **owned_rw) {
     if (!srv || !resolved || !owned_rw) {
         return NULL;
     }
@@ -19288,7 +19471,7 @@ static char *handle_manage_adr(cbm_mcp_server_t *srv, const char *args) {
     cbm_store_t *store = resolved;
     cbm_store_t *owned_rw = NULL;
     if (write_request) {
-        store = open_adr_store_for_write(srv, resolved, &owned_rw);
+        store = open_store_for_write(srv, resolved, &owned_rw);
         if (!store) {
             if (mutation_held) {
                 mcp_project_mutation_end(srv, project);
@@ -19326,7 +19509,7 @@ static char *handle_manage_adr(cbm_mcp_server_t *srv, const char *args) {
                     resolved = resolve_store_internal(srv, project, true, false, NULL, true);
                 }
                 if (resolved) {
-                    store = open_adr_store_for_write(srv, resolved, &owned_rw);
+                    store = open_store_for_write(srv, resolved, &owned_rw);
                     if (store) {
                         have_adr = (cbm_store_adr_get(store, project, &adr) == CBM_STORE_OK);
                         if (!have_adr &&
@@ -19460,35 +19643,219 @@ static char *handle_manage_adr(cbm_mcp_server_t *srv, const char *args) {
 
 /* ── ingest_traces ────────────────────────────────────────────── */
 
-static char *handle_ingest_traces(cbm_mcp_server_t *srv, const char *args) {
-    (void)srv;
-    /* Parse traces array from JSON args */
-    yyjson_doc *adoc = yyjson_read(args, strlen(args), 0);
-    int trace_count = 0;
+enum {
+    INGEST_TRACES_MAX = 10000,    /* trace entries per call */
+    INGEST_PATH_MAX = 256,        /* hops per path */
+    INGEST_PAIR_CAP = 200000,     /* observed pairs per project */
+    INGEST_UNMATCHED_SAMPLE = 10, /* distinct unresolved names reported */
+    INGEST_EVICT_MAX_ROUNDS = 32, /* runaway guard for the eviction loop */
+};
 
-    if (adoc) {
-        yyjson_val *aroot = yyjson_doc_get_root(adoc);
-        yyjson_val *traces = yyjson_obj_get(aroot, "traces");
-        if (traces && yyjson_is_arr(traces)) {
-            trace_count = (int)yyjson_arr_size(traces);
+/* Observed runtime calls: paths of qualified names (adjacent elements are
+ * caller→callee) or bare {caller, callee} pairs — stored qn-keyed in
+ * observed_calls/observed_paths (reindex-proof), per run label. The
+ * response is honest about resolution: only pairs whose BOTH endpoints
+ * exist as indexed symbols are stored, and up to 10 unresolved names come
+ * back so the producer can fix its naming instead of silently losing data. */
+static char *handle_ingest_traces(cbm_mcp_server_t *srv, const char *args) {
+    char *project = get_project_arg(args);
+    bool mutation_held = false;
+    yyjson_doc *adoc = NULL;
+    cbm_store_t *owned_rw = NULL;
+    char *result = NULL;
+    if (project) {
+        mutation_held = mcp_project_mutation_begin(srv, project);
+        if (!mutation_held) {
+            result = cbm_mcp_text_result(
+                "project operation cancelled or blocked by an active index", true);
+            goto release_request;
         }
-        yyjson_doc_free(adoc);
+        if (mcp_request_cancelled(srv)) {
+            result = cbm_mcp_text_result("project operation cancelled for this request", true);
+            goto release_request;
+        }
     }
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    /* Hold the lease before resolving a cached generation or opening the
+     * writer, and through both observation updates and retention eviction. */
+    cbm_store_t *store = resolve_store(srv, project);
+    if (!store) {
+        char *error = build_no_store_error_checked(srv, project);
+        result = cbm_mcp_text_result(error, true);
+        free(error);
+        goto release_request;
+    }
+
+    adoc = yyjson_read_opts((char *)args, strlen(args), 0, cbm_json_writer_allocator(), NULL);
+    yyjson_val *aroot = adoc ? yyjson_doc_get_root(adoc) : NULL;
+    yyjson_val *traces = aroot ? yyjson_obj_get(aroot, "traces") : NULL;
+    size_t trace_count = traces && yyjson_is_arr(traces) ? yyjson_arr_size(traces) : 0U;
+    if (trace_count == 0U || trace_count > INGEST_TRACES_MAX) {
+        result = cbm_mcp_text_result(
+            "traces is required: a non-empty array (max 10000) of {path: [qualified_name, ...]} "
+            "or {caller, callee} entries",
+            true);
+        goto release_request;
+    }
+    const char *label = yyjson_get_str(yyjson_obj_get(aroot, "label"));
+    if (!label || !label[0])
+        label = "unlabeled";
+
+    /* resolve_store opens file-backed projects query-only (and skips schema
+     * DDL); observation writes need the dedicated read-write connection —
+     * whose open also creates the observed_* tables in pre-existing DBs. */
+    store = open_store_for_write(srv, store, &owned_rw);
+    if (!store) {
+        result = cbm_mcp_text_result("could not open the project store for writing", true);
+        goto release_request;
+    }
+
+    struct sqlite3 *db = cbm_store_get_db(store);
+    sqlite3_stmt *exists = NULL;
+    if (!db || sqlite3_prepare_v2(db,
+                                  "SELECT 1 FROM nodes WHERE project=?1 AND qualified_name=?2 "
+                                  "LIMIT 1",
+                                  -1, &exists, NULL) != SQLITE_OK) {
+        result = cbm_mcp_text_result("store is not queryable", true);
+        goto release_request;
+    }
+
+    long long pairs_stored = 0, pairs_unmatched = 0, paths_stored = 0, malformed = 0;
+    const char *unmatched_sample[INGEST_UNMATCHED_SAMPLE];
+    int unmatched_sample_count = 0;
+    (void)sqlite3_exec(db, "BEGIN IMMEDIATE", NULL, NULL, NULL);
+
+    size_t ti, tmax;
+    yyjson_val *trace;
+    yyjson_arr_foreach(traces, ti, tmax, trace) {
+        const char *hops[INGEST_PATH_MAX];
+        size_t hop_count = 0;
+        long long count = 1;
+        yyjson_val *count_val = yyjson_obj_get(trace, "count");
+        if (yyjson_is_int(count_val) && yyjson_get_int(count_val) > 0)
+            count = yyjson_get_int(count_val);
+
+        yyjson_val *path = yyjson_obj_get(trace, "path");
+        if (path && yyjson_is_arr(path)) {
+            size_t hi, hmax;
+            yyjson_val *hop;
+            bool ok = yyjson_arr_size(path) >= 2 && yyjson_arr_size(path) <= INGEST_PATH_MAX;
+            yyjson_arr_foreach(path, hi, hmax, hop) {
+                const char *qn = yyjson_get_str(hop);
+                if (!qn || !qn[0] || hop_count >= INGEST_PATH_MAX) {
+                    ok = false;
+                    break;
+                }
+                hops[hop_count++] = qn;
+            }
+            if (!ok) {
+                malformed++;
+                continue;
+            }
+        } else {
+            const char *caller = yyjson_get_str(yyjson_obj_get(trace, "caller"));
+            const char *callee = yyjson_get_str(yyjson_obj_get(trace, "callee"));
+            if (!caller || !caller[0] || !callee || !callee[0]) {
+                malformed++;
+                continue;
+            }
+            hops[0] = caller;
+            hops[1] = callee;
+            hop_count = 2;
+        }
+
+        /* Resolve every hop before storing anything from this trace: a
+         * partially-resolved path is not a real journey. */
+        bool all_resolved = true;
+        for (size_t h = 0; h < hop_count; h++) {
+            sqlite3_reset(exists);
+            sqlite3_bind_text(exists, 1, project, -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(exists, 2, hops[h], -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(exists) != SQLITE_ROW) {
+                all_resolved = false;
+                bool seen = false;
+                for (int u = 0; u < unmatched_sample_count; u++)
+                    if (strcmp(unmatched_sample[u], hops[h]) == 0) {
+                        seen = true;
+                        break;
+                    }
+                if (!seen && unmatched_sample_count < INGEST_UNMATCHED_SAMPLE)
+                    unmatched_sample[unmatched_sample_count++] = hops[h];
+            }
+        }
+        if (!all_resolved) {
+            pairs_unmatched += (long long)(hop_count - 1);
+            continue;
+        }
+
+        for (size_t h = 0; h + 1 < hop_count; h++) {
+            if (cbm_store_observed_upsert_pair(store, project, hops[h], hops[h + 1], label,
+                                               count) == CBM_STORE_OK)
+                pairs_stored++;
+        }
+        if (path) {
+            char *path_json =
+                yyjson_val_write_opts(path, 0, cbm_json_writer_allocator(), NULL, NULL);
+            if (path_json) {
+                if (cbm_store_observed_upsert_path(store, project, path_json, label, count) ==
+                    CBM_STORE_OK)
+                    paths_stored++;
+                cbm_free(CBM_MEM_CLASS_OTHER, path_json);
+            }
+        }
+    }
+    sqlite3_finalize(exists);
+    (void)sqlite3_exec(db, "COMMIT", NULL, NULL, NULL);
+
+    /* Cap: evict whole oldest runs until under budget — a partially-evicted
+     * run could masquerade as a complete recording. */
+    long long evicted_runs = 0;
+    long long pair_total = cbm_store_observed_pair_total(store, project);
+    for (int round = 0; round < INGEST_EVICT_MAX_ROUNDS && pair_total > INGEST_PAIR_CAP; round++) {
+        char *evicted_label = NULL;
+        if (cbm_store_observed_evict_oldest_label(store, project, &evicted_label) != CBM_STORE_OK)
+            break;
+        evicted_runs++;
+        bool evicted_self = evicted_label && strcmp(evicted_label, label) == 0;
+        free(evicted_label);
+        pair_total = cbm_store_observed_pair_total(store, project);
+        if (evicted_self)
+            break; /* the current run alone exceeds the cap; stop here */
+    }
+
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(cbm_json_writer_allocator());
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
+    yyjson_mut_obj_add_str(doc, root, "status", "stored");
+    yyjson_mut_obj_add_strcpy(doc, root, "label", label);
+    yyjson_mut_obj_add_int(doc, root, "pairs_stored", pairs_stored);
+    yyjson_mut_obj_add_int(doc, root, "paths_stored", paths_stored);
+    yyjson_mut_obj_add_int(doc, root, "pairs_unmatched", pairs_unmatched);
+    yyjson_mut_val *sample = yyjson_mut_arr(doc);
+    for (int u = 0; u < unmatched_sample_count; u++)
+        yyjson_mut_arr_add_strcpy(doc, sample, unmatched_sample[u]);
+    yyjson_mut_obj_add_val(doc, root, "unmatched_sample", sample);
+    if (malformed > 0)
+        yyjson_mut_obj_add_int(doc, root, "malformed", malformed);
+    yyjson_mut_obj_add_int(doc, root, "pair_total", pair_total);
+    if (evicted_runs > 0)
+        yyjson_mut_obj_add_int(doc, root, "evicted_runs", evicted_runs);
 
-    yyjson_mut_obj_add_str(doc, root, "status", "accepted");
-    yyjson_mut_obj_add_int(doc, root, "traces_received", trace_count);
-    yyjson_mut_obj_add_str(doc, root, "note",
-                           "Runtime edge creation from traces not yet implemented");
-
-    char *json = yy_doc_to_str(doc);
+    char *json = root && yy_mut_normalize_output_text(doc, root, true)
+                     ? yyjson_mut_write_opts(doc, 0, cbm_json_writer_allocator(), NULL, NULL)
+                     : NULL;
     yyjson_mut_doc_free(doc);
+    result = cbm_mcp_text_result(json, false);
+    cbm_free(CBM_MEM_CLASS_OTHER, json);
+release_request:
+    yyjson_doc_free(adoc);
+    if (owned_rw)
+        cbm_store_close(owned_rw);
+    if (mutation_held) {
+        mcp_project_mutation_end(srv, project);
+    }
+    free(project);
 
-    char *result = cbm_mcp_text_result(json, false);
-    free(json);
     return result;
 }
 
@@ -19713,6 +20080,7 @@ static void *autoindex_thread(void *arg) {
         cbm_log_warn("autoindex.err", "msg", "pipeline_create_failed");
         return NULL;
     }
+    cbm_pipeline_set_doc_candidates_enabled(p, index_doc_candidates_enabled(srv, NULL));
 
     /* Block until any concurrent pipeline finishes */
     cbm_pipeline_lock();

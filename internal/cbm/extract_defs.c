@@ -2328,6 +2328,7 @@ typedef struct {
     size_t name_len;
     uint32_t sb;
     uint32_t eb;
+    bool used; /* a sub's doc holds it (pod_doc_by_name): not the module's */
 } pod_sec_t;
 
 typedef struct {
@@ -2588,15 +2589,16 @@ static void pod_index_block(CBMExtractCtx *ctx, pod_index_t *ix, TSNode pod) {
             continue;
         }
         uint32_t se = pod_section_end(cmds, n, ci, pe);
-        pod_sec_t sec = {nm, nl, cmds[ci].sb, pod_trim_end(ctx->source, cmds[ci].sb, se)};
+        pod_sec_t sec = {nm, nl, cmds[ci].sb, pod_trim_end(ctx->source, cmds[ci].sb, se), false};
         pod_index_push(a, ix, &sec);
     }
 }
 
-/* The file's POD sections by name, built on the first Perl sub. */
-static const pod_index_t *pod_index(CBMExtractCtx *ctx) {
+/* The file's POD sections by name, built on the first Perl sub (or for the
+ * module doc of a file without one). */
+static pod_index_t *pod_index(CBMExtractCtx *ctx) {
     if (ctx->doc_pod_index) {
-        return (const pod_index_t *)ctx->doc_pod_index;
+        return (pod_index_t *)ctx->doc_pod_index;
     }
     pod_index_t *ix = (pod_index_t *)cbm_arena_alloc(doc_scratch(ctx), sizeof(pod_index_t));
     if (!ix) {
@@ -2624,7 +2626,7 @@ static bool pod_sec_names(const pod_sec_t *s, const char *name, size_t nl) {
 /* Every POD section whose =head / =item names the sub exactly, joined in
  * document order; NULL when none does. */
 static const char *pod_doc_by_name(CBMExtractCtx *ctx, const char *name) {
-    const pod_index_t *ix = pod_index(ctx);
+    pod_index_t *ix = pod_index(ctx);
     if (!ix || !name || !name[0]) {
         return NULL;
     }
@@ -2644,10 +2646,11 @@ static const char *pod_doc_by_name(CBMExtractCtx *ctx, const char *name) {
     }
     size_t w = 0;
     for (int i = 0; i < ix->count; i++) {
-        const pod_sec_t *s = &ix->items[i];
+        pod_sec_t *s = &ix->items[i];
         if (!pod_sec_names(s, name, nl)) {
             continue;
         }
+        s->used = true;
         if (w > 0) {
             buf[w++] = '\n';
             buf[w++] = '\n';
@@ -2657,6 +2660,137 @@ static const char *pod_doc_by_name(CBMExtractCtx *ctx, const char *name) {
     }
     buf[w] = '\0';
     return buf;
+}
+
+/* True when src[b, e) holds a paragraph that is text, or a =head / =item
+ * command: not only =cut, =pod, =over and =back lines. */
+static bool pod_run_has_text(const char *src, uint32_t b, uint32_t e) {
+    uint32_t pos = b;
+    uint32_t sb = 0;
+    uint32_t eb = 0;
+    int depth = 0;
+    while (pod_next_para(src, &pos, e, &sb, &eb)) {
+        if (src[sb] != '=' || sb + SKIP_ONE >= eb || !isalpha((unsigned char)src[sb + SKIP_ONE])) {
+            return true;
+        }
+        pod_cmd_t c = pod_classify(src, sb, eb, &depth);
+        if (c.type == POD_HEAD || c.type == POD_ITEM || c.type == POD_OTHER) {
+            return true;
+        }
+    }
+    return false;
+}
+
+typedef struct {
+    CBMExtractCtx *ctx;
+    char *buf;
+    size_t w;
+    uint32_t first_line; /* source line of the first run kept, 0 before it */
+    TSNode block;
+    int next_sec; /* the first index section not yet passed: blocks go in order */
+} pod_module_t;
+
+/* Append src[b, e) of the current block to the module doc, after a blank
+ * line, unless it holds no text. */
+static void pod_module_run(pod_module_t *m, uint32_t b, uint32_t e) {
+    const char *src = m->ctx->source;
+    while (b < e) { /* leading blank lines */
+        uint32_t le = b;
+        while (le < e && src[le] != '\n') {
+            le++;
+        }
+        if (!pod_line_is_blank(src, b, le)) {
+            break;
+        }
+        b = le < e ? le + SKIP_ONE : e;
+    }
+    e = pod_trim_end(src, b, e);
+    if (b >= e || !pod_run_has_text(src, b, e)) {
+        return;
+    }
+    if (m->first_line == 0) {
+        uint32_t line = ts_node_start_point(m->block).row + SKIP_ONE;
+        for (uint32_t k = ts_node_start_byte(m->block); k < b; k++) {
+            line += src[k] == '\n' ? SKIP_ONE : 0;
+        }
+        m->first_line = line;
+    }
+    if (m->w > 0) {
+        m->buf[m->w++] = '\n';
+        m->buf[m->w++] = '\n';
+    }
+    memcpy(m->buf + m->w, src + b, e - b);
+    m->w += e - b;
+}
+
+/* Perl's module doc, for the File node: the file's POD outside the sections a
+ * sub's doc holds, so that no reference is read twice. Every POD block with
+ * those sections cut out, each remaining run as it is in the source, in
+ * document order and joined by a blank line (a sub's doc joins its sections
+ * the same way); a run of only =cut / =pod / =over / =back lines is dropped.
+ * Built after the definitions, which mark the sections they take. NULL when
+ * nothing is left. */
+static const char *doc_perl_module(CBMExtractCtx *ctx) {
+    pod_index_t *ix = pod_index(ctx);
+    if (!ix) {
+        return NULL;
+    }
+    size_t total = 0;
+    int blocks = 0;
+    TSTreeCursor cur = ts_tree_cursor_new(ctx->root);
+    if (ts_tree_cursor_goto_first_child(&cur)) {
+        do {
+            TSNode ch = ts_tree_cursor_current_node(&cur);
+            if (strcmp(ts_node_type(ch), "pod") == 0) {
+                total += ts_node_end_byte(ch) - ts_node_start_byte(ch);
+                blocks++;
+            }
+        } while (ts_tree_cursor_goto_next_sibling(&cur));
+    }
+    if (blocks == 0) {
+        ts_tree_cursor_delete(&cur);
+        return NULL;
+    }
+    /* each block yields at most one run more than the sections it loses */
+    size_t runs = (size_t)blocks + (size_t)ix->count;
+    pod_module_t m = {.ctx = ctx};
+    m.buf = (char *)cbm_arena_alloc(ctx->arena, total + (runs * PAIR_LEN) + SKIP_ONE);
+    if (!m.buf) {
+        ts_tree_cursor_delete(&cur);
+        return NULL;
+    }
+    ts_tree_cursor_reset(&cur, ctx->root);
+    if (ts_tree_cursor_goto_first_child(&cur)) {
+        do {
+            TSNode ch = ts_tree_cursor_current_node(&cur);
+            if (strcmp(ts_node_type(ch), "pod") != 0) {
+                continue;
+            }
+            m.block = ch;
+            uint32_t pb = ts_node_start_byte(ch);
+            uint32_t pe = ts_node_end_byte(ch);
+            uint32_t at = pb;
+            /* the index holds the blocks' sections in document order */
+            for (; m.next_sec < ix->count && ix->items[m.next_sec].sb < pe; m.next_sec++) {
+                const pod_sec_t *s = &ix->items[m.next_sec];
+                if (!s->used || s->sb < pb) {
+                    continue;
+                }
+                if (s->sb > at) {
+                    pod_module_run(&m, at, s->sb);
+                }
+                at = s->eb > at ? s->eb : at;
+            }
+            pod_module_run(&m, at, pe);
+        } while (ts_tree_cursor_goto_next_sibling(&cur));
+    }
+    ts_tree_cursor_delete(&cur);
+    if (m.w == 0) {
+        return NULL;
+    }
+    m.buf[m.w] = '\0';
+    cbm_doclink_note_doc_line(ctx, m.buf, m.first_line);
+    return m.buf;
 }
 
 /* ── Doc entry points ── */
@@ -6276,6 +6410,107 @@ void cbm_test_declarations_finish(CBMExtractCtx *ctx) {
     }
 }
 
+static bool make_name_char(char c) {
+    return c == '_' || c == '.' || c == '-' || (c >= '0' && c <= '9') ||
+           ((c | ' ') >= 'a' && (c | ' ') <= 'z');
+}
+
+/* A `rule` node that is a target-specific variable: after the targets'
+ * colon(s) come [export|override|private|unexport]... NAME and an
+ * assignment operator (= := ::= :::= += ?= !=). */
+static bool make_rule_sets_variable(TSNode rule, const char *src) {
+    static const char *const kws[] = {"export", "override", "private", "unexport", NULL};
+    TSNode targets = cbm_find_child_by_kind(rule, "targets");
+    if (ts_node_is_null(targets)) {
+        return false;
+    }
+    uint32_t p = ts_node_end_byte(targets);
+    uint32_t end = ts_node_end_byte(rule);
+    while (p < end && (src[p] == ' ' || src[p] == '\t')) {
+        p++;
+    }
+    if (p >= end || src[p] != ':') {
+        return false;
+    }
+    while (p < end && src[p] == ':') {
+        p++;
+    }
+    for (bool kw = true; kw;) {
+        while (p < end && (src[p] == ' ' || src[p] == '\t')) {
+            p++;
+        }
+        kw = false;
+        for (int i = 0; kws[i]; i++) {
+            size_t n = strlen(kws[i]);
+            if (p + n < end && strncmp(src + p, kws[i], n) == 0 &&
+                (src[p + n] == ' ' || src[p + n] == '\t')) {
+                p += (uint32_t)n;
+                kw = true;
+                break;
+            }
+        }
+    }
+    uint32_t name = p;
+    while (p < end && make_name_char(src[p])) {
+        p++;
+    }
+    if (p == name) {
+        return false;
+    }
+    while (p < end && (src[p] == ' ' || src[p] == '\t')) {
+        p++;
+    }
+    if (p < end && src[p] == ':') {
+        while (p < end && src[p] == ':') {
+            p++;
+        }
+        return p < end && src[p] == '=';
+    }
+    return p < end && (src[p] == '=' ||
+                       (strchr("+?!", src[p]) && p + SKIP_ONE < end && src[p + SKIP_ONE] == '='));
+}
+
+/* Make: a rule names several targets (`up down: deps`), each a goal
+ * `make <target>` runs. The rule's definition carries the first target;
+ * every further one gets a definition of its own over the same rule span --
+ * without fingerprint, structural profile or body tokens, so the copies of
+ * one recipe do not read as similar code. Special (`.X`) targets and
+ * repeats stay out. */
+static void push_make_rule_targets(CBMExtractCtx *ctx, TSNode node, const CBMDefinition *first) {
+    CBMArena *a = ctx->arena;
+    TSNode targets = cbm_find_child_by_kind(node, "targets");
+    uint32_t n = ts_node_is_null(targets) ? 0 : ts_node_named_child_count(targets);
+    for (uint32_t i = SKIP_ONE; i < n; i++) {
+        char *name =
+            cbm_func_name_node_text(a, ts_node_named_child(targets, i), ctx->source, ctx->language);
+        if (!name || !name[0] || name[0] == '.' || strcmp(name, first->name) == 0) {
+            continue;
+        }
+        bool repeat = false;
+        for (uint32_t j = SKIP_ONE; j < i && !repeat; j++) {
+            char *prev = cbm_func_name_node_text(a, ts_node_named_child(targets, j), ctx->source,
+                                                 ctx->language);
+            repeat = prev && strcmp(prev, name) == 0;
+        }
+        if (repeat) {
+            continue;
+        }
+        CBMDefinition d = *first;
+        d.name = name;
+        d.qualified_name =
+            cbm_fqn_compute_source_lang(a, ctx->project, ctx->rel_path, name, ctx->language);
+        d.is_exported = cbm_is_exported(name, ctx->language);
+        d.is_entry_point = strcmp(name, "main") == 0;
+        d.fingerprint = NULL;
+        d.fingerprint_k = 0;
+        d.structural_profile = NULL;
+        d.body_tokens = NULL;
+        if (d.qualified_name) {
+            cbm_defs_push(&ctx->result->defs, a, d);
+        }
+    }
+}
+
 static void extract_func_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec) {
     CBMArena *a = ctx->arena;
 
@@ -6307,6 +6542,12 @@ static void extract_func_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec 
     // emit a "..PHONY" segment (a "double dot") and thus a malformed QN. Skip
     // any dot-prefixed Make target.
     if (ctx->language == CBM_LANG_MAKEFILE && name[0] == '.') {
+        return;
+    }
+    // `targets: [export] VAR := value` sets a variable for those targets:
+    // no rule, so no def (else a target only ever configured there is a
+    // phantom, and a real rule of it gains the line as a variant).
+    if (ctx->language == CBM_LANG_MAKEFILE && make_rule_sets_variable(node, ctx->source)) {
         return;
     }
 
@@ -6575,6 +6816,9 @@ static void extract_func_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec 
             return;
     }
     cbm_defs_push(&ctx->result->defs, a, def);
+    if (ctx->language == CBM_LANG_MAKEFILE && strcmp(ts_node_type(node), "rule") == 0) {
+        push_make_rule_targets(ctx, node, &def);
+    }
 }
 
 // --- Class definition extraction ---
@@ -6724,10 +6968,22 @@ static bool is_markdown_heading_kind(const char *kind) {
  * with nested subsections as further `section` children that own their own
  * text. Stopping at either a `section` or another heading therefore gives each
  * Section exactly its OWN body under both that shape and a flat one. The bytes
- * between are contiguous in the source, so one slice beats concatenation. */
-static const char *extract_markdown_section_body(CBMArena *a, TSNode heading, const char *source) {
+ * between are contiguous in the source, so one slice beats concatenation.
+ *
+ * A top-level diagram fence (```mermaid, plantuml, dot, d2 ...) is the one
+ * exception: the body keeps the labels its diagram parser reads, not the
+ * format's syntax. Arrows and keywords (`-->`, `participant`, `classDiagram`)
+ * name no code and crowd the prose out of the 500-byte cap, while the labels
+ * are what name the code. Judged on held-out sections that embed diagrams,
+ * labels gave more sections a correct code candidate (56 vs 42 of 147) at a
+ * higher precision (0.54 vs 0.45) than the fence as written; dropping the
+ * fence lost candidates (29). The diagram itself keeps its own nodes. */
+static const char *extract_markdown_section_body(CBMExtractCtx *ctx, TSNode heading) {
+    CBMArena *a = ctx->arena;
+    const char *source = ctx->source;
     uint32_t start = ts_node_end_byte(heading);
     uint32_t end = start;
+    int fences = 0;
     for (TSNode sib = ts_node_next_sibling(heading); !ts_node_is_null(sib);
          sib = ts_node_next_sibling(sib)) {
         const char *sk = ts_node_type(sib);
@@ -6735,11 +6991,57 @@ static const char *extract_markdown_section_body(CBMArena *a, TSNode heading, co
             break;
         }
         end = ts_node_end_byte(sib);
+        fences += cbm_diagram_fence_is_diagram(source, sib);
     }
     if (end <= start) {
         return NULL;
     }
-    return collapse_prose(a, source + start, (size_t)(end - start));
+    if (fences == 0) {
+        return collapse_prose(a, source + start, (size_t)(end - start));
+    }
+    /* The body with each diagram fence replaced by its labels. */
+    const char **labels = (const char **)cbm_arena_alloc(a, (size_t)fences * sizeof(char *));
+    if (!labels) {
+        return NULL;
+    }
+    size_t total = 0;
+    int k = 0;
+    for (TSNode sib = ts_node_next_sibling(heading); !ts_node_is_null(sib) && k < fences;
+         sib = ts_node_next_sibling(sib)) {
+        if (cbm_diagram_fence_is_diagram(source, sib)) {
+            labels[k] = cbm_diagram_fence_labels(ctx, sib);
+            total += labels[k] ? strlen(labels[k]) + SKIP_ONE : 0;
+            k++;
+        }
+    }
+    char *buf = (char *)cbm_arena_alloc(a, (size_t)(end - start) + total + SKIP_ONE);
+    if (!buf) {
+        return NULL;
+    }
+    size_t w = 0;
+    uint32_t prev = start;
+    k = 0;
+    for (TSNode sib = ts_node_next_sibling(heading); !ts_node_is_null(sib) && k < fences;
+         sib = ts_node_next_sibling(sib)) {
+        if (!cbm_diagram_fence_is_diagram(source, sib)) {
+            continue;
+        }
+        uint32_t sb = ts_node_start_byte(sib);
+        memcpy(buf + w, source + prev, sb - prev);
+        w += sb - prev;
+        if (labels[k]) {
+            size_t n = strlen(labels[k]);
+            memcpy(buf + w, labels[k], n);
+            w += n;
+            buf[w++] = ' ';
+        }
+        k++;
+        prev = ts_node_end_byte(sib);
+    }
+    memcpy(buf + w, source + prev, end - prev);
+    w += end - prev;
+    buf[w] = '\0';
+    return collapse_prose(a, buf, w);
 }
 
 /* Push a config-language definition that carries prose. push_simple_class_def
@@ -6880,6 +7182,19 @@ static char *find_ini_section_name(CBMArena *a, TSNode node, const char *source)
     return NULL;
 }
 
+// HCL: a top-level block (resource, data, module, variable, output, locals,
+// provider, terraform; Terragrunt's include, dependency, ...) sits directly in
+// the file's body. Blocks nested in one (lifecycle, dynamic, content, a
+// resource's own argument blocks) are part of it, not entities of their own.
+static bool hcl_block_is_top_level(TSNode node) {
+    TSNode body = ts_node_parent(node);
+    if (ts_node_is_null(body) || strcmp(ts_node_type(body), "body") != 0) {
+        return false;
+    }
+    TSNode file = ts_node_parent(body);
+    return !ts_node_is_null(file) && strcmp(ts_node_type(file), "config_file") == 0;
+}
+
 // HCL: extract block name from identifier child.
 static char *find_hcl_block_name(CBMArena *a, TSNode node, const char *source) {
     TSNode id = cbm_find_child_by_kind(node, "identifier");
@@ -6939,9 +7254,9 @@ static bool extract_config_class_def(CBMExtractCtx *ctx, TSNode node, const char
         // "Class"; that assertion is the inaccurate side and is flagged for review.
         label = "Section";
         // #518: index what the section SAYS, not just its title.
-        docstring = extract_markdown_section_body(a, node, ctx->source);
+        docstring = extract_markdown_section_body(ctx, node);
     } else if (ctx->language == CBM_LANG_HCL && strcmp(kind, "block") == 0) {
-        name = find_hcl_block_name(a, node, ctx->source);
+        name = hcl_block_is_top_level(node) ? find_hcl_block_name(a, node, ctx->source) : NULL;
     } else {
         return false;
     }
@@ -9994,6 +10309,31 @@ static void extract_yaml_toplevel_keys(CBMExtractCtx *ctx, TSNode root) {
     }
 }
 
+// True when the YAML document's top level holds both `apiVersion` and `kind`:
+// a Kubernetes object, whose top-level keys are its envelope.
+static bool yaml_is_k8s_object(CBMExtractCtx *ctx, TSNode root) {
+    TSNode bm = find_yaml_toplevel_mapping(root);
+    if (ts_node_is_null(bm)) {
+        return false;
+    }
+    bool api_version = false;
+    bool kind = false;
+    uint32_t n = ts_node_named_child_count(bm);
+    for (uint32_t i = 0; i < n && !(api_version && kind); i++) {
+        TSNode pair = ts_node_named_child(bm, i);
+        if (strcmp(ts_node_type(pair), "block_mapping_pair") != 0) {
+            continue;
+        }
+        TSNode key = ts_node_child_by_field_name(pair, TS_FIELD("key"));
+        const char *k = ts_node_is_null(key) ? NULL : cbm_node_text(ctx->arena, key, ctx->source);
+        if (k) {
+            api_version = api_version || strcmp(k, "apiVersion") == 0;
+            kind = kind || strcmp(k, "kind") == 0;
+        }
+    }
+    return api_version && kind;
+}
+
 static void extract_variables(CBMExtractCtx *ctx, TSNode root, const CBMLangSpec *spec) {
     if (!spec->variable_node_types || !spec->variable_node_types[0]) {
         return;
@@ -10005,10 +10345,37 @@ static void extract_variables(CBMExtractCtx *ctx, TSNode root, const CBMLangSpec
         return;
     }
 
+    // A Kubernetes object's top-level keys (apiVersion, kind, metadata, spec,
+    // status) are its envelope, which its Resource node carries; as Variables
+    // they repeated in every manifest and fed name-similarity config links.
+    if (ctx->language == CBM_LANG_YAML && yaml_is_k8s_object(ctx, root)) {
+        return;
+    }
+
     // Config languages with nested structure: use recursive walk
     if (ctx->language == CBM_LANG_YAML || ctx->language == CBM_LANG_TOML ||
         ctx->language == CBM_LANG_INI || ctx->language == CBM_LANG_JSON) {
         walk_variables_iter(ctx, root, spec);
+        return;
+    }
+
+    /* HCL: a file's own assignments -- a .tfvars file, Terragrunt's `inputs`
+     * -- sit in the top-level body, one level below the root the generic loop
+     * scans, so none was extracted. Attributes inside blocks belong to their
+     * block. */
+    if (ctx->language == CBM_LANG_HCL) {
+        TSNode body = cbm_find_child_by_kind(root, "body");
+        uint32_t n = ts_node_is_null(body) ? 0 : ts_node_named_child_count(body);
+        for (uint32_t i = 0; i < n; i++) {
+            TSNode attr = ts_node_named_child(body, i);
+            if (strcmp(ts_node_type(attr), "attribute") != 0) {
+                continue;
+            }
+            TSNode id = cbm_find_child_by_kind(attr, "identifier");
+            if (!ts_node_is_null(id)) {
+                push_var_def(ctx, cbm_node_text(ctx->arena, id, ctx->source), attr);
+            }
+        }
         return;
     }
 
@@ -12098,6 +12465,10 @@ void cbm_extract_definitions(CBMExtractCtx *ctx) {
     ctx->result->module_doc = extract_module_doc(ctx);
 
     cbm_extract_definitions_without_module(ctx);
+    if (ctx->language == CBM_LANG_PERL) {
+        /* after the subs: the POD sections they hold are not the module's */
+        ctx->result->module_doc = doc_perl_module(ctx);
+    }
 
     if (ctx->language == CBM_LANG_JAVASCRIPT || ctx->language == CBM_LANG_TYPESCRIPT ||
         ctx->language == CBM_LANG_TSX || ctx->language == CBM_LANG_ARKTS) {
