@@ -1,0 +1,25 @@
+internal/cbm/lsp/cs_lsp.c
+  s_89e0e529609f03::t_57e6488236096c 3886
+tests/test_pipeline.c
+  s_89e0e529609f03::t_57e6488236096c 3528-3530,3566
+src/pipeline/pass_k8s.c
+  s_89e0e529609f03::t_0a293ec7c3a3e4 831-832
+  s_89e0e529609f03::t_57e6488236096c 830,833-836,1013-1014
+  s_89e0e529609f03::t_c0c26b89221770 1015
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba26041d53c88486b5fb3c970eba2e8b65231265",
+  "prompts": {},
+  "sessions": {
+    "s_89e0e529609f03": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13401-1cd0-7261-a597-74c8eb5018db",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
