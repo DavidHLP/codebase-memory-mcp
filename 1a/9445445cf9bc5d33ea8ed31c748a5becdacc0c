@@ -1,0 +1,19 @@
+src/pipeline/pass_parallel.c
+  s_89e0e529609f03::t_fdf12a37ca79d3 3425
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a9445445cf9bc5d33ea8ed31c748a5becdacc0c",
+  "prompts": {},
+  "sessions": {
+    "s_89e0e529609f03": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13401-1cd0-7261-a597-74c8eb5018db",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
