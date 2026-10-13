@@ -1,0 +1,2503 @@
+graph-ui/src/galaxy/AgentLayer.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-797
+graph-ui/src/layout/ExplainZone.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-159
+graph-ui/src/agents/agent-preference.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/architecture/semantic-graph.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-648
+graph-ui/src/galaxy/organic-clusters.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-335
+graph-ui/src/provider/engine-errors.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/src/projects/add-project-index.css
+  s_89e0e529609f03::t_22256569c33ccd 1-45
+graph-ui/src/galaxy/graph-neighborhood-cache.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-122
+graph-ui/src/twin/reader-level-store.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-84
+graph-ui/verification/w13/reader.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1350
+graph-ui/verification/pr-2068/repair-map-eof-failure.json
+  s_89e0e529609f03::t_22256569c33ccd 1-36
+graph-ui/tools/lib/handtest-profile.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-7
+graph-ui/src/ui/tooltip/Hint.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-384
+graph-ui/src/projects/ProjectSwitcher.refresh.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-65
+graph-ui/src/pseudocode/flow-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-238
+graph-ui/src/galaxy/graph-scope.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-508
+graph-ui/src/agents/activity-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/verification/w1/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/traces/bug-paths.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-724
+graph-ui/verification/pr-2068/errors-reviewed-local-report.txt
+  s_89e0e529609f03::t_22256569c33ccd 1
+graph-ui/fixtures/atlas-sample/src/services/orderService.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-35
+graph-ui/src/browser-ai/ChatMarkdown.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-61
+graph-ui/src/why/why-store.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/architecture/tab-row-position.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-29
+graph-ui/src/twin/SelectedCodePanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-188
+graph-ui/src/impact/change-analysis.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-97
+graph-ui/src/provider/closure.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-324
+graph-ui/src/architecture/BehaviorJourney.start-current.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-71
+graph-ui/tests/scaffold/w5a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-86
+graph-ui/src/core/step-badge-decorator.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-89
+graph-ui/src/galaxy/types.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/provider/rpc-client.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-461
+graph-ui/src/twin/SelectedCodePanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-211
+graph-ui/src/twin/__fixtures__/create-user-ir.json
+  s_89e0e529609f03::t_22256569c33ccd 1-566
+graph-ui/tools/handtest-fixes-chat.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1114
+graph-ui/src/architecture/SourceMetricsDetails.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/galaxy/node-names.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-95
+graph-ui/src/browser-ai/chat-history-cache.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-273
+graph-ui/tools/agent-bridge.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-440
+graph-ui/tools/smoke-w11a.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1636
+graph-ui/src/galaxy/HierarchyEdgeLabels.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-209
+graph-ui/verification/pr-2068/impact-real-response.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1933
+graph-ui/tests/scaffold/release-proof-binding.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/architecture/source-evidence.css
+  s_89e0e529609f03::t_22256569c33ccd 1-22
+graph-ui/src/twin/selected-code.css
+  s_89e0e529609f03::t_22256569c33ccd 1-82
+graph-ui/src/browser-ai/AgentSettingsDialog.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-26
+graph-ui/src/architecture/container-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-187
+graph-ui/src/architecture/scene-palette.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/src/galaxy/galaxy-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-162
+graph-ui/src/app/feature-flags.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-42
+graph-ui/src/test-support/twin-fixtures.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-101
+graph-ui/verification/pr-2068/coverage-investigation.json
+  s_89e0e529609f03::t_22256569c33ccd 1-6026
+graph-ui/src/app/ready-twin-target.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-38
+graph-ui/src/architecture/architecture-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-125
+graph-ui/tools/lib/operational-client-reference.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-66
+graph-ui/tools/smoke-w4d.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-888
+graph-ui/src/diagnostics/useDaemonLogFeed.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/tests/scaffold/w14.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-227
+graph-ui/src/llm/policy.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-143
+graph-ui/src/projects/project-switcher-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-17
+graph-ui/src/galaxy/frame-rate.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-306
+graph-ui/src/impact/risk-rules.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-170
+graph-ui/tools/eval-check.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-587
+graph-ui/verification/pr-2068/repair-drawer-eof-api.json
+  s_89e0e529609f03::t_22256569c33ccd 1-30
+graph-ui/src/galaxy/GalaxyPanel.toolbar.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-121
+graph-ui/src/app/AtlasTree.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-305
+graph-ui/fixtures/adr/voting-services.md
+  s_89e0e529609f03::t_22256569c33ccd 1-25
+graph-ui/src/architecture/SourceEvidenceDrawer.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-214
+graph-ui/src/browser-ai/galaxy-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-83
+graph-ui/verification/w14/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-81
+graph-ui/fixtures/atlas-sample/src/server.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/src/projects/AddProjectIndexDialog.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-391
+graph-ui/src/why/SelectionContext.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/tools/smoke-w1b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-397
+graph-ui/src/browser-ai/BrowserChatDock.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-1006
+graph-ui/src/checklist/understanding-store.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/verification/w11/motion.json
+  s_89e0e529609f03::t_22256569c33ccd 1-5012
+graph-ui/src/browser-ai/browser-chat.css
+  s_89e0e529609f03::t_22256569c33ccd 1-135
+graph-ui/src/graph/navigation-history.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-110
+graph-ui/src/styles/tokens.css
+  s_89e0e529609f03::t_22256569c33ccd 1-51
+graph-ui/src/galaxy/coverage-shadow.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/galaxy/projected-node-spacing.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-65
+graph-ui/src/styles/terminal.css
+  s_89e0e529609f03::t_22256569c33ccd 1-6886
+graph-ui/src/compiler/fact-recipes.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-243
+tests/test_pipeline.c
+  s_89e0e529609f03::t_9c2743a3825ef0 13-14,16,2315-2375,3415-4017,9646-9653,9655-9671,9673-9901,9970-10100,11047-11057,11059-11076,11078-11083,11085-11086,11088-11108,11110,11112-11115,11117-11119,11123-11548,11850-12490,12492-12699,12701-12715,12717-12721,12724-13079,13232-13233,13249-13253,13262-13263,13270-13273,13400,16860,16862,16864,16866-16874,16876-16879,16881-16886,16890,16892-16898,16900-16909,16932-16936,16945-16988,17504-17505,17519-17520,17522-17532,17535-17536,17541,17758-17786,18230-18232,19387,19389-19390,19431,19434-19436,19438-19444,19446-19450,20417-20657,20665,20757,21697-21702,21723-21730,21770-21773,21800-21810,21858-21986,22111-22237,23049-23127,23129-23159,23164-23170,23265,23280,23285-23288,23390-23391,23464,23535-23536,23539,23545,23555-23565
+graph-ui/agents/hooks/test_atlas_trace.py
+  s_89e0e529609f03::t_22256569c33ccd 1-218
+graph-ui/fixtures/atlas-sample-large/tsconfig.json
+  s_89e0e529609f03::t_22256569c33ccd 1-15
+graph-ui/src/galaxy/selected-node.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-50
+graph-ui/tools/eval-llm.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-762
+graph-ui/tools/smoke-w9.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1190
+graph-ui/tools/lib/eval-bounds.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-86
+graph-ui/src/twin/selected-code-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-84
+graph-ui/src/why/SelectionContext.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-58
+graph-ui/src/provider/compact-rows.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-237
+graph-ui/src/search/find-by-meaning.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-183
+graph-ui/src/browser-ai/use-chat-history.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-151
+graph-ui/src/browser-ai/BrowserChatDock.view.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-96
+graph-ui/src/galaxy/hierarchy-frame.labels.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/src/graph/use-dismissible-menu.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-86
+graph-ui/src/tours/entry-walk.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-158
+graph-ui/src/twin/__fixtures__/ir-createUser.json
+  s_89e0e529609f03::t_22256569c33ccd 1-889
+graph-ui/src/browser-ai/BrowserChatDock.code-questions.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-61
+graph-ui/src/app/shortcuts.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-98
+graph-ui/src/architecture/repository-map.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-120
+graph-ui/verification/w0/spike.json
+  s_89e0e529609f03::t_22256569c33ccd 1-32
+graph-ui/src/galaxy/frame-rate.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/verification/w4/impact.json
+  s_89e0e529609f03::t_22256569c33ccd 1-119
+graph-ui/src/layout/ExplainZone.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-185
+graph-ui/src/browser-ai/explanation-response.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-189
+graph-ui/src/browser-ai/BrowserChatDock.code-facts.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/src/browser-ai/symbol-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/main.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-10,12-22
+graph-ui/THIRD_PARTY.md
+  s_89e0e529609f03::t_22256569c33ccd 1-149
+graph-ui/src/agents/agent-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-270
+graph-ui/src/architecture/RepositoryMap.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-162
+graph-ui/index.html
+  s_89e0e529609f03::t_22256569c33ccd 2,6-8,10
+graph-ui/src/browser-ai/file-outline.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-97
+graph-ui/src/twin/__fixtures__/ir-userService-create.json
+  s_89e0e529609f03::t_22256569c33ccd 1-255
+graph-ui/tests/scaffold/w6b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/verification/w13/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/src/browser-ai/code-facts.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-190
+graph-ui/fixtures/atlas-sample/tsconfig.json
+  s_89e0e529609f03::t_22256569c33ccd 1-15
+graph-ui/src/architecture/useRepositoryGuide.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-28
+graph-ui/src/browser-ai/workflow-facts.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-166
+graph-ui/verification/pr-2068/handoff-recheck/repair-map-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/src/app/keyboard.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-275
+graph-ui/src/settings/config-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-67
+graph-ui/verification/pr-2068/final-index-run.json
+  s_89e0e529609f03::t_22256569c33ccd 1-20
+graph-ui/src/entry/EntryPointDialog.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-215
+graph-ui/src/architecture/use-architecture-history.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-122
+graph-ui/src/app/ready-twin-target.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-24
+graph-ui/verification/pr-2068/manifest-original-delivery.json
+  s_89e0e529609f03::t_22256569c33ccd 1-283
+graph-ui/src/browser-ai/question-intent.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-198
+graph-ui/tests/scaffold/release-blockers.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-75
+graph-ui/tests/scaffold/w4b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-78
+graph-ui/src/impact/ImpactPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-215
+graph-ui/CONFIGURATION.md
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/src/graph/connection-load.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/llm/stop.sh
+  s_89e0e529609f03::t_22256569c33ccd 1-54
+graph-ui/src/agents/agent-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-272
+graph-ui/src/architecture/architecture-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-79
+graph-ui/src/galaxy/projected-node-spacing.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-30
+graph-ui/src/layout/layout-command.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/src/system/useSystemPoll.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-132
+graph-ui/src/app/feature-flags.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-2
+graph-ui/verification/pr-2068/source-evidence-fallback.json
+  s_89e0e529609f03::t_22256569c33ccd 1-18
+graph-ui/verification/w5/flowfix.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1126
+graph-ui/src/compiler/eval-entry.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+src/pipeline/lsp_surface.c
+  s_89e0e529609f03::t_9c2743a3825ef0 23,38,80-356,360-361,369-374,488-491,528-530,645-652
+graph-ui/verification/pr-2068/explore-search-provisional-observation.json
+  s_89e0e529609f03::t_22256569c33ccd 1-318
+graph-ui/tools/smoke-w4e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-782
+graph-ui/src/architecture/system-architecture-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-303
+graph-ui/src/architecture/container-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-116
+graph-ui/tools/smoke-w8.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1249
+graph-ui/agents/hooks/atlas-trace-watch.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-99
+graph-ui/tools/lib/readability.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-906
+graph-ui/src/agents/activity-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-19
+graph-ui/spike/spike.js
+  s_89e0e529609f03::t_22256569c33ccd 1-210
+graph-ui/src/chat/AtlasChatPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-604
+graph-ui/src/architecture/SpatialArchitecture.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-242
+graph-ui/src/galaxy/test-scope-fetch.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/tools/smoke-w10b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1399
+graph-ui/verification/pr-2068/audit-impact.json
+  s_89e0e529609f03::t_22256569c33ccd 1-5357
+graph-ui/verification/pr-2068/before-browser.json
+  s_89e0e529609f03::t_22256569c33ccd 1-7
+graph-ui/verification/pr-2068/feedback-failure-0.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-134
+graph-ui/src/agents/agent-view.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-424
+.github/workflows/_security.yml
+  s_89e0e529609f03::t_22256569c33ccd 24-26,28-30
+graph-ui/src/twin/TwinPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-1995
+graph-ui/tools/pr-2068-agents-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-198
+graph-ui/verification/w7/netdeny-w7b.json
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/src/galaxy/TraceEdgeFilter.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-41
+graph-ui/src/settings/BrowserConfig.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-46
+graph-ui/src/galaxy/RenderProgress.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-23
+graph-ui/src/browser-ai/architecture-evidence.fixture.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-50
+graph-ui/verification/pr-2068/frontend-lifecycle-check.json
+  s_89e0e529609f03::t_22256569c33ccd 1-392
+graph-ui/src/browser-ai/model-policy.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-61
+graph-ui/tests/scaffold/w8.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-90
+graph-ui/src/browser-ai/ChatMarkdown.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-116
+graph-ui/src/settings/view-preferences.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-145
+graph-ui/src/graph/edge-style.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-40
+graph-ui/src/diagnostics/DaemonAlerts.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-150
+graph-ui/src/browser-ai/question-intent.probes.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/src/system/useSystemPoll.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/src/browser-ai/browser-ai-controller.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-82
+graph-ui/src/galaxy/edge-intensity.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-98
+graph-ui/src/architecture/RepositoryMap.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-31
+graph-ui/src/projects/project-switcher.css
+  s_89e0e529609f03::t_22256569c33ccd 1-32
+graph-ui/src/traces/bug-paths.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-533
+graph-ui/src/twin/twin-target.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/chat/chat-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-269
+graph-ui/tests/scaffold/w5c.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-101
+graph-ui/package.json
+  s_89e0e529609f03::t_22256569c33ccd 2-3,6,9-52,55-66,69-87
+graph-ui/tests/scaffold/w11b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-117
+graph-ui/src/agents/AgentsTimeline.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-216
+graph-ui/src/provider/error-observer.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-65
+graph-ui/src/app/coverage-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-118
+graph-ui/src/compiler/answer-contract.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-258
+graph-ui/tests/scaffold/w12-replay-freshness.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-62
+graph-ui/src/browser-ai/embedded-model-assets.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-46
+graph-ui/src/galaxy/marker-names.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/src/architecture/useRepositoryGuide.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-45
+graph-ui/tools/pr-2068-explore-context-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-148
+THIRD_PARTY.md
+  s_89e0e529609f03::t_22256569c33ccd 63-66,78-82
+graph-ui/src/browser-ai/security-ui-model-policy.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/tools/handtest-fixes-k27.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-496
+graph-ui/src/i18n/messages.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-1109
+graph-ui/src/galaxy/selection-hierarchy.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-69
+graph-ui/src/ui/tooltip/tooltip-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-348
+graph-ui/src/agents/agent-preference.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-155
+graph-ui/src/checklist/understanding-store.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-238
+graph-ui/src/app/ui-log-transport.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/src/browser-ai/chat-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-83
+graph-ui/tools/smoke-w7a.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-729
+graph-ui/src/core/step-badge-decorator.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/verification/pr-2068/impact-evidence-check.json
+  s_89e0e529609f03::t_22256569c33ccd 1-19
+graph-ui/src/galaxy/galaxy-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-247
+graph-ui/src/graph/connection-load.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-25
+graph-ui/src/pseudocode/flow-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-373
+graph-ui/verification/pr-2068/manifest.json
+  s_89e0e529609f03::t_22256569c33ccd 1-209
+graph-ui/src/galaxy/GalaxyPanel.selection.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-47
+graph-ui/verification/w4/hierarchy.json
+  s_89e0e529609f03::t_22256569c33ccd 1-804
+graph-ui/src/agents/agent-colors.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-105
+graph-ui/verification/w6/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/architecture/hotspot-map.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-134
+graph-ui/src/ir/semantic-ir-builder.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-448
+graph-ui/verification/w6/audit.json
+  s_89e0e529609f03::t_22256569c33ccd 1-331
+graph-ui/src/twin/__fixtures__/ir-insert.json
+  s_89e0e529609f03::t_22256569c33ccd 1-333
+graph-ui/src/adr/AdrWorkspace.refresh.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-60
+graph-ui/src/architecture/ContainerMap.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-206
+graph-ui/src/architecture/lifted-place.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-32
+graph-ui/src/galaxy/GalaxyPanel.background.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/src/twin/reader-rewrite.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-265
+graph-ui/src/compiler/subject-resolver.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-176
+graph-ui/src/twin/ir-cache.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-144
+graph-ui/src/diagnostics/DaemonAlerts.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-86
+graph-ui/llm/fetch-model.sh
+  s_89e0e529609f03::t_22256569c33ccd 1-134
+graph-ui/src/galaxy/agent-layer.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-129
+graph-ui/src/architecture/BehaviorJourney.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-261
+graph-ui/tools/lib/forbidden-names.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-89
+graph-ui/fixtures/adr/cbm-preview.md
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/tests/scaffold/w2b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-76
+graph-ui/verification/w2/netdeny-w2b.json
+  s_89e0e529609f03::t_22256569c33ccd 1-37
+graph-ui/src/layout/layout-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-269
+graph-ui/src/app/workspace-navigation.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-310
+graph-ui/src/app/ui-log.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-383
+graph-ui/src/projects/AddProjectIndexDialog.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-276
+graph-ui/tools/license-build-inventory.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-110
+graph-ui/src/architecture/ArchitecturePanel.history.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-597
+graph-ui/src/browser-ai/strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-617
+graph-ui/src/agents/ActivityPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-96
+graph-ui/tools/lib/chrome-scan.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-334
+graph-ui/src/browser-ai/chat-wording.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-314
+graph-ui/src/agents/agent-placement.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-292
+graph-ui/src/galaxy/galaxy-strings.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-69
+graph-ui/verification/pr-2068/audit-context-steady.json
+  s_89e0e529609f03::t_22256569c33ccd 1-15
+graph-ui/src/browser-ai/file-kind.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-25
+graph-ui/fixtures/atlas-sample/src/repo/db.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-66
+graph-ui/tests/scaffold/w15.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/src/browser-ai/reader-chat-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-70
+graph-ui/src/architecture/system-architecture-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-417
+graph-ui/src/why/selection-context.css
+  s_89e0e529609f03::t_22256569c33ccd 1-14
+graph-ui/tests/scaffold/w4a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-79
+graph-ui/tests/scaffold/w8b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-100
+graph-ui/src/architecture/spatial-architecture.css
+  s_89e0e529609f03::t_22256569c33ccd 1-95
+graph-ui/tools/lib/eval-citation-summary.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-28
+graph-ui/src/app/ui-log-install.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-241
+graph-ui/src/llm/llm-state.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-46
+graph-ui/src/layout/explain-tabs.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-72
+graph-ui/src/galaxy/layout-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-182
+graph-ui/src/galaxy/selected-node.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-36
+graph-ui/src/architecture/container-layout.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-101
+graph-ui/src/galaxy/use-graph-scope.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-176
+graph-ui/src/i18n/messages.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-101
+graph-ui/src/architecture/ArchitectureScene.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-417
+graph-ui/src/architecture/operation-choices.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-108
+graph-ui/src/twin/twin-view-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-308
+graph-ui/src/search/local-suggestions.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-115
+graph-ui/verification/w7/netdeny-w7c.json
+  s_89e0e529609f03::t_22256569c33ccd 1-41
+graph-ui/src/core/tour-protocol.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-197
+graph-ui/src/llm/strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-151
+graph-ui/src/help/HelpOverlay.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-300
+graph-ui/tests/scaffold/w10.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-112
+graph-ui/src/browser-ai/relationship-answer.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-273
+graph-ui/src/core/trace-protocol.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/galaxy/use-graph-scope.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-153
+graph-ui/src/projects/ProjectSwitcher.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/src/graph/edge-motion.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-41
+graph-ui/src/tours/tour-generator.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-694
+graph-ui/src/core/focus-protocol.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-102
+graph-ui/tests/scaffold/w6a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-91
+graph-ui/src/agents/agent-store.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-392
+graph-ui/verification/w12a/command-overlay.json
+  s_89e0e529609f03::t_22256569c33ccd 1-35
+graph-ui/src/system/system-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-94
+graph-ui/src/browser-ai/explanation-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-223
+graph-ui/src/galaxy/galaxy-legend.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-330
+graph-ui/src/architecture/repository-guide.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-121
+graph-ui/tools/lib/static-proxy.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-174
+graph-ui/spike/index.html
+  s_89e0e529609f03::t_22256569c33ccd 1-111
+graph-ui/src/app/WelcomePanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-43
+graph-ui/src/impact/ChangeAnalysisWorkspace.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-164
+graph-ui/tools/smoke-w10.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-3069
+graph-ui/verification/w11/agents.json
+  s_89e0e529609f03::t_22256569c33ccd 1-3101
+graph-ui/agents/hooks/atlas-trace.py
+  s_89e0e529609f03::t_22256569c33ccd 1-256
+graph-ui/fixtures/agent-events/w11a-replay.jsonl
+  s_89e0e529609f03::t_22256569c33ccd 1-45
+graph-ui/src/twin/ir-cache.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-156
+graph-ui/src/adr/AdrWorkspace.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-344
+graph-ui/src/browser-ai/use-chat-history.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-188
+graph-ui/src/galaxy/branch-names.scene.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-113
+graph-ui/src/app/shortcuts.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-132
+graph-ui/src/twin/presentation-profile.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-144
+graph-ui/src/agents/agent-motion.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-402
+graph-ui/src/browser-ai/BrowserChatDock.ask-model.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/traces/bug-wizard-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-165
+graph-ui/tools/lib/socket-sampler.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-163
+graph-ui/src/galaxy/GalaxyNavigator.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-59
+graph-ui/src/ui/refresh/refresh-feedback.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-83
+graph-ui/verification/pr-2068/log-archives.json
+  s_89e0e529609f03::t_22256569c33ccd 1-239
+graph-ui/tools/lib/eval-citation-summary.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-17
+graph-ui/src/browser-ai/explanation-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-341
+graph-ui/verification/pr-2068/change-analysis-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-859
+graph-ui/src/entry/EntryPointDialog.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-183
+graph-ui/src/galaxy/reader-hierarchy.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-121
+graph-ui/verification/w6/stylegate.json
+  s_89e0e529609f03::t_22256569c33ccd 1-626
+graph-ui/src/ui/refresh/refresh.css
+  s_89e0e529609f03::t_22256569c33ccd 1-6
+graph-ui/src/agents/activity.css
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/tools/smoke-w4a.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-671
+graph-ui/src/provider/rpc-transport.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-342
+graph-ui/src/App.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-608,611-718,721-737,740-4962,4964-4977,4979-5032
+graph-ui/src/app/keyboard.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-199
+graph-ui/tools/capture-pr2068-current.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-12
+graph-ui/verification/pr-2068/feedback-e2e-first-run.json
+  s_89e0e529609f03::t_22256569c33ccd 1-646
+graph-ui/src/galaxy/GraphScene.camera.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-87
+graph-ui/docs/adr/0001-modellwahl.md
+  s_89e0e529609f03::t_22256569c33ccd 1-70
+graph-ui/src/graph/use-dismissible-menu.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-57
+graph-ui/src/tours/tour-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/src/why/selection-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-67
+graph-ui/src/browser-ai/agent-preferences.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/src/twin/__fixtures__/ir-getOrder.json
+  s_89e0e529609f03::t_22256569c33ccd 1-377
+graph-ui/src/pseudocode/imports-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-255
+graph-ui/src/galaxy/GalaxyNavigator.rank.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-24
+graph-ui/src/galaxy/reader-hierarchy.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-68
+graph-ui/src/system/IndexesPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-115
+graph-ui/tools/pr-2068-final-comparison.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-61
+graph-ui/src/agents/AgentsHud.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-759
+graph-ui/src/browser-ai/workflow-facts.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-79
+graph-ui/src/browser-ai/galaxy-evidence.fixture.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/architecture/BehaviorSourceEvidence.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-35
+graph-ui/src/ui/tooltip/Hint.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-277
+graph-ui/eval/questions.json
+  s_89e0e529609f03::t_22256569c33ccd 1-357
+graph-ui/src/galaxy/scope-path.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-67
+graph-ui/src/pseudocode/__fixtures__/HERKUNFT.md
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/provider/compact-references.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-88
+graph-ui/src/diagnostics/diagnostics.css
+  s_89e0e529609f03::t_22256569c33ccd 1-37
+graph-ui/src/agents/agent-source.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-98
+graph-ui/src/galaxy/GalaxyPanel.expand-loading.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/tools/smoke-w5b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-847
+graph-ui/src/traces/trace-schemas.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-192
+tests/test_registry.c
+  s_89e0e529609f03::t_9c2743a3825ef0 2037-2300,2302-2307
+graph-ui/tests/scaffold/w1.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-83
+graph-ui/verification/w4/netdeny-w4e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-29
+graph-ui/src/browser-ai/galaxy-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-55
+graph-ui/src/diagnostics/DiagnosticsPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-98
+graph-ui/src/twin/__fixtures__/ir-query.json
+  s_89e0e529609f03::t_22256569c33ccd 1-440
+graph-ui/src/why/WhyPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-93
+graph-ui/tools/lib/eval-bounds.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/twin/render-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-1385
+graph-ui/tools/smoke-w11b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-2142
+graph-ui/verification/pr-2068/provider-search-fix.json
+  s_89e0e529609f03::t_22256569c33ccd 1-211
+graph-ui/verification/pr-2068/change-analysis-compact-layout-failure.json
+  s_89e0e529609f03::t_22256569c33ccd 1-489
+graph-ui/verification/pr-2068/feedback-live-migration.json
+  s_89e0e529609f03::t_22256569c33ccd 1-138
+graph-ui/src/browser-ai/security-download-origins.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-35
+graph-ui/src/browser-ai/BrowserAiPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-66
+graph-ui/verification/w2/reader.json
+  s_89e0e529609f03::t_22256569c33ccd 1-242
+graph-ui/src/reader/step-badges.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-146
+src/pipeline/registry.c
+  s_89e0e529609f03::t_9c2743a3825ef0 448,1480-1486,1488-1505,1507-1518,1770-1771,1804,1856-1859,1867-1870,1873,1889-1893,1897,2331-2347,2464,2467-2468,2513
+graph-ui/src/app/coverage-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-211
+graph-ui/src/architecture/label-space.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-112
+graph-ui/tests/scaffold/w10b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-69
+graph-ui/verification/w3/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/galaxy/hover-layer.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-47
+graph-ui/src/graph/useGraphBackgroundReset.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-30
+graph-ui/src/browser-ai/echo-answer.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-35
+graph-ui/tools/style-gate.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-289
+graph-ui/src/galaxy/reader-graph-focus.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-54
+graph-ui/src/architecture/container-map.css
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/verification/w4/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/chat/chat-client.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-229
+graph-ui/src/galaxy/selection-hierarchy.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-95
+graph-ui/src/compiler/fact-recipes.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-766
+src/pipeline/doc_links_pdf.c
+  s_89e0e529609f03::t_9c2743a3825ef0 383-392,429
+graph-ui/src/browser-ai/proactive-selection.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-45
+graph-ui/verification/w6/release.json
+  s_89e0e529609f03::t_22256569c33ccd 1-2049
+graph-ui/src/browser-ai/browser-chat-css.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-28
+graph-ui/src/provider/rpc-schemas.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-689
+src/pipeline/pass_calls.c
+  s_89e0e529609f03::t_9c2743a3825ef0 384-562,569,594,641-645,683-690,703-707,770-773,782-783,795-796,800,855-857,869-874,901,942-947,954,1001-1003,1056,1077-1093,1223,1229,1391-1392,1405,1413-1414,1420,1423,1494-1495
+  s_89e0e529609f03::t_60c2946c20ea99 988
+graph-ui/verification/pr-2068/final-agent-diagnosis-restart.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1302
+graph-ui/tools/handtest-fixes-architecture.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-700
+graph-ui/src/impact/change-set.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-62
+graph-ui/src/browser-ai/file-facts.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-169
+graph-ui/fixtures/atlas-sample/src/routes/users.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-18
+graph-ui/src/app/AtlasChrome.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-821
+graph-ui/src/browser-ai/file-outline.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-205
+graph-ui/src/core/hash.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-194
+graph-ui/verification/pr-2068/coverage-ui-check.json
+  s_89e0e529609f03::t_22256569c33ccd 1-434
+graph-ui/src/pseudocode/block-lead.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-94
+graph-ui/verification/w6/evalcheck.json
+  s_89e0e529609f03::t_22256569c33ccd 1-2378
+graph-ui/src/system/system.css
+  s_89e0e529609f03::t_22256569c33ccd 1-71
+graph-ui/verification/pr-2068/repair-map-transport.json
+  s_89e0e529609f03::t_22256569c33ccd 1-59
+graph-ui/.gitignore
+  s_89e0e529609f03::t_22256569c33ccd 1-60
+graph-ui/src/app/tree-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-588
+graph-ui/src/app/project-windows.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-115
+graph-ui/verification/pr-2068/agent-setup-integration.json
+  s_89e0e529609f03::t_22256569c33ccd 1-37
+graph-ui/src/galaxy/marker-names.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-90
+graph-ui/src/browser-ai/BrowserChatDock.wording.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-192
+graph-ui/src/galaxy/selection-evidence.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-114
+graph-ui/src/search/path-query.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-7
+graph-ui/src/compiler/__fixtures__/fake-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-299
+graph-ui/src/galaxy/PathLayer.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-191
+graph-ui/src/galaxy/display-settings.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-184
+graph-ui/fixtures/adr/train-ticket.md
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/src/compiler/prompt-contract.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-351
+graph-ui/src/browser-ai/code-facts.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-68
+graph-ui/src/browser-ai/model-policy.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-118
+graph-ui/src/layout/explain-tabs.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-132
+graph-ui/src/system/system-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-84
+graph-ui/src/tours/entry-walk.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-179
+graph-ui/verification/pr-2068/before-feedback-errors/errors-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-984
+graph-ui/src/browser-ai/chat-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-153
+graph-ui/src/browser-ai/chat-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-78
+graph-ui/src/twin/mini-understanding.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-278
+graph-ui/verification/w4/tours.json
+  s_89e0e529609f03::t_22256569c33ccd 1-298
+graph-ui/verification/w5/netdeny-w5c.json
+  s_89e0e529609f03::t_22256569c33ccd 1-25
+graph-ui/src/browser-ai/echo-answer.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-51
+graph-ui/src/pseudocode/step-insights.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-163
+graph-ui/src/browser-ai/reader-chat-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/tools/smoke-w3.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-597
+graph-ui/src/galaxy/ScreenNodeSeparation.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-91
+graph-ui/src/twin/render-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-616
+graph-ui/src/chat/ask-atlas.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-126
+graph-ui/src/galaxy/hover-layer.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-99
+graph-ui/src/test-support/rpc-recordings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-254
+graph-ui/fixtures/atlas-sample/src/util/validate.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-38
+graph-ui/src/galaxy/graph-exploration.css
+  s_89e0e529609f03::t_22256569c33ccd 1-143
+graph-ui/src/settings/configuration.css
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/verification/w15/hybrid.json
+  s_89e0e529609f03::t_22256569c33ccd 1-261
+internal/cbm/extract_calls.c
+  s_89e0e529609f03::t_9c2743a3825ef0 7,81-88,2440-2463,2476-2480,2490,2516-2517,2535,2595-2602,2614-2618,2644,2666,2668-2672,2743,2758,2771-2774,2851-2879,2885-2887,2936,2945-2947,2978-2982,4060-4067,4071-4098
+graph-ui/src/projects/project-picker-placement.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-15
+graph-ui/src/agents/agent-motion.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-217
+graph-ui/src/traces/BugWizard.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-227
+graph-ui/src/twin/TwinPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-714
+graph-ui/verification/pr-2068/change-analysis-e2e-failure-dom.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-2077
+graph-ui/verification/w7/search.json
+  s_89e0e529609f03::t_22256569c33ccd 1-942
+graph-ui/verification/pr-2068/repository-snapshot.json
+  s_89e0e529609f03::t_22256569c33ccd 1-15
+graph-ui/fixtures/atlas-sample-large/src/support.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/provider/route-reader.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-202
+graph-ui/src/galaxy/node-names.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-50
+graph-ui/src/reader/MonacoReader.selection.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-99
+graph-ui/src/galaxy/toolbar-fit.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-110
+graph-ui/src/compiler/question-classifier.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-269
+graph-ui/src/galaxy/organic-clusters.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-168
+graph-ui/src/impact/route-scan.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-89
+graph-ui/src/architecture/source-metrics.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-166
+graph-ui/src/agents/agent-view.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-124
+graph-ui/src/browser-ai/architecture-evidence.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-237
+graph-ui/src/core/semantic-ir.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-298
+graph-ui/src/architecture/ArchitecturePanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-230
+graph-ui/tests/scaffold/release-current.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-102
+graph-ui/src/tours/TourCard.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-164
+graph-ui/tests/scaffold/w11a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-110
+graph-ui/tests/scaffold/w3.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-82
+graph-ui/tools/lib/cbm-server.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-173
+graph-ui/verification/w5/models.json
+  s_89e0e529609f03::t_22256569c33ccd 1-100
+graph-ui/llm/start.sh
+  s_89e0e529609f03::t_22256569c33ccd 1-280
+graph-ui/src/app/ui-log-install.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-257
+graph-ui/src/galaxy/scope-path.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/src/chat/chat-client.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/tools/audit-pr2068-architecture.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-51
+graph-ui/src/agents/agent-colors.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-141
+graph-ui/src/why/SelectionContext.branch.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-50
+graph-ui/src/twin/strings.honesty.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-162
+graph-ui/tools/smoke-w12a.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-220
+graph-ui/verification/pr-2068/audit-architecture.json
+  s_89e0e529609f03::t_22256569c33ccd 1-2142
+graph-ui/src/app/coverage-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-170
+graph-ui/verification/pr-2068/before-feedback-errors/errors-reviewed-local-report.txt
+  s_89e0e529609f03::t_22256569c33ccd 1
+graph-ui/tools/lib/chrome-scan.d.mts
+  s_89e0e529609f03::t_22256569c33ccd 1-31
+graph-ui/src/architecture/system-architecture.css
+  s_89e0e529609f03::t_22256569c33ccd 1-134
+graph-ui/src/browser-ai/chat-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-205
+docs/CONFIGURATION.md
+  s_89e0e529609f03::t_22256569c33ccd 91
+graph-ui/src/browser-ai/browser-ai.css
+  s_89e0e529609f03::t_22256569c33ccd 1-37
+graph-ui/src/chat/AtlasChatPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-362
+graph-ui/fixtures/atlas-sample-large/HERKUNFT.md
+  s_89e0e529609f03::t_22256569c33ccd 1-10
+graph-ui/src/provider/fixtures/application-class.compact.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-18
+graph-ui/src/graph/EdgePulseLayer.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-192
+graph-ui/src/twin/twin-view-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-730
+graph-ui/src/architecture/repository-guide.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-66
+graph-ui/src/agents/agent-placement.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-182
+graph-ui/tools/smoke-w8c.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-876
+graph-ui/src/galaxy/GraphScene.stacking.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-37
+graph-ui/fixtures/atlas-sample-large/package.json
+  s_89e0e529609f03::t_22256569c33ccd 1-8
+graph-ui/src/app/module-qn.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-101
+graph-ui/src/browser-ai/view-answer.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-91
+graph-ui/src/browser-ai/galaxy-evidence.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-201
+graph-ui/src/impact/change-analysis.css
+  s_89e0e529609f03::t_22256569c33ccd 1-30
+graph-ui/src/ui/refresh/strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-6
+graph-ui/src/tours/tour-player.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-117
+graph-ui/verification/pr-2068/final-agent-boundary-initial-unavailable.json
+  s_89e0e529609f03::t_22256569c33ccd 1-31
+graph-ui/src/architecture/SystemArchitectureScene.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-346
+graph-ui/src/galaxy/GalaxyNavigator.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/src/galaxy/RenderProgress.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-54
+graph-ui/src/core/intelligence-provider.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-627
+graph-ui/tools/call-feedback-acceptance.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-25
+graph-ui/src/search/SearchOverlay.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-68
+graph-ui/src/pseudocode/__fixtures__/closure-userService-create.json
+  s_89e0e529609f03::t_22256569c33ccd 1-217
+graph-ui/src/impact/impact-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-186
+graph-ui/tests/scaffold/operational-client-reference.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/src/provider/compact-rows.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-488
+graph-ui/src/twin/__fixtures__/ir-orderService-create.json
+  s_89e0e529609f03::t_22256569c33ccd 1-255
+graph-ui/verification/pr-2068/promises.json
+  s_89e0e529609f03::t_22256569c33ccd 1-106
+graph-ui/src/app/agent-status.css
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/src/diagnostics/DiagnosticsPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-119
+graph-ui/src/galaxy/path-layer.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-42
+graph-ui/src/adr/adr.css
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/galaxy/screen-node-spacing.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-72
+graph-ui/src/settings/ConfigPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-163
+graph-ui/verification/pr-2068/audit-manifest.json
+  s_89e0e529609f03::t_22256569c33ccd 1-58
+graph-ui/src/galaxy/TraceEdgeFilter.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-99
+graph-ui/tests/scaffold/w14-leaf-honesty.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/src/help/HelpOverlay.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-208
+graph-ui/tools/pr-2068-repair-map-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-74
+graph-ui/verification/w3/galaxy.json
+  s_89e0e529609f03::t_22256569c33ccd 1-137
+graph-ui/tests/scaffold/w13.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-78
+graph-ui/src/galaxy/hierarchy-index-edges.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-242
+graph-ui/src/projects/ProjectsPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-385
+graph-ui/fixtures/atlas-sample/src/config.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-22
+graph-ui/src/app/atlas-api.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-163
+graph-ui/tools/smoke-w15.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-364
+graph-ui/verification/w5/chat.json
+  s_89e0e529609f03::t_22256569c33ccd 1-518
+graph-ui/src/settings/model-catalog.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-204
+graph-ui/src/galaxy/overlay-opacity.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/architecture/behavior-journey-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-201
+graph-ui/src/diagnostics/diagnostics-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/graph/GraphEdgeControls.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-35
+graph-ui/src/settings/SettingsPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-1136
+graph-ui/verification/pr-2068/errors-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-989
+.github/workflows/_test.yml
+  s_89e0e529609f03::t_22256569c33ccd 259-275,321-342,395-405,423-428,435,493-503,678-687
+  s_89e0e529609f03::t_46d46e1ad1ae5d 688
+graph-ui/src/app/workspace-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-87
+graph-ui/src/graph/edge-style.css
+  s_89e0e529609f03::t_22256569c33ccd 1-10
+graph-ui/src/search/path-search.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-105
+graph-ui/src/browser-ai/galaxy-evidence.folder.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-17
+graph-ui/src/tours/tour-generator.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-440
+graph-ui/src/twin/twin-target.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-116
+graph-ui/fixtures/atlas-sample-large/src/index.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-11
+graph-ui/src/galaxy/galaxy-legend.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-404
+graph-ui/src/why/why-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-198
+graph-ui/src/system/SystemWorkspace.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-178
+graph-ui/src/galaxy/use-organic-layout.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-94
+graph-ui/src/ir/file-uri.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-75
+graph-ui/models/SHA256SUMS
+  s_89e0e529609f03::t_22256569c33ccd 1-7
+graph-ui/verification/w4/coverage.json
+  s_89e0e529609f03::t_22256569c33ccd 1-782
+graph-ui/src/app/key-probe.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-155
+graph-ui/src/galaxy/path-frame.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-97
+graph-ui/tests/scaffold/w12a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-62
+graph-ui/tests/scaffold/w4d.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/src/provider/cbm-rpc-provider.resolve.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-243
+graph-ui/src/browser-ai/browser-ai-runtime.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-124
+graph-ui/src/entry/entry-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-154
+graph-ui/src/app/project-windows.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-107
+graph-ui/src/graph/edge-style.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/src/architecture/hotspot-areas.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-31
+graph-ui/src/architecture/semantic-graph.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-456
+graph-ui/src/impact/route-scan.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-119
+graph-ui/src/galaxy/screen-node-spacing.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-122
+graph-ui/tools/smoke-w5c.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1131
+graph-ui/src/app/build-info.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/src/graph/navigation-history.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-119
+graph-ui/src/why/why-store.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-91
+graph-ui/tools/agent-bridge.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-190
+graph-ui/src/provider/cbm-rpc-provider.facts.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-381
+README.md
+  s_89e0e529609f03::t_22256569c33ccd 38-39,134,136,144-158,251-256,265,744,764,768,801
+graph-ui/src/browser-ai/explanation-response.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-124
+graph-ui/src/galaxy/GraphScene.root-markers.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-65
+graph-ui/src/impact/impact-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-289
+graph-ui/src/reader/step-badges.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-99
+graph-ui/verification/pr-2068/before-feedback-errors/errors-e2e-attempt1.json
+  s_89e0e529609f03::t_22256569c33ccd 1-97
+graph-ui/src/impact/change-set.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-113
+graph-ui/verification/pr-2068/compare-preview.json
+  s_89e0e529609f03::t_22256569c33ccd 1-255
+graph-ui/src/twin/selected-code-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/provider/cypher.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-509
+graph-ui/src/galaxy/GalaxyPanel.reader-focus.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-158
+graph-ui/src/twin/hop-plan.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-88
+graph-ui/tools/pr-2068-errors-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-207
+graph-ui/src/tours/tour-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-77
+graph-ui/src/architecture/ArchitecturePanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-193
+graph-ui/src/provider/closure.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-365
+graph-ui/src/why/selection-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-90
+graph-ui/src/browser-ai/browser-ai-controller.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-78
+graph-ui/tests/scaffold/w0.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-39
+graph-ui/src/browser-ai/agent-settings.css
+  s_89e0e529609f03::t_22256569c33ccd 1-34
+graph-ui/tools/smoke-w2b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-621
+graph-ui/verification/w4/netdeny-w4c.json
+  s_89e0e529609f03::t_22256569c33ccd 1-45
+graph-ui/fixtures/atlas-sample/src/services/userService.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-42
+graph-ui/src/agents/agent-timeline.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-164
+graph-ui/src/browser-ai/agent-handover.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/graph/edge-pulse-geometry.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/src/provider/query-pages.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-51
+graph-ui/tools/freshclone-check.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-292
+graph-ui/src/system/SystemWorkspace.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-215
+graph-ui/src/app/tree-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-967
+graph-ui/src/architecture/SystemArchitecture.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-685
+graph-ui/src/browser-ai/BrowserAiPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-66
+graph-ui/src/impact/ImpactPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-496
+graph-ui/tools/smoke-w1.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-185
+graph-ui/verification/pr-2068/before-dom.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-222
+graph-ui/verification/pr-2068/map-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-570
+graph-ui/verification/w14/symbols.json
+  s_89e0e529609f03::t_22256569c33ccd 1-2131
+graph-ui/src/galaxy/fullscreen-isolation.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-59
+graph-ui/src/compiler/card-compiler.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-246
+graph-ui/verification/w4/netdeny-w4b.json
+  s_89e0e529609f03::t_22256569c33ccd 1-41
+graph-ui/src/browser-ai/BrowserChatDock.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-1681
+graph-ui/src/galaxy/coverage-shadow.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-90
+graph-ui/src/twin/__fixtures__/ir-validateUser.json
+  s_89e0e529609f03::t_22256569c33ccd 1-412
+graph-ui/verification/w2/twin.json
+  s_89e0e529609f03::t_22256569c33ccd 1-156
+graph-ui/verification/pr-2068/explore-context-settled-before-provisional-fix.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1398
+graph-ui/src/galaxy/ScopePathControls.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-70
+graph-ui/src/galaxy/GalaxyPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-3066
+graph-ui/src/galaxy/graph-neighborhood-cache.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-145
+graph-ui/verification/w11/netdeny-w11b.json
+  s_89e0e529609f03::t_22256569c33ccd 1-133
+graph-ui/src/why/WhyPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-87
+graph-ui/src/chat/command-intent.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-70
+graph-ui/src/search/command-examples.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-103
+graph-ui/verification/pr-2068/explore-context-e2e-failure-dom.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-1976
+graph-ui/verification/w12/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-141
+graph-ui/verification/pr-2068/repair-guide-review.json
+  s_89e0e529609f03::t_22256569c33ccd 1-23
+graph-ui/src/app/coverage-strings.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-135
+graph-ui/src/architecture/hotspot-map.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-127
+graph-ui/src/compiler/card-compiler.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-683
+graph-ui/src/browser-ai/BrowserChatDock.config-files.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-23
+graph-ui/src/galaxy/layout-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-126
+graph-ui/tests/scaffold/w12.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-237
+graph-ui/src/galaxy/coverage-shadow-scene.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-61
+graph-ui/src/pseudocode/flow-view.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-106
+graph-ui/src/galaxy/EdgeLines.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-372
+graph-ui/tools/record-demo.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1005
+graph-ui/fixtures/atlas-sample/package.json
+  s_89e0e529609f03::t_22256569c33ccd 1-8
+graph-ui/src/architecture/scene-palette.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-87
+graph-ui/src/galaxy/fullscreen-isolation.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/src/provider/compact-rows.search-footers.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-92
+graph-ui/src/twin/selected-code-snapshot.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-162
+graph-ui/src/settings/ConfigReference.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-50
+graph-ui/src/twin/selected-code-snapshot.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-63
+graph-ui/src/browser-ai/proactive-selection.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-36
+graph-ui/tsconfig.json
+  s_89e0e529609f03::t_22256569c33ccd 3,5,19-20
+graph-ui/src/architecture/system-architecture-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-81
+graph-ui/tools/call-feedback-acceptance.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-658
+graph-ui/src/tours/tour-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-161
+graph-ui/src/architecture/BehaviorSourceEvidence.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-64
+graph-ui/src/llm/sidecar.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-474
+graph-ui/tools/smoke-w6-full.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1447
+graph-ui/src/checklist/checklist-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-69
+graph-ui/src/browser-ai/graph-context.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-65
+graph-ui/src/app/WelcomePanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-39
+graph-ui/src/architecture/label-space.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-70
+graph-ui/src/browser-ai/browser-ai-runtime.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-200
+graph-ui/src/chat/ask-atlas.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-322
+graph-ui/src/browser-ai/galaxy-evidence.branch.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-60
+graph-ui/verification/pr-2068/before-feedback-errors/errors-e2e-attempt2.json
+  s_89e0e529609f03::t_22256569c33ccd 1-373
+graph-ui/verification/pr-2068/final-comparison.json
+  s_89e0e529609f03::t_22256569c33ccd 1-36
+graph-ui/src/pseudocode/block-lead.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-130
+graph-ui/src/projects/ProjectSwitcher.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-138
+graph-ui/src/galaxy/NodeLabels.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-381
+graph-ui/src/agents/AgentsHud.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-363
+graph-ui/tests/scaffold/w2a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/compiler/subject-resolver.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-262
+graph-ui/src/layout/Splitter.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-170
+graph-ui/verification/w5/sidecar.json
+  s_89e0e529609f03::t_22256569c33ccd 1-283
+graph-ui/src/architecture/operation-choices.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-122
+graph-ui/src/twin/__fixtures__/HERKUNFT.md
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/why/selection-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-23
+graph-ui/src/settings/model-catalog.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-252
+graph-ui/verification/pr-2068/change-analysis-source-resolution-failure.json
+  s_89e0e529609f03::t_22256569c33ccd 1-341
+graph-ui/src/galaxy/path-label-spot.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/src/search/SearchOverlay.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-118
+graph-ui/src/provider/error-observer.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-126
+graph-ui/verification/w8/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/verification/pr-2068/errors-e2e-attempt2.json
+  s_89e0e529609f03::t_22256569c33ccd 1-373
+graph-ui/src/pseudocode/FlowOverlay.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-310
+graph-ui/src/reader/file-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-296
+graph-ui/src/architecture/fixtures/project-lock-eof.json
+  s_89e0e529609f03::t_22256569c33ccd 1-6
+graph-ui/verification/w7/chat.json
+  s_89e0e529609f03::t_22256569c33ccd 1-583
+graph-ui/src/system/IndexesPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-114
+graph-ui/src/tours/TourCard.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-218
+graph-ui/src/traces/BugWizard.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-453
+graph-ui/src/layout/Splitter.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-160
+graph-ui/src/pseudocode/pseudocode-builder.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-597
+graph-ui/src/tours/tour-player.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-126
+graph-ui/tests/scaffold/w4e.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/fixtures/atlas-sample/src/types.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/src/galaxy/toolbar-fit.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/twin/reader-level-store.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-75
+src/store/store.h
+  s_89e0e529609f03::t_9c2743a3825ef0 27-33,236-237,789-805,1246-1247
+graph-ui/src/agents/activity-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-12
+graph-ui/src/browser-ai/relationship-answer.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-329
+graph-ui/tools/smoke-spike.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-514
+graph-ui/verification/pr-2068/repair-map-callsite-failure.json
+  s_89e0e529609f03::t_22256569c33ccd 1-36
+graph-ui/fixtures/agent-events/HERKUNFT.md
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/src/adr/adr-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/src/architecture/container-layout.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-67
+graph-ui/verification/pr-2068/feedback-failure-1.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/src/app/key-probe.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-104
+graph-ui/verification/w14/before-levels.json.gz.b64
+  s_89e0e529609f03::t_22256569c33ccd 1
+graph-ui/src/provider/fixtures/application-function.compact.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/src/galaxy/reader-graph-focus.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/src/compiler/question-classifier.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-444
+graph-ui/src/architecture/BehaviorJourney.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-230
+graph-ui/src/llm/policy.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-95
+graph-ui/verification/w4/netdeny-w4d.json
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/verification/w5/netdeny-w5b.json
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/pseudocode/refine.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-135
+graph-ui/src/browser-ai/agent-preferences.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-110
+graph-ui/src/agents/agent-store.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-174
+graph-ui/src/app/AtlasChrome.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-412
+graph-ui/src/llm/strings.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-104
+graph-ui/tools/smoke-w13.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1060
+graph-ui/src/pseudocode/step-insights.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-338
+graph-ui/tests/scaffold/w8c.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/src/browser-ai/BrowserChatDock.topics.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-75
+graph-ui/tests/scaffold/w12d.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-19
+graph-ui/src/impact/selection-impact.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-254
+graph-ui/tests/scaffold/w5b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-100
+graph-ui/src/pseudocode/flow-diagram.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-418
+graph-ui/src/search/semantic-search.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-212
+graph-ui/src/architecture/source-metrics.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-164
+graph-ui/src/browser-ai/runtime-fault.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+Makefile.cbm
+  s_89e0e529609f03::t_22256569c33ccd 369,390-399,452,458,526-533,540-544,573,582-583,585-591,749,810,854,1000,1159,1165,1173,1345-1347,1349,1609-1612,1614
+graph-ui/src/galaxy/GalaxyPanel.branch-names.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-154
+graph-ui/src/impact/risk-rules.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-248
+graph-ui/src/browser-ai/chat-history-cache.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-246
+graph-ui/src/agents/ActivityPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-34
+graph-ui/src/galaxy/GalaxyPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-964
+graph-ui/src/settings/config-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/architecture/repository-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/src/compiler/answer-contract.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-170
+graph-ui/tools/net-deny-gate.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-306
+graph-ui/src/architecture/architecture.css
+  s_89e0e529609f03::t_22256569c33ccd 1-256
+graph-ui/src/provider/rpc-transport.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-215
+graph-ui/src/galaxy/edge-lines.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-143
+graph-ui/verification/w8/layout.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1593
+graph-ui/src/settings/view-preferences.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-108
+graph-ui/tools/promise-scan.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-388
+graph-ui/verification/pr-2068/errors-e2e-attempt3.json
+  s_89e0e529609f03::t_22256569c33ccd 1-433
+graph-ui/src/galaxy/HaloLayer.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-88
+graph-ui/src/galaxy/GalaxyPanel.layers.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-196
+graph-ui/verification/w10/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-93
+graph-ui/src/galaxy/hierarchy-edge-labels.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-71
+graph-ui/src/impact/FileImpactSummary.refresh.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-79
+graph-ui/src/architecture/SpatialArchitecture.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-273
+graph-ui/src/browser-ai/view-answer.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-57
+graph-ui/src/galaxy/galaxy-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-140
+graph-ui/src/galaxy/selection-evidence.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-237
+graph-ui/src/impact/FileImpactSummary.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-201
+graph-ui/src/impact/file-impact-summary.css
+  s_89e0e529609f03::t_22256569c33ccd 1-22
+graph-ui/tools/smoke-w5a.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-663
+graph-ui/verification/w7/promises.json
+  s_89e0e529609f03::t_22256569c33ccd 1-106
+graph-ui/src/architecture/SourceEvidenceDrawer.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-161
+graph-ui/src/architecture/route-graph-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-71
+graph-ui/fixtures/agent-events/w11b-replay.jsonl
+  s_89e0e529609f03::t_22256569c33ccd 1-73
+graph-ui/src/projects/projects-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-222
+graph-ui/src/galaxy/path-frame.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-124
+graph-ui/src/impact/impact-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-185
+graph-ui/verification/w6/airgap.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1681
+graph-ui/src/twin/__fixtures__/ir-listUsers.json
+  s_89e0e529609f03::t_22256569c33ccd 1-448
+graph-ui/verification/w7/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/impact/selection-impact.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-211
+graph-ui/src/pseudocode/imports-group.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-285
+graph-ui/verification/w10b/fixes.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1927
+graph-ui/fixtures/atlas-sample/HERKUNFT.md
+  s_89e0e529609f03::t_22256569c33ccd 1-8
+graph-ui/src/browser-ai/BrowserChatDock.probes.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-34
+graph-ui/src/browser-ai/question-intent.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-41
+graph-ui/tests/scaffold/w7b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-95
+graph-ui/src/galaxy/density.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-429
+graph-ui/src/galaxy/GalaxyPanel.stability.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-274
+graph-ui/src/galaxy/organic-layout.worker.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-23
+graph-ui/src/agents/AgentSetup.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-50
+graph-ui/src/settings/SettingsPanel.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-454
+graph-ui/verification/w2/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-29
+graph-ui/tools/smoke-w2a.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-585
+graph-ui/src/checklist/checklist-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-133
+graph-ui/tools/lib/compiler-bundle.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-68
+graph-ui/src/impact/FileImpactSummary.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-199
+graph-ui/src/twin/presentation-profile.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-335
+graph-ui/tools/handtest-fixes-galaxy.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1050
+graph-ui/verification/pr-2068/repair-errors-reviewed-local-report.txt
+  s_89e0e529609f03::t_22256569c33ccd 1
+graph-ui/verification/w10b/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/verification/w6/budgets.json
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/tsconfig.node.json
+  s_89e0e529609f03::t_22256569c33ccd 1-18
+graph-ui/src/browser-ai/BrowserChatDock.handover.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-219
+graph-ui/src/browser-ai/file-outline.toml.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-32
+graph-ui/verification/pr-2068/feedback-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-786
+graph-ui/src/browser-ai/chat-dock.fixture.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/src/chat/command-intent.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/tools/net-deny-gate.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-81
+graph-ui/src/browser-ai/grounded-explanation.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-146
+graph-ui/src/entry/entry-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-113
+graph-ui/verification/pr-2068/agents-after-restart.json
+  s_89e0e529609f03::t_22256569c33ccd 1-110
+graph-ui/src/graph/edge-motion.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-57
+graph-ui/src/architecture/strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-163
+graph-ui/src/llm/sidecar.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-488
+graph-ui/tools/pr-2068-change-analysis-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-125
+graph-ui/src/app/ui-log.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-256
+graph-ui/src/impact/LocalEvidenceCommand.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-20
+graph-ui/src/llm/preference.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-82
+graph-ui/verification/pr-2068/agents-before-restart.json
+  s_89e0e529609f03::t_22256569c33ccd 1-250
+graph-ui/tools/verify-models.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-305
+graph-ui/src/galaxy/NodeTooltipCard.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-103
+graph-ui/src/browser-ai/graph-context.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-39
+graph-ui/src/adr/AdrWorkspace.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-218
+graph-ui/tools/pr-2068-feedback-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-233
+graph-ui/tools/call-feedback-capture.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-600
+graph-ui/src/agents/agent-timeline.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-117
+graph-ui/verification/pr-2068/audit-daemon-views.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1166
+graph-ui/src/galaxy/hierarchy-layout.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-391
+graph-ui/src/graph/useGraphBackgroundReset.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-51
+graph-ui/src/architecture/behavior-journey-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-239
+graph-ui/src/llm/SidecarPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-208
+graph-ui/src/twin/strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-1083
+graph-ui/tools/smoke-w14.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-677
+graph-ui/verification/w12/buttons.json
+  s_89e0e529609f03::t_22256569c33ccd 1-65145
+graph-ui/verification/w5/netdeny-w5a.json
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/src/architecture/container-topology.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-691
+graph-ui/src/galaxy/use-organic-layout.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-86
+graph-ui/src/pseudocode/pseudocode-builder.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-537
+graph-ui/tools/smoke-w8b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1408
+graph-ui/src/impact/selection-impact.css
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/src/layout/layout-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-157
+graph-ui/src/browser-ai/file-kind.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-33
+graph-ui/verification/w1/scaffold.json
+  s_89e0e529609f03::t_22256569c33ccd 1-10
+graph-ui/src/galaxy/GraphScene.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-1351
+graph-ui/src/architecture/use-architecture-history.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-184
+graph-ui/src/app/AtlasTree.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-308
+graph-ui/src/search/local-suggestions.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-154
+graph-ui/verification/pr-2068/stylegate.json
+  s_89e0e529609f03::t_22256569c33ccd 1-11
+graph-ui/src/browser-ai/chat-model.history.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-30
+graph-ui/src/reader/file-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-262
+graph-ui/verification/w7/help.json
+  s_89e0e529609f03::t_22256569c33ccd 1-539
+graph-ui/src/search/find-by-meaning.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-195
+graph-ui/tests/scaffold/w4c.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-71
+graph-ui/src/settings/model-preference.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-91
+graph-ui/src/app/module-qn.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-107
+graph-ui/src/galaxy/GalaxyPanel.chat-display.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-58
+graph-ui/src/architecture/SpatialArchitecture.evidence.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-88
+graph-ui/src/galaxy/NodeCloud.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-279
+graph-ui/verification/pr-2068/final-reviewed-local-diagnosis.json
+  s_89e0e529609f03::t_22256569c33ccd 1-6
+graph-ui/verification/w10/models.json
+  s_89e0e529609f03::t_22256569c33ccd 1-2944
+graph-ui/src/graph/edge-arrow.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-47
+graph-ui/src/agents/AgentSetup.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-34
+graph-ui/src/architecture/repository-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-103
+graph-ui/verification/w4/bugwizard.json
+  s_89e0e529609f03::t_22256569c33ccd 1-311
+graph-ui/src/twin/__fixtures__/ir-hotspotScan.json
+  s_89e0e529609f03::t_22256569c33ccd 1-305
+graph-ui/src/pseudocode/refine.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-114
+graph-ui/tools/smoke-w7b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1159
+graph-ui/src/provider/fixtures/application-function-page2.compact.txt
+  s_89e0e529609f03::t_22256569c33ccd 1-28
+graph-ui/tests/scaffold/w9.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-107
+graph-ui/src/twin/__fixtures__/ir-walk.json
+  s_89e0e529609f03::t_22256569c33ccd 1-181
+graph-ui/verification/pr-2068/errors-e2e-attempt1.json
+  s_89e0e529609f03::t_22256569c33ccd 1-97
+graph-ui/src/why/why-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-111
+graph-ui/verification/pr-2068/repair-map-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/src/ui/tooltip/tooltip-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-178
+graph-ui/src/architecture/architecture-history.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-144
+graph-ui/src/browser-ai/file-outline.ini.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-121
+graph-ui/src/galaxy/GalaxyPanel.history.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-282
+graph-ui/src/core/hash.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-54
+graph-ui/src/impact/impact-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-755
+graph-ui/src/search/overlay-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-117
+graph-ui/src/galaxy/camera-frame.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-540
+graph-ui/verification/w11/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-53
+graph-ui/src/browser-ai/BrowserChatDock.history.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-79
+graph-ui/src/galaxy/camera-frame.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-392
+graph-ui/src/browser-ai/browser-ai.worker.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-310
+graph-ui/tools/handtest-profile.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-28
+graph-ui/src/galaxy/scope-history.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/src/search/semantic-search.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-335
+graph-ui/src/architecture/fit-map-string.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-17
+graph-ui/src/ui/refresh/refresh-feedback.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-48
+graph-ui/verification/w1/provider.json
+  s_89e0e529609f03::t_22256569c33ccd 1-182
+graph-ui/src/impact/SelectionImpactWidget.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-181
+graph-ui/verification/w12a/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/pseudocode/flow-view.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-173
+graph-ui/src/core/semantic-ir.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-219
+graph-ui/src/layout/layout-command.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-107
+graph-ui/src/agents/agent-event.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-136
+graph-ui/tools/release-gate.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-813
+graph-ui/src/twin/render-model.depths.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-151
+graph-ui/src/adr/adr-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-61
+graph-ui/src/projects/projects-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-371
+graph-ui/src/galaxy/hierarchy-blocks.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-21
+graph-ui/src/provider/cbm-rpc-provider.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-2150
+graph-ui/src/pseudocode/pseudocode-strings.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-639
+graph-ui/src/diagnostics/diagnostics-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-88
+graph-ui/tests/scaffold/w1b.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-114
+graph-ui/src/architecture/ContainerMap.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-115
+graph-ui/src/architecture/system-architecture-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-161
+graph-ui/src/browser-ai/browser-ai.worker.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-221
+graph-ui/src/architecture/architecture-scenes.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-40
+graph-ui/src/impact/impact-model.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-317
+graph-ui/tools/lib/llama.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-107
+graph-ui/src/architecture/architecture-scene.css
+  s_89e0e529609f03::t_22256569c33ccd 1-76
+graph-ui/tools/pr-2068-map-e2e.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-91
+graph-ui/tools/capture-pr2068-baseline.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-18
+graph-ui/tools/smoke-w7c.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-1067
+graph-ui/verification/pr-2068/before-feedback-errors/errors-e2e-attempt3.json
+  s_89e0e529609f03::t_22256569c33ccd 1-433
+graph-ui/tools/smoke-w12.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-5227
+graph-ui/src/search/command-examples.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-148
+graph-ui/verification/w15/netdeny.json
+  s_89e0e529609f03::t_22256569c33ccd 1-29
+graph-ui/src/architecture/route-graph-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-116
+graph-ui/src/architecture/repository-map.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-67
+graph-ui/src/app/atlas-api.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-292
+graph-ui/fixtures/atlas-sample/test/userService.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-16
+graph-ui/src/browser-ai/file-facts.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-104
+graph-ui/src/pseudocode/imports-group.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-489
+graph-ui/src/galaxy/graph-scope.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-551
+graph-ui/src/galaxy/GalaxyPanel.hierarchy-scope.test.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-193
+graph-ui/src/architecture/RoutesArchitecture.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-31
+graph-ui/src/projects/ProjectsPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-857
+graph-ui/tools/smoke-w4c.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-667
+graph-ui/src/ir/semantic-ir-builder.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-396
+graph-ui/src/compiler/prompt-contract.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-158
+graph-ui/tests/scaffold/w7c.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-67
+graph-ui/src/architecture/operation-choices.current.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-44
+graph-ui/src/galaxy/ScreenNodeSeparation.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-56
+graph-ui/src/architecture/hotspot-areas.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-27
+graph-ui/src/core/positions.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-47
+graph-ui/verification/pr-2068/research-captures.json
+  s_89e0e529609f03::t_22256569c33ccd 1-51
+graph-ui/fixtures/atlas-sample/src/routes/orders.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-17
+graph-ui/src/agents/agent-event.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-234
+graph-ui/src/browser-ai/chat-context.return.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-38
+graph-ui/src/pseudocode/FlowOverlay.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-758
+graph-ui/src/settings/ConfigPanel.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-124
+graph-ui/src/projects/project-picker-placement.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-24
+graph-ui/src/architecture/architecture-history.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-148
+graph-ui/src/styles/workspace.css
+  s_89e0e529609f03::t_22256569c33ccd 1-262
+graph-ui/src/provider/rpc-client.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-398
+graph-ui/tools/smoke-w4b.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-682
+graph-ui/src/architecture/container-topology.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-345
+graph-ui/src/browser-ai/browser-chat-css.code.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-14
+graph-ui/src/reader/MonacoReader.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-303
+graph-ui/verification/w4/flow.json
+  s_89e0e529609f03::t_22256569c33ccd 1-369
+graph-ui/src/ir/checklist-generator.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-330
+graph-ui/src/tours/tour-source.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-124
+graph-ui/src/pseudocode/imports-source.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-371
+graph-ui/verification/w6/demo/demo.json
+  s_89e0e529609f03::t_22256569c33ccd 1-342
+graph-ui/src/twin/reader-rewrite.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-224
+graph-ui/verification/w6/freshclone.json
+  s_89e0e529609f03::t_22256569c33ccd 1-351
+graph-ui/src/search/overlay-model.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-139
+graph-ui/src/architecture/behavior-journey.css
+  s_89e0e529609f03::t_22256569c33ccd 1-80
+graph-ui/tests/scaffold/w7a.test.mjs
+  s_89e0e529609f03::t_22256569c33ccd 1-94
+graph-ui/verification/w5/eval.json
+  s_89e0e529609f03::t_22256569c33ccd 1-6843
+graph-ui/README.md
+  s_89e0e529609f03::t_22256569c33ccd 1-132
+graph-ui/src/reader/monaco-setup.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-119
+graph-ui/verification/pr-2068/repair-errors-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1081
+graph-ui/src/architecture/SystemArchitecture.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-497
+graph-ui/src/galaxy/ScopePathControls.tsx
+  s_89e0e529609f03::t_22256569c33ccd 1-85
+graph-ui/fixtures/atlas-sample-large/src/big.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-717
+graph-ui/src/pseudocode/flow-diagram.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-171
+graph-ui/src/browser-ai/agent-handover.test.ts
+  s_89e0e529609f03::t_22256569c33ccd 1-70
+graph-ui/verification/pr-2068/explore-context-e2e.json
+  s_89e0e529609f03::t_22256569c33ccd 1-1896
+graph-ui/package-lock.json
+  s_89e0e529609f03::t_c4b31b583c8777 2-3,8-21,24-36,116-118,122-123,192-194,246-248,252,262-264,268,278-280,284,294-296,318-320,325,327,329,337-339,471-480,923-926,929,932-935,938-942,944-948,951-954,956-957,960-973,975-976,978-979,982-995,997-998,1000-1001,1004-1012,1014,1016-1017,1019-1020,1023-1036,1039-1052,1055-1071,1074-1090,1093-1109,1112-1128,1131-1147,1150-1166,1169-1185,1188-1204,1207-1223,1225-1226,1228-1229,1232-1248,1250-1251,1253-1254,1257-1273,1275-1276,1278-1279,1282-1298,1300-1301,1303-1304,1307-1323,1325-1326,1328-1329,1332-1348,1350-1351,1353-1354,1357-1373,1375-1376,1378-1379,1382-1398,1400-1401,1403-1404,1407-1412,1414,1416-1417,1419-1420,1423-1431,1433,1435-1436,1438-1439,1442-1455,1457-1458,1461-1474,1476-1477,1480-1493,1495-1496,1499-1503,1506-1507,1510-1514,1517-1518,1521-1525,1527-1528,1531-1536,1538-1542,1545-1546,1549-1558,1561,1564,1567-1574,1576-1581,1584-1608,1610-1639,1763-1765,1777-1779,1791-1793,1805-1807,1819-1821,1833-1835,1847-1849,1861-1863,1875-1877,1889-1891,1903-1905,1917-1919,1931-1933,1945-1947,1959-1961,1973-1975,1987-1989,2001-2003,2015-2017,2029-2031,2043-2045,2057-2059,2071-2073,2085-2087,2099-2101,2110,2112-2115,2117,2181-2189,2204-2239,2242-2250,2258-2260,2267-2270,2306-2319,2326-2331,2485-2487,2490-2498,2526-2535,2557-2559,2578-2584,2586-2588,2606-2610,2658-2660,2663-2664,2691-2700,2711-2715,2717-2718,2721-2724,2726-2748,2764-2773,2878-2924,2962-2965,2968-2971,2973-2989,3013-3015,3051-3053,3058-3060,3086-3091,3144-3165,3177-3179,3186-3191,3216-3221,3240-3242,3306-3349,3353-3355,3376-3379,3382-3393,3436-3475,3477-3479,3495-3504,3572-3625,3628-3631,3726-3731,3751-4111,4114-4118,4120,4124-4154,4156-4189,4191-4224,4228,4231-4240,4244,4247-4260,4264,4267-4278,4282,4285-4295,4299,4302-4308,4312,4315-4325,4329,4332-4344,4346-4365,4367-4372,4375-4387,4389-4407,4409-4414,4417-4429,4431-4451,4453-4456,4459-4471,4473-4490,4492-4496,4499-4513,4515-4516,4519-4535,4538-4551,4553-4557,4560-4605,4607-4608,4611-4624,4627,4630-4643,4645-4648,4651-4664,4666-4670,4673-4702,4728-4731,4734-4736,4746-4748,4785-4787,4791-4799,4801-4803,4809-4879,4919-4921,4931-4968,4970-4972,4990,5023-5055,5067-5069,5076-5078,5084,5087-5090,5093-5103,5105-5107,5110-5111,5114-5118,5121,5139-5142,5145-5150,5152-5202,5214-5230,5232-5234,5238,5248-5273,5320-5396,5435-5450,5485-5487,5491-5494,5497-5498,5500-5520,5585-5587,5595-5597,5602,5667-5676,5678-5680,5684,5693-5695,5707-5716,5721-5722,5761-5772,5787-5879,5929-5956,6032-6046,6242-6244,6287-6301,6303-6305,6330-6339
+graph-ui/src/galaxy/hierarchy-layout.ts
+  s_89e0e529609f03::t_2d5962f1542a0a 1-633
+graph-ui/vendor/llama/HERKUNFT.md
+  s_89e0e529609f03::t_c74d3f9dc5fefa 1-70
+graph-ui/verification/w8b/netdeny.json
+  s_89e0e529609f03::t_45186ceae5abbb 1-25
+graph-ui/verification/w8b/ux.json
+  s_89e0e529609f03::t_3fd1811038ac22 1-6196
+graph-ui/verification/w8c/netdeny.json
+  s_89e0e529609f03::t_c316521a413414 1-33
+graph-ui/verification/w8c/pseudocode.json
+  s_89e0e529609f03::t_3c310b9a86629c 1-593
+graph-ui/verification/w9/edges.json
+  s_89e0e529609f03::t_a88e59170629ef 1-1113
+graph-ui/verification/w9/netdeny-w9.json
+  s_89e0e529609f03::t_d6cb6b70d9b39f 1-25
+graph-ui/vite.config.ts
+  s_89e0e529609f03::t_435d3c210de89b 1-8,10-56,58-59,61,68-69,73,78-81,84-85,87-89,92,95-96,99-104
+install.ps1
+  s_89e0e529609f03::t_1fe696aa424012 137-187,193,417-419,421,426-428
+internal/cbm/cbm.c
+  s_89e0e529609f03::t_2984a6256ddf8b 24,117-300,450-454,470-474,1555-1600,1605-1608,1611,1718-1731,1734-1735,3003-3179,3194-3197,3255-3274,3443,3460-3465,3633-3636,3959,3966,4011,4194-4222
+internal/cbm/cbm.h
+  s_89e0e529609f03::t_b3d73854141d3a 214-217,314-318,409-410,415-487,636-644,712-759,772-788,827,838,840,968,1287-1295,1309,1311-1317,1320,1339-1363,1397-1401
+internal/cbm/diagram.c
+  s_89e0e529609f03::t_0060e7744fd637 1-3622
+internal/cbm/doclink.c
+  s_89e0e529609f03::t_d3ad1d8c8647ae 155-156,185-255,472-523,583
+internal/cbm/doclink.h
+  s_89e0e529609f03::t_0befc3c6666419 25-30,86-167,178-196,455-703
+internal/cbm/doclink_c.c
+  s_89e0e529609f03::t_4d61693d3d6695 2,4-5,7-39,41,43-48,51,56,58-62,65,67-71,73-104,106-107,109-110,112-116,118-120,122-134,136-137,140-161,163-164,166-168,170-172,174-175,177-213,217-222,225-227,229-230,232-233,236-243,245-248,251,254-260,262-268,270-272,274-275,277-279,281-288,290-292,294-295,297-298,300-301,305-355,359-365,367,370-401,405-409,411,414-417,420-427,429-432,435-436,438-456,460-465,467-473,475-484,488-492,494-512,514-515,518-530,532-546,548-550,553-557,559,561-572,574-575,577-587,589-591,593-602,605-606,609-612,615,618-639,641-642,644-647,649-650,652-653,655-656,658-659,661,664-671,674-693,695-707,710-714,717,720-759
+internal/cbm/doclink_go.c
+  s_89e0e529609f03::t_95890d6365cc60 1-2045
+internal/cbm/doclink_jvm.c
+  s_89e0e529609f03::t_aaeb91a4dfc0f2 1-2983
+internal/cbm/doclink_perl.c
+  s_89e0e529609f03::t_aaf134c544486a 1-1677
+internal/cbm/doclink_php.c
+  s_89e0e529609f03::t_ca96c6ae532308 1-1059
+internal/cbm/doclink_rs.c
+  s_89e0e529609f03::t_25e40749d64081 1-4135
+internal/cbm/doclink_ts.c
+  s_89e0e529609f03::t_4522b1c74eb778 1-905
+internal/cbm/extract_defs.c
+  s_89e0e529609f03::t_87fe199f39dc60 2331,2592,2597-2599,2601,2629,2649,2653,2665-2795,6413-6513,6547-6552,6819-6821,6971-6983,6986,6994,6999-7044,7185-7197,7257,7259,10312-10336,10348-10354,10362-10381,12468-12471
+internal/cbm/extract_imports.c
+  s_89e0e529609f03::t_1ac327cf26d999 7,10,53,346-833,870-875,2718-2763,3597-3599
+internal/cbm/extract_k8s.c
+  s_89e0e529609f03::t_a0ebedcfe20fb5 7-11,31-91,94-95,102,144-146,151-153,167-181,185,190,199-219,234,246-248,276,282-284,295-298,307-317,321-323,332-334,337-340,345-346,348-350,366-774,776-826,828-847,852-1287,1290-1293,1295-1297,1302,1307-1309,1311-1313,1316-1319,1321-1322,1325-1327,1336
+internal/cbm/extract_unified.c
+  s_89e0e529609f03::t_10217ea93fc328 6-8,1234-1241
+internal/cbm/extract_url_fold.c
+  s_89e0e529609f03::t_03b25f06567328 1-451
+internal/cbm/extract_url_fold.h
+  s_89e0e529609f03::t_27ce9e16356129 1-45
+internal/cbm/extract_usages.c
+  s_89e0e529609f03::t_16959bbb643978 1349-1357,1359-1388
+internal/cbm/helpers.c
+  s_89e0e529609f03::t_beccd5784b45fc 1068-1103,1132-1137,1696-1714,1716-1718,1819-1829
+internal/cbm/helpers.h
+  s_89e0e529609f03::t_043868596e5e4e 92-103
+internal/cbm/lang_specs.c
+  s_89e0e529609f03::t_5fef37e3abd60e 2716-2723,2732-2734
+internal/cbm/lsp/c_lsp.c
+  s_89e0e529609f03::t_d8b9c7f64fcd0d 3,9,17-57,107-111,244,1567-1576,1578,1580-1601,1603-1747,1749-1784,1788-1840,3468-3469,4680-4681,5636-5651,5653-5654,5666,5687-5692,5752-5753,5903-5904,6423-6424,6432,6438,6446-6447,6724-6829,6845-6851,6880-6891,6925,6931-6932,6999,7006,7014-7021,7027-7028,7031-7045,7219-7230,7266,7272,7276-7283,7286-7321,7378,7384,7388-7423,7426,7429,7431,7447-7452,7477
+internal/cbm/lsp/c_lsp.h
+  s_89e0e529609f03::t_0532a85baccb3c 121-144,149-153,181-191,193-202,215-222,279
+internal/cbm/lsp/kotlin_lsp.c
+  s_89e0e529609f03::t_40bb2b925b3139 492-493
+internal/cbm/lsp/lsp_node_iter.h
+  s_89e0e529609f03::t_c09fe6c47a75dd 42-70
+internal/cbm/lsp/lsp_work.h
+  s_89e0e529609f03::t_a4ef35a08474e0 1-24
+internal/cbm/lsp/php_lsp.c
+  s_89e0e529609f03::t_8bac887f6fd212 256-266,279-281,288-289,1372-1384,1386-1387,1390-1398,1400-1407,1434-1460,1760-1761,1779,1808,1839,2758-2761,2798-2802,2815-2823,2827,2829,2831-2838,2845-2849,2851-2853,2857-2864,4561-4634,4639-4649,4689-4702,4705,4723,4727
+internal/cbm/lsp/php_lsp.h
+  s_89e0e529609f03::t_614a4297506bf6 10-18,40-46,135-143
+internal/cbm/lsp/py_lsp.c
+  s_89e0e529609f03::t_9cb9b7fabc2c3f 16,19,30-39,41-100,105-132,187-194,196-197,202-205,207-209,223,232,294-312,324-351,355-359,365,367-370,376-381,646-651,653,657-658,705-723,729-730,947-948,963,1587,1589-1604,1725,2249-2256,2282,2284,2292,2303,2308,2314-2440,2443-2444,2446,2451-2453,2456,2464-2465,2467-2468,2470-2472,2474,2479,2588,2590-2591,2596-2597,2788-2789,2805-2809,2920,3022-3025,3028-3029,3033,3495-3553,3756-3759,3792,3798-3805,4366-4367,4396-4398,4425-4538,4540-4541,4554-4555,4561,4584,4602,4627-4637,4645-4653,4655-4687,4694,4697-4702,4704-4754,4756,4822-4851,4853-4854,4856-4862,5162-5164,5252,5254-5265,5267,5275,5277-5279,5282-5283,5290-5292,5294,5296,5298,5300-5304,5327-5328,5347-5357,5516,5519-5528,5540,5548-5560,5572,5574-5576,5658,5722-5728,5748,5751-5758,5763-5772,5774,5782,5788,5800-5808,5820,5822,5829,5848-5849,5852-5853,5859,5864-5872,5874,5882,5888,5894-5896,5903,5905,5910,5913,5916,5918,5931-5934,5963
+internal/cbm/lsp/py_lsp.h
+  s_89e0e529609f03::t_652f3410385ee2 64-70,104,110-121,180-195,197-205,207,217-223,244,247-263
+internal/cbm/lsp/scope.c
+  s_89e0e529609f03::t_fedc2e14051a23 2,4-18,52-159,174-178,187-190,192-193,215-221,243-246
+internal/cbm/lsp/scope.h
+  s_89e0e529609f03::t_31584797fe23c3 6,8-9,29-44,49-50,53-55,59-62,68-70,101
+internal/cbm/lsp/ts_lsp.c
+  s_89e0e529609f03::t_485665eb671045 30,64,1395-1396
+internal/cbm/lsp/type_registry.c
+  s_89e0e529609f03::t_52416fec65c1c8 2,60-65,105-107,790,804,815,843,854,864,890,901,911-913,989-1281
+internal/cbm/lsp/type_registry.h
+  s_89e0e529609f03::t_8dd95e7d480602 86-97,167-183,232-290
+internal/cbm/openapi.c
+  s_89e0e529609f03::t_ef6d127e052b72 1-239
+internal/cbm/result_compact.c
+  s_89e0e529609f03::t_a10dab78cfd23d 297,312-359,373,434-441,470,553-554,566-568,571-572,579-582,607,619
+internal/cbm/result_spill.c
+  s_89e0e529609f03::t_0cd4d77952a8cc 261-262,360-363
+internal/cbm/result_spill.h
+  s_89e0e529609f03::t_62190294fa7cdf 46-49
+internal/cbm/route_path.c
+  s_89e0e529609f03::t_7f992766c58f8d 1-98
+internal/cbm/service_patterns.c
+  s_89e0e529609f03::t_dcceb38c3fbf40 808-863
+internal/cbm/service_patterns.h
+  s_89e0e529609f03::t_6c352c3851d54a 52-61
+internal/cbm/vendored/grammars/MANIFEST.md
+  s_89e0e529609f03::t_f7f48bdc63799f 12,57,115,291
+internal/cbm/vendored/grammars/pascal/parser.c
+  s_89e0e529609f03::t_4f045503d298d6 1-2,18,20,2713,6692-6881,6914,6918,6943,6945,6971,6973,6999-7000,7022-7023,7027,7052,7054,7058,7063,7068,7078,7088,7098-7099,7106,7122,7125,7140,7144,7150,7158,7164,7170,7176,7182,7190,7196,7228,7257,7259,7286-7287,7310,7317,7470,7474,7500,7505,7507,7510,7513,7516,8419-8420,9456-9457,9484-9485,13166,13342,13388,13490,13592,13694,13796,13896,13996,14094,14192,14290,14388,14486,14584,14682,14780,14878,14976,15073,15170,15267,15364,15461,15558,15655,15752,15849,15946,16043,16140,16237,16334,16431,16528,16625,16722,16819,16916,17013,17109,17205,17301,17397,17493,17589,17685,17781,17877,17973,18069,18165,18261,18357,18451,18545,18639,18733,18827,18920,19008,19096,19184,19272,19358,19444,19530,19612,19694,19776,19857,19938,20019,20100,20181,20262,20343,20424,20505,20586,20667,20748,20829,20910,20991,21072,21153,21234,21315,21396,21477,21558,21639,21720,21801,21880,21959,22038,22117,22196,22275,22354,22433,22512,22591,22670,22749,22828,22907,22986,23065,23144,23223,23302,23381,23460,23539,23618,23697,23776,23855,23934,24013,24092,24171,24250,24329,24408,24486,24564,24642,24720,24798,24876,24954,25032,25110,25188,25266,25344,25422,25500,25578,25656,25734,25812,25890,25968,26046,26124,26202,26280,26358,26436,26514,26592,26670,26748,26826,26904,26981,27058,27135,27212,27289,27366,27443,27520,27597,27674,27751,27828,27905,27982,28059,28136,28213,28290,28367,28444,28521,28598,28675,28752,28829,28906,28983,29060,29137,29214,29291,29368,29445,29522,29599,29676,29753,29830,29907,29984,30061,30138,30215,30292,30369,30446,30523,30600,30677,30754,30831,30908,30985,31062,31139,31216,31293,31370,31447,31524,31601,31678,31755,31832,31909,31986,32063,32139,32215,32291,32367,32443,32519,32595,32671,32747,32823,32899,32975,33051,33127,33203,33279,33355,33431,33507,33583,33659,33735,33811,33887,33962,34037,34112,34187,34262,34337,34412,34487,34562,34637,34712,34787,34862,34937,35012,35087,35162,35237,35312,35387,35462,35537,35612,35687,35762,35837,35912,35987,36062,36137,36212,36287,36362,36437,36512,36587,36662,36737,36812,36887,36962,37037,37112,37187,37262,37337,37412,37487,37562,37637,37712,37787,37862,37937,38012,38087,38162,38237,38312,38387,38462,38537,38612,38687,38762,38837,38912,38987,39062,39137,39212,39287,39362,39437,39512,39587,39662,39737,39812,39887,39962,40037,40112,40187,40262,40337,40412,40487,40562,40637,40712,40787,40862,40937,41012,41087,41162,41237,41312,41387,41462,41537,41612,41687,41762,41837,41912,41987,42062,42137,42212,42287,42362,42437,42512,42587,42662,42737,42812,42887,42962,43037,43112,43187,43262,43337,43412,43487,43562,43637,43712,43787,43862,43937,44012,44087,44162,44237,44312,44387,44462,44537,44612,44687,44762,44837,44912,44987,45062,45137,45212,45287,45362,45437,45512,45587,45662,45737,45812,45887,45962,46036,46110,46184,46258,46332,46406,46480,46554,46628,46702,46776,46850,46924,46998,47072,47146,47220,47294,47368,47442,47516,47590,47664,47738,47812,47886,47960,48034,48108,48182,48256,48330,48404,48478,48552,48626,48700,48774,48848,48922,48996,49070,49144,49218,49292,49366,49440,49514,49588,49662,49736,49810,49884,49958,50032,50106,50180,50254,50328,50402,50476,50550,50624,50698,50772,50845,50918,50990,51062,51134,51206,51278,51350,51422,51494,51566,51638,51710,51782,51854,51926,51998,52070,52142,52214,52286,52358,52430,52502,52574,52646,52718,52790,52862,52934,53006,53078,53150,53222,53294,53366,53438,53510,53582,53654,53725,53796,53867,53938,54009,54080,54151,54222,54293,54364,54435,54506,54577,54648,54719,54790,54861,54932,55003,55074,55145,55216,55287,55358,55429,55500,55571,55642,55713,55784,55854,55924,55994,56064,56134,56204,56274,56344,56413,56482,56551,56619,56687,129657,129679,129689
+internal/cbm/vendored/grammars/pascal/tree_sitter/parser.h
+  s_89e0e529609f03::t_64b385f436f553 21-25,34,38,88-93,108,124,130,144-151,154,160,168,286
+internal/cbm/vendored/grammars/wit/scanner.c
+  s_89e0e529609f03::t_3cd218128983b5 13
+scripts/README.md
+  s_89e0e529609f03::t_58eb261be658df 32-35
+scripts/audit-license-provenance.py
+  s_89e0e529609f03::t_a5dbe68a739a9c 42-44
+scripts/check-lsp-originality.sh
+  s_89e0e529609f03::t_6531f9d47e70e6 67-80,83-87,109-111
+scripts/ci/msan-lane.sh
+  s_89e0e529609f03::t_fe7f869cee7c1a 41-48
+scripts/ci/test-ui.sh
+  s_89e0e529609f03::t_ad3aebb6fb9809 1-43
+scripts/embed-frontend.sh
+  s_89e0e529609f03::t_0e4a755bb0f618 33-34
+scripts/gen-ui-licenses.py
+  s_89e0e529609f03::t_0771fb14a06f80 19,81-86,93-94,120-127
+scripts/license-gate-check-npm.py
+  s_89e0e529609f03::t_5934c164fcbd1f 6-7,17,84-89,92-94,114
+scripts/license-gate.sh
+  s_89e0e529609f03::t_7e9c0e5ecaed45 118-123
+scripts/memory-core-baseline.txt
+  s_89e0e529609f03::t_560d475e8dc30e 54,72,76,79,82,86
+scripts/memwaste.sh
+  s_89e0e529609f03::t_68d3ddea15a8ae 134-143,145-146
+scripts/msan.sh
+  s_89e0e529609f03::t_33b3b59cc28204 12-14,32-35,67-80,108,110-123,132-134,144-148,150-153,157,163-180,182
+scripts/run-test-wave.py
+  s_89e0e529609f03::t_c09b1e5f5fffe7 29-41,54-63,418-431,455-463
+scripts/run-tests-parallel.sh
+  s_89e0e529609f03::t_5b07df840f37a2 27-31,311-318,405
+scripts/security-allowlist.txt
+  s_89e0e529609f03::t_4afd9a778ccfeb 28,32-40,77
+scripts/security-audit.sh
+  s_89e0e529609f03::t_28ffe5d143589d 40-42,44-45,49,52,194,216,262-267
+scripts/security-strings.sh
+  s_89e0e529609f03::t_a0c70db9cfb0e3 74-106,152-179,186-199,255-258,276-289
+scripts/security-ui.sh
+  s_89e0e529609f03::t_fc17c8548a1040 17-52,76,87,90-93,127
+scripts/suite-failure-report.sh
+  s_89e0e529609f03::t_3b4e664c20483c 1-239
+scripts/test.sh
+  s_89e0e529609f03::t_624ba1d20d14c2 313-318
+scripts/ui_browser_licenses.py
+  s_89e0e529609f03::t_b3e569e716051f 1-112
+scripts/vendored-checksums.txt
+  s_89e0e529609f03::t_57b0ffe1476f84 8,553-554,902
+src/cli/activation_transaction.c
+  s_89e0e529609f03::t_59ed514f343d63 141-150,1147-1153,1638-1647,1673,1675-1677,1679-1686,1836,1841,1847-1851,1853,1859-1861,1863-1865,1867-1874
+src/cli/activation_transaction.h
+  s_89e0e529609f03::t_14a6769967a467 48-52,107
+src/cli/cli.c
+  s_89e0e529609f03::t_2fba3bad761fb8 1160,1570-1571,13206-13244,13302-13304,13309-13313,13318-13321,13326-13330,13333-13347,13349-13359,13365-13374,13388,13393,13396-13401,13403-13416
+src/cli/cli.h
+  s_89e0e529609f03::t_3c1b3b53fd0ea1 92-93,455
+src/cli/hook_augment.c
+  s_89e0e529609f03::t_6c960a817e32cc 133-137
+src/cli/runtime_settings.c
+  s_89e0e529609f03::t_92597784ca433c 1-802
+src/cli/runtime_settings.h
+  s_89e0e529609f03::t_22cf26e1c0900b 1-33
+src/cypher/cypher.c
+  s_89e0e529609f03::t_1376994387c683 508-516,533,536,540,545,553,564,1263-1280,1283-1292,1295,1297,1302-1311,1314,1316,1321-1330,1333,1335,1890-1894,1902-1903,1905-1906,1916-1917,1926-1927,1932-1936,2012-2014,2042-2055,2058,2060,2066-2067,2071-2072,2075-2076,2085-2086,2093-2094,2099-2100,2105-2106,2111-2144,2793-2795,2800,2802-2803,2806-2826,2889-2913,2923-2924,2927,2929-2947,3167-3183,3188,3200,5390-5403,5405-5408,5410
+src/cypher/cypher.h
+  s_89e0e529609f03::t_882f28a3fdae4c 358-363
+src/daemon/application.c
+  s_89e0e529609f03::t_b47a645c3d8e09 14,333-359,365-381,383,387,390-391,395,397-398,402,404-405,409,411-414,1538-1554,1565,1770-1778,1808,1875-1877,1879
+src/daemon/host.c
+  s_89e0e529609f03::t_235c1eb88facd5 164
+src/discover/discover.c
+  s_89e0e529609f03::t_20f686342df6a0 17,19,22-23,26,29-31,94-96,395-399,447-465,495,796-805,815,818,823,825-826,829,836-838,843-844,855,858-859,1087,1089-1090,1114,1152,1173,1212-1221,1228,1362-1486,1851-1855,1860
+src/discover/language.c
+  s_89e0e529609f03::t_f9f1530bd53e17 96,156,159-160,627-637,728,730-731,740,856-857,977-1005,1020-1022,1026-1028,1048-1050,1586-1592
+src/discover/userconfig.c
+  s_89e0e529609f03::t_9125275577fad2 165-166
+src/foundation/git_env.c
+  s_89e0e529609f03::t_5a96b86cc1a3b6 85-93,151,164
+src/foundation/git_env.h
+  s_89e0e529609f03::t_eede9be66371dd 33-36
+src/foundation/json_writer.h
+  s_89e0e529609f03::t_259d1806c8e059 1-34
+src/foundation/limits.c
+  s_89e0e529609f03::t_8291fc0b06c7aa 5,17,34
+src/foundation/log.c
+  s_89e0e529609f03::t_98facfc21f0207 6,57-58,88
+src/foundation/platform.c
+  s_89e0e529609f03::t_c3e9b3cf2976c7 373-391,393-403
+src/foundation/platform.h
+  s_89e0e529609f03::t_383ba2078d9ffe 141-149
+src/foundation/profile.c
+  s_89e0e529609f03::t_189e4a29ea9000 5,25
+src/foundation/recursion_whitelist.h
+  s_89e0e529609f03::t_8e4d59d34a7d83 7-8,10,12-14,32
+src/foundation/sha256.c
+  s_89e0e529609f03::t_8bce4a563842f5 36-40
+src/foundation/subprocess.c
+  s_89e0e529609f03::t_edb7341bd6c4a7 13,32,444,450-453,472-622,633-643,679-693,771-775,1083-1087,1094-1096,1495-1508,1583-1589
+src/foundation/subprocess.h
+  s_89e0e529609f03::t_02eaef6d65ca41 59-102
+src/git/git_context.c
+  s_89e0e529609f03::t_0ec8f4fac093d9 5,69-72,78,81,83,88,90
+src/graph_buffer/graph_buffer.c
+  s_89e0e529609f03::t_9b767431af7a79 108-112,680-681,686-689,849-881,911-915,917,919-920,924-935,961-962,964-1006,1008-1009,1011,1013-1014,1018-1023,1025-1043,1046-1137,1140-1145,1147-1158,1161-1169,1172-1179,1181-1214,1292-1293,1297-1298,1308,1453,1501,1534-1602,1891-1893,1895,1899,1921-1982,1995-1996,2035-2037,2039-2040,2065,2067,2168-2171,2174,2177,2466,2584,2659
+src/graph_buffer/graph_buffer.h
+  s_89e0e529609f03::t_f10645f679f023 103,106-112,120-126,169-175,212-224
+src/main.c
+  s_89e0e529609f03::t_1e5f4120801a59 38-39,63-64,82-100,1851,1891,2818-2827,2886-2894,3292,3360
+src/mcp/architecture_jobs.c
+  s_89e0e529609f03::t_51030932ea9f5e 1-313
+src/mcp/architecture_jobs.h
+  s_89e0e529609f03::t_1635633fb2ed5b 1-26
+src/mcp/mcp.c
+  s_89e0e529609f03::t_17f6d462d4f025 59,76,551-552,569-570,628-633,702-704,707,711-721,854-859,861-867,890-894,912,1562-1578,1883,1905,2074,3969-3970,4228-4230,4293-4300,4327-4336,4342-4362,4382-4392,5371-5376,5390-5393,5426-5427,7554-7557,8026-8027,8031-8032,8037,8041-8048,8059-8064,8100-8131,8133-8135,8454,8456,8706,8708-8711,8726-8741,8774-8782,11840-11855,11860-11861,11864-11865,11903-11905,11908-11909,12275,12280-12281,12309-12310,12374,19199-19200,19474,19512,19646-19659,19661-19789,19791-19804,19807-19808,19810-19826,19829-19846,19848-19857,20083
+src/mcp/test_impact_engine_reach.c
+  s_89e0e529609f03::t_cd094734a8e639 25-27
+src/pipeline/doc_links.c
+  s_89e0e529609f03::t_8406c835c6dc74 49-51,123-180,573-584
+src/pipeline/doc_links.h
+  s_89e0e529609f03::t_dc30fc93263883 181,298-304,316-334
+src/pipeline/doc_links_adoc.c
+  s_89e0e529609f03::t_d28218cf914321 890-894
+src/pipeline/doc_links_c.c
+  s_89e0e529609f03::t_6141916bb7814f 1-503
+src/pipeline/doc_links_go.c
+  s_89e0e529609f03::t_180606b8eb38c3 1-1905
+src/pipeline/doc_links_jvm.c
+  s_89e0e529609f03::t_ab92dc8ff75c5d 1-4599
+src/pipeline/doc_links_md.c
+  s_89e0e529609f03::t_c57d72638fee04 113-115,664-692,1319-1325,1625-1628
+src/pipeline/doc_links_perl.c
+  s_89e0e529609f03::t_997b906c223fb2 1-504
+src/pipeline/doc_links_php.c
+  s_89e0e529609f03::t_72c2bfbcb28993 1-994
+src/pipeline/doc_links_rs.c
+  s_89e0e529609f03::t_3f31a47e8c5c15 1-4447
+src/pipeline/doc_links_rst.c
+  s_89e0e529609f03::t_afe9dc8ec31754 1688-1692
+src/pipeline/doc_links_ts.c
+  s_89e0e529609f03::t_70eb8e07b57904 1-1108
+src/pipeline/fqn.c
+  s_89e0e529609f03::t_49b37a6da35a16 66-74,78-80
+src/pipeline/lsp_resolve.h
+  s_89e0e529609f03::t_ed29ae3b55b545 30,337-364
+src/pipeline/lsp_surface.h
+  s_89e0e529609f03::t_23ea17681fb63c 13-16,33-34,46-70
+src/pipeline/pass_ci.c
+  s_89e0e529609f03::t_a593eb317909ce 1-1186
+src/pipeline/pass_configlink.c
+  s_89e0e529609f03::t_d06c6a1b3b0c34 15,67-74,76-77,119-164,167-207,210-211,216-217,240-241,243-246,248-254,256-267,269,273,278-279,286,290,295-302,304,308,313-333,335-388,391-401,414-417,423-432,434-455,457-483,485,493,496-498,511-517,520-529,531-534,543,545-546,552-553,558-563,565-566,570-572,574-580
+src/pipeline/pass_cross_repo.c
+  s_89e0e529609f03::t_ab69d340761b5b 483-485,507,549,714,768,802,847,964,997,1076,1126
+src/pipeline/pass_definitions.c
+  s_89e0e529609f03::t_cb910065e35dfe 459,569-587,753-760,762-763,793-795,797-799,849-856,1042,1076
+src/pipeline/pass_diagrams.c
+  s_89e0e529609f03::t_b10fe3f612c430 1-68
+src/pipeline/pass_docker.c
+  s_89e0e529609f03::t_34fc807597d153 1-1974
+src/pipeline/pass_infrascan.c
+  s_89e0e529609f03::t_c2da27a50a3dcd 2,4-5,11-19,136,142,148,154,160-164,246-274,276,280,282-285,288-290,307-309,315-317,319-321,326-327,329-335,345-352
+src/pipeline/pass_k8s.c
+  s_89e0e529609f03::t_9c502014957c54 2,4-7,9,26,34-35,91-109,114-118,125-127,179-314,317-345,348-352,354-355,358,369,374,376-383,387,389,393,395-400,404-405,408-413,416-424,437-480,482-543,546-900,902-2179,2182,2185-2187,2189-2191,2194-2210,2212-2216,2219,2221-2224,2233-2234,2236-2237,2249-2251,2261-2265,2272-2277,2282-2284,2296-2412,2415,2422,2438-2441,2443-2445,2447,2608,2614,2626-2763,2775-2778,2792-2800,2828-3430,3441-3444,3448,3457-3461,3486-3487,3490-3494,3509-3513,3519-3543
+src/pipeline/pass_lsp_cross.c
+  s_89e0e529609f03::t_61a325cfa55621 251-252,1027-1035,1039-1040,1249-1287,1302-1304,1307-1310,1313,1511-1518,1550-1554,1558-1564,1566-1568,1675-1687,1729-1735,1751-1755,1860-1862,1872-1873,2082-2090,2092-2094,2253-2260,2264,2266-2279,2291-2315,2346,2426-2428,2444,2457-2459
+src/pipeline/pass_lsp_cross.h
+  s_89e0e529609f03::t_30d3c2a6824783 79-82,208-212,233-240
+src/pipeline/pass_operator.c
+  s_89e0e529609f03::t_fd035eb19ac31d 1-2104
+src/pipeline/pass_parallel.c
+  s_89e0e529609f03::t_ece2db4eed5f67 83-84,149,615,617,1395-1400,1800-1802,1847-1865,1996,2079-2081,2263-2266,2269,2280-2285,2389,2410-2411,2476-2495,2497-2508,2511-2513,2518,2521,2740-2741,2768-2769,2801,2819,2831,3088-3089,3104-3106,3261-3262,3266-3268,3384-3389,3396,3401,3461,3476-3493,3540-3541,3559,3568,3581,3589,3670-3674,3684-3685,3741-3742,3757-3758,3816-3817,3854-3855,3860-3867,3889-3890,3900,3907,3961-3962,3973-3975,3983,3985,4257-4259,4325-4329,4331-4339,4386-4387,4393-4394,4400,4411-4412,4428,4471-4474,4484-4489,4530,4548-4553
+src/pipeline/pass_pkgmap.c
+  s_89e0e529609f03::t_2537c3b70ed245 15,22,30,37-38,51,1208,1254,1289,1832-1835,2024,2075,2224-2230,2232-2235,2237-2238,2240-2252,2255-2279,2281-2288,2299,2316-2317,2340,2399-2400,2501-2502,2576,2593-3193,3205-3214,3217,3220-3225,3227,3232,3234,3243-3244,3247-3255,3258-3259,3265-3269,3273-3279,3282-3289,3302-3306,3321
+src/pipeline/pass_route_nodes.c
+  s_89e0e529609f03::t_46547b0a75387f 150-187,260,325-330,519,547-557,562-576
+src/pipeline/pass_semantic.c
+  s_89e0e529609f03::t_d9957f2d0e139c 185,187,561,567-568,576-577,629-630,640-645,647,671,716,721,773-774,782-783,791
+src/pipeline/pass_semantic_edges.c
+  s_89e0e529609f03::t_cf61996455696c 2907-2933,2938-2939,2947,2974,2981-2983,2988,2992-2993,3032-3037
+src/pipeline/pass_shell.c
+  s_89e0e529609f03::t_d9464e768a52fc 1-3761
+src/pipeline/pass_terraform.c
+  s_89e0e529609f03::t_bbb6dec3e989b4 1-449
+src/pipeline/pass_usages.c
+  s_89e0e529609f03::t_221aaec6cea690 161-163,244-248,257-258,305,312,326-327,392-393,496-497
+src/pipeline/path_alias.c
+  s_89e0e529609f03::t_191065cc25950f 320-323,326,344-347,351-352,359,361-364,366-372
+src/pipeline/path_alias.h
+  s_89e0e529609f03::t_14a371ecc42c9c 96-101
+src/pipeline/pipeline.c
+  s_89e0e529609f03::t_bcf7223afa78bc 281-282,288-290,879-888,1065-1090,1333-1337,1596-1642,1651-1657,1659-1661,1682,1768-1776,1780-1793,1805-1806,1809-1810,1812,1820,1826-1827,1835-1840,1861-1862,1911-1913,1981,2006,2017,2057,2073-2078,2111-2112,2115,2164,2420,2594,3544-3546,3704-3706,3730,3736,3748,3758,4449-4451,4492
+src/pipeline/pipeline.h
+  s_89e0e529609f03::t_4d5b369c32e35b 60-66
+src/pipeline/pipeline_delta.c
+  s_89e0e529609f03::t_1de9866e073c31 250-363,533,647-657,666,729-732
+src/pipeline/pipeline_incremental.c
+  s_89e0e529609f03::t_420e6880cdb865 1167-1228,1824,1984,2102-2109,2436-2531,2654-2658,2726-2728,2740-2743,2753-2758,2773-2775,2779,2781-2785,2797-2802,2805-2808,2962-2965,2978-2985,3169-3170,3215-3221,3237-3244,3250-3256,3407-3409,3435,3767-3776,3868-3869,3878-3884,3916,4029,4073
+src/pipeline/pipeline_internal.h
+  s_89e0e529609f03::t_4ccab71a6f4dcc 21,23,251-259,278,322-326,554-570,594-602,618-619,623,667-708,752-767,991-992,994-996,999,1001,1004-1006,1008,1039-1046,1143-1252,1329-1335,1388-1394,1485-1519,1564-1568,1573-1578
+src/pipeline/worker_pool.c
+  s_89e0e529609f03::t_cae432d728f79f 23
+src/pipeline/worker_pool.h
+  s_89e0e529609f03::t_b419b18caff5a7 14-20
+src/semantic/semantic.c
+  s_89e0e529609f03::t_eb1af555ad0002 123,136,1976-2041
+src/semantic/semantic.h
+  s_89e0e529609f03::t_0da71316dca170 322-343
+src/store/architecture_projection.c
+  s_89e0e529609f03::t_4c17a33e12e727 1-2172
+src/store/architecture_projection.h
+  s_89e0e529609f03::t_d0aaf54f7d2b49 1-40
+src/store/store.c
+  s_89e0e529609f03::t_5ea6d866e3065b 16,350-377,6574-6600,6660,9648,9993,11685-11859
+src/ui/activity.c
+  s_89e0e529609f03::t_73d60e175ecd9d 1-693
+src/ui/activity.h
+  s_89e0e529609f03::t_4757387f179a11 1-2,4-6,8-26,28-29,31
+src/ui/atlas.h
+  s_89e0e529609f03::t_a5f60d1a60d96d 1-24,27-128
+src/ui/atlas_api.c
+  s_89e0e529609f03::t_22e10eafd8c707 1-967
+src/ui/atlas_flows.c
+  s_89e0e529609f03::t_f7c33f160612fa 1-1084
+src/ui/atlas_handout.c
+  s_89e0e529609f03::t_e8a68a6ee7fbbd 1-46,48-50,53-59,62-85,88-93,96-163,165-189,192-212,214-240,243-269,271-306
+src/ui/atlas_impact.c
+  s_89e0e529609f03::t_8076388ddb4aa7 1-742
+src/ui/atlas_metrics.c
+  s_89e0e529609f03::t_29a5db8d3b3ed4 1-1029
+src/ui/atlas_repository.c
+  s_89e0e529609f03::t_a54c0652fab5a5 1-151
+src/ui/atlas_why.c
+  s_89e0e529609f03::t_819622d9fd4e5e 1-105,108-115,118-154,157-159,161-225,228-254,256-274,276-277,280-288,291-302,304-441,443-466,468-470
+src/ui/config.c
+  s_89e0e529609f03::t_3ca0a181a9dd09 9,112,165-170,390-392
+src/ui/config.h
+  s_89e0e529609f03::t_259a4d85fad1b3 21,23-24,26-27
+src/ui/http_server.c
+  s_89e0e529609f03::t_84ced810c1dfee 18-19,22,28,37,60,64,95,132-133,166-167,223-225,287-288,316,419,431-433,448,459-484,486,493,501-514,545-557,567-613,664,678-1071,1090-1091,1102-1109,1119-1120,1128-1130,1133,1159-1169,1183-1184,1189-1198,1645-1647,1659-1661,1900-1902,1912-1916,1919,1921-1923,1925-1947,1949-1956,2122-2170,2380-2959,2978-3022,3033-3039,3210-3225,3252-3344,3395,3405-3409,3416-3427,3523,3525,3562,3595-3596,3598
+src/ui/http_server.h
+  s_89e0e529609f03::t_63eba05e387f44 19-34,104,107-115,126-127
+src/ui/httpd.c
+  s_89e0e529609f03::t_b4a042265fc8b7 326-330,394-395
+src/ui/httpd.h
+  s_89e0e529609f03::t_11ca17d7034b59 96-99
+src/ui/layout3d.c
+  s_89e0e529609f03::t_86ecc4e0714a5a 15,17-18,163,174,183,320,324,513-516,527,530-555,564,571,642,649-650,672,676-677,680,684,697,715,719,721-722,771,776,790-791,803,824,862
+src/ui/layout3d.h
+  s_89e0e529609f03::t_c3bcfb27fa5170 30,69,75-92
+src/ui/layout_internal.h
+  s_89e0e529609f03::t_f2651b2e08926b 1-43
+src/ui/layout_regions.c
+  s_89e0e529609f03::t_b0f5c7ce01d2e6 1-1206
+src/watcher/watcher.c
+  s_89e0e529609f03::t_05ca2651f92895 126,648-656,665-673,1008,1109,1265-1279,1803,1821,1827-1851
+src/watcher/watcher.h
+  s_89e0e529609f03::t_67a0217ff74d38 94-100,108-118
+test-infrastructure/docker-compose.yml
+  s_89e0e529609f03::t_d9de0cc06045b5 23,39,62,85,112,240
+test-infrastructure/run.sh
+  s_89e0e529609f03::t_85400861ebf8ac 101-118
+tests/fixtures/complexity/Bash/Makefile
+  s_89e0e529609f03::t_71f06c2b4c31cd 1-9
+tests/fixtures/complexity/Bash/action.yml
+  s_89e0e529609f03::t_5dffc22e049350 1-9
+tests/fixtures/complexity/Bash/charts/web/Chart.yaml
+  s_89e0e529609f03::t_e27d7ebad2ae86 1-3
+tests/fixtures/complexity/Bash/common.mk
+  s_89e0e529609f03::t_30e4396739419e 1-2
+tests/fixtures/complexity/Bash/deploy.sh
+  s_89e0e529609f03::t_7defe184549cf5 1-7
+tests/fixtures/complexity/Bash/manifests/app.yaml
+  s_89e0e529609f03::t_b94c384aa0e8da 1-26
+tests/fixtures/complexity/Bash/scripts/build.sh
+  s_89e0e529609f03::t_8ce3bc47360a87 1-3
+tests/fixtures/complexity/Dockerfile/Dockerfile
+  s_89e0e529609f03::t_b179672a3ce316 1-8
+tests/fixtures/complexity/Dockerfile/Dockerfile.worker
+  s_89e0e529609f03::t_a40d5cb6fe94e9 1-4
+tests/fixtures/complexity/Dockerfile/compose.yaml
+  s_89e0e529609f03::t_d2b9d312bdf81d 1-20
+tests/fixtures/complexity/Dockerfile/run.sh
+  s_89e0e529609f03::t_d9eed8932c8462 1-2
+tests/fixtures/complexity/Go/charts/operator/Chart.yaml
+  s_89e0e529609f03::t_7f7954b4fc2fde 1-3
+tests/fixtures/complexity/Go/controller.go
+  s_89e0e529609f03::t_8a6775402c1a0d 1-14
+tests/fixtures/complexity/Go/crd.yaml
+  s_89e0e529609f03::t_a8832a571e6215 1-10
+tests/fixtures/complexity/Go/embed.go
+  s_89e0e529609f03::t_bd5e6318a8e363 1-6
+tests/fixtures/complexity/Go/go.mod
+  s_89e0e529609f03::t_191035785b2801 1-3
+tests/fixtures/complexity/Go/install.go
+  s_89e0e529609f03::t_a20893cd0b60da 1,3-7
+tests/fixtures/complexity/Go/types.go
+  s_89e0e529609f03::t_d633a72a338a99 1-10
+tests/fixtures/complexity/HCL/charts/app/Chart.yaml
+  s_89e0e529609f03::t_149cb72af28272 1-3
+tests/fixtures/complexity/HCL/main.tf
+  s_89e0e529609f03::t_f7e89cee81c20b 1-10
+tests/fixtures/complexity/Kubernetes/app.yaml
+  s_89e0e529609f03::t_3304c2c31276b5 1-117
+tests/fixtures/complexity/Kubernetes/crd.yaml
+  s_89e0e529609f03::t_433e0356cdc607 1-37
+tests/fixtures/complexity/Kubernetes/helmrelease.yaml
+  s_89e0e529609f03::t_a3d68b3e53507e 1-8
+tests/fixtures/complexity/Kubernetes/kustomization.yaml
+  s_89e0e529609f03::t_8cc3557a87d980 1-8
+tests/fixtures/complexity/Kubernetes/ocirepository.yaml
+  s_89e0e529609f03::t_503d347d63b763 1-9
+tests/repro/repro_call_node_manifest.c
+  s_89e0e529609f03::t_ee6031ad245824 555-556
+tests/repro/repro_language_registry.c
+  s_89e0e529609f03::t_b5524d8387dfe0 222-223,315,317,337
+tests/test_architecture_projection.c
+  s_89e0e529609f03::t_1a61b1df4c0dd7 1-1477
+tests/test_c_lsp.c
+  s_89e0e529609f03::t_0206b62b6ad8b5 22,30,32,1174-1209,16541-17073,17075-17084,17163,17850-17851
+tests/test_cli.c
+  s_89e0e529609f03::t_1a88d2c0fc8794 1312-1320,1324,1343-1346,1352-1357,1368-1372,1395,1399,1425,1593-1605,1629-1630,1642-1649,1669-1678,1726-1729,1743-1761,1764,1771-1791,1796-1810,1817,1830,1835-1837,1857,1860,1863,1866,1874,1882,1884-1886,1888-1892,1895-1904,1907-1921,1925-1929,1931-1933,1966,1974-1984,2077-2083,2126-2202,3129-3275,4128-4177,18112-18114,18136,18167
+tests/test_complexity.c
+  s_89e0e529609f03::t_af9cf4057b374d 53,59,72-78,98-100,181-183,219-248,276-277,300,345-382,419-437,453-474,478-701,708,721-732,744,771-779,791-804,806,815-817,820,833-836,843-849,853-856,913-965,1053-1104,1330-1389,1391,1395,1398
+tests/test_configlink.c
+  s_89e0e529609f03::t_34531e1c98877b 163-165,169,172,185-302,489-495,500,508,527-531
+tests/test_cross_repo.c
+  s_89e0e529609f03::t_c1fadfae4e5398 577-580,595,958
+tests/test_cypher.c
+  s_89e0e529609f03::t_635920d7a62422 570-598,5013-5021,5027-5034,5067-5095,5132-5573,5575-5578,5623,5626,5819-5825
+tests/test_daemon_application.c
+  s_89e0e529609f03::t_d86bb2cc6d6cfe 5922-5965,6891
+tests/test_daemon_runtime.c
+  s_89e0e529609f03::t_bb0b263d823956 934-944,947-948,950,3976,4051
+tests/test_diagrams.c
+  s_89e0e529609f03::t_aa8ab3231bb6e2 1-1117
+tests/test_discover.c
+  s_89e0e529609f03::t_b0b8d08342fd77 894-963,2455
+tests/test_doc_links_md.c
+  s_89e0e529609f03::t_367cd7fa072a26 605-616
+tests/test_doc_mentions_c.c
+  s_89e0e529609f03::t_c82a3f3a3a4463 1-346
+tests/test_doc_mentions_go.c
+  s_89e0e529609f03::t_bd7b519f40980e 1-2128
+tests/test_doc_mentions_helpers.h
+  s_89e0e529609f03::t_7835bc9b1c103a 433-438
+tests/test_doc_mentions_jvm.c
+  s_89e0e529609f03::t_738640e3c4d8ae 1-3669
+tests/test_doc_mentions_perl.c
+  s_89e0e529609f03::t_a1943876f01446 1-297
+tests/test_doc_mentions_php.c
+  s_89e0e529609f03::t_598cb89b2bbb7b 1-486
+tests/test_doc_mentions_rs.c
+  s_89e0e529609f03::t_c4379044341f9b 1-1734
+tests/test_doc_mentions_ts.c
+  s_89e0e529609f03::t_4227c5b519f151 1-360
+tests/test_edge_imports.c
+  s_89e0e529609f03::t_7a9bc497683238 53,1431-1434,1436-1449,1454,1456,1465-1467,1469-1471,1474,1481-1493,1497,1503-1510,1512-1513,1515-1516,1519,1523,1646-2296,2386-2398
+tests/test_extraction.c
+  s_89e0e529609f03::t_c017dbb7cb8734 14,23-29,5813-6245,8599-8785,9281-9338,10711-10714,10782-10791,10853,11018-11027,11226-12058,12069-12078,12449-12457,12530-12532,12549,12565-12570
+tests/test_extraction_imports.c
+  s_89e0e529609f03::t_1dfca1e669100d 1257-1312,1353-1355
+tests/test_failure_report_contract.sh
+  s_89e0e529609f03::t_74b05c0825e57a 1-504
+tests/test_fqn.c
+  s_89e0e529609f03::t_1f508e7d61dc6b 10-11,32-50,697
+tests/test_grammar_labels.c
+  s_89e0e529609f03::t_92958480930520 245
+tests/test_grammar_probe_f.c
+  s_89e0e529609f03::t_b73c3001f713f8 38,142-143,147,161-162,166,282-328,408-411,421-423,439-643,734-3573,4660-4662,4669-4674,4680-4754
+tests/test_grammar_probe_g.c
+  s_89e0e529609f03::t_b9b69315fefce9 691-692
+tests/test_graph_buffer.c
+  s_89e0e529609f03::t_ded1e53e6ff6e9 572,580-584,655-794,1061,1068-1071,1469-1472
+tests/test_httpd.c
+  s_89e0e529609f03::t_9529834310cf69 20,30-33,982-1004,1086-1869,2270-2304,2308-2316,2337,2353-2380,2406-2485,2816-2934,3131,3142-3143,3202-3233,3328,3822-3883,4054,4092,4095-4111,4120,4122-4123,4138-4139,4150
+tests/test_infrascan.c
+  s_89e0e529609f03::t_086c897417b81a 51-106,391
+tests/test_lang_contract.c
+  s_89e0e529609f03::t_eeb7b15eb3e4c6 1556-1603,1948-1949
+tests/test_language.c
+  s_89e0e529609f03::t_498b26b06502ac 389-396,552-584,1632,1671-1672
+tests/test_language_count_contract.sh
+  s_89e0e529609f03::t_cfe1b6ce968080 70
+tests/test_main.c
+  s_89e0e529609f03::t_68b347058e8dce 1782,1816,1830-1838,1841,1936-1937,1939-1960,2257,2316,2337-2345,2352
+tests/test_mcp.c
+  s_89e0e529609f03::t_09193a647f1dbe 1374-1376,1378,1432-1434,1517-1520,1522,1702-1705,1727-1748,6034-6339,8974-9110,13854-13864,13924-13929,15262-15412,18064-18066,18075-18076,18091,24449,24558,24598-24599,24691,24820-24824
+tests/test_openapi.c
+  s_89e0e529609f03::t_950d739f8da0d0 1-242
+tests/test_parallel.c
+  s_89e0e529609f03::t_6ed0cda4b633f2 20,962-1112,4886-5260,5262-5263,5300-5302
+tests/test_parse_coverage.c
+  s_89e0e529609f03::t_a6997a35a2473c 1898-2038,2097-2101
+tests/test_php_lsp.c
+  s_89e0e529609f03::t_def15794565b16 5313-5637,5639-5645
+tests/test_platform.c
+  s_89e0e529609f03::t_be4f4d91ceb6e8 1275
+tests/test_py_lsp.c
+  s_89e0e529609f03::t_4d40f0db795791 13,2227-2250,2265,2269,2282-2320,2327-4754,4756-4798,4892-4893
+tests/test_py_lsp_scale.c
+  s_89e0e529609f03::t_679e9eee23d261 3-4,78-83,85-89,92-96,107-110
+tests/test_runtime_settings.c
+  s_89e0e529609f03::t_f5ca2aad707269 1-410
+tests/test_security_audit_subprocess_calls.sh
+  s_89e0e529609f03::t_7cce9eb7885fc0 1-107
+tests/test_security_strings_allowlist.sh
+  s_89e0e529609f03::t_14a41d35df278c 21-24,112-244
+tests/test_security_ui_urls.sh
+  s_89e0e529609f03::t_0e368d8fb5f4a2 1-2,4-19,22-25,28-36,39-51,53-69,71-73,75-77,79-81,83-85,87-89,91-107
+tests/test_semantic.c
+  s_89e0e529609f03::t_15abb4afbfe1c1 614-693,924-925
+tests/test_store_arch.c
+  s_89e0e529609f03::t_87e8c0a2a62d04 25,1358,1367,1378,1441-1479,1613,1645-1646,1916
+tests/test_subprocess.c
+  s_89e0e529609f03::t_8d2e76cc22538d 18,29,106-273,367-459,2626-2632
+tests/test_ui.c
+  s_89e0e529609f03::t_ba38f1d9686015 13-14,16-21,135-137,870-2676,2704-2732
+tests/test_ui_license_inventory.py
+  s_89e0e529609f03::t_ba0acd1550aea7 1-247
+tests/test_watcher.c
+  s_89e0e529609f03::t_74516170020693 245-304,319-352,2805-2810,2812,2817-2820,2826-2830,4023-4024
+tools/tree-sitter-pascal/grammar.js
+  s_89e0e529609f03::t_79862d8b4f7dec 1-1243
+tools/tree-sitter-pascal/package.json
+  s_89e0e529609f03::t_20170a8e0f4237 1-9
+tools/tree-sitter-pascal/patches/unicode-identifiers.patch
+  s_89e0e529609f03::t_9f56031fecd4cf 1-15
+tools/tree-sitter-pascal/src/grammar.json
+  s_89e0e529609f03::t_dde541a4cb5476 1-9634
+tools/tree-sitter-pascal/src/node-types.json
+  s_89e0e529609f03::t_0f45f89c395521 1-8923
+tools/tree-sitter-pascal/src/parser.c
+  s_89e0e529609f03::t_604441c621bc95 1-129689
+tools/tree-sitter-pascal/src/tree_sitter/alloc.h
+  s_89e0e529609f03::t_fd9e16f75fedfd 1-54
+tools/tree-sitter-pascal/src/tree_sitter/array.h
+  s_89e0e529609f03::t_a885127fa762df 1-291
+tools/tree-sitter-pascal/src/tree_sitter/parser.h
+  s_89e0e529609f03::t_3f96039f48c6a0 1-286
+tools/tree-sitter-pascal/test/corpus/unicode_identifiers.txt
+  s_89e0e529609f03::t_ea8d6bad361437 1-196
+tools/tree-sitter-pascal/tree-sitter.json
+  s_89e0e529609f03::t_1f8f4725e2f7c6 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2a4d50dcf91ccfec7cc8ddac035dfe75bfcbf678",
+  "prompts": {},
+  "sessions": {
+    "s_89e0e529609f03": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13401-1cd0-7261-a597-74c8eb5018db",
+        "model": "gpt-6-luna"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
