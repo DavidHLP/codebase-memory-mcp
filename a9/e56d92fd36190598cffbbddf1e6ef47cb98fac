@@ -1,0 +1,19 @@
+src/pipeline/registry.c
+  s_a7a162efa36745::t_449a3132766952 2352-2353
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9e56d92fd36190598cffbbddf1e6ef47cb98fac",
+  "prompts": {},
+  "sessions": {
+    "s_a7a162efa36745": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13ad6-434c-7850-9323-4f095031cde6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
