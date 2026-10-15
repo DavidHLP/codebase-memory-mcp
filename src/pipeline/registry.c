@@ -2349,8 +2349,8 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
     if ((size_t)bucket->count > SIZE_MAX / sizeof(const char *) / SWIFT_MATCH_BUFFERS) {
         return SWIFT_INCOMPATIBLE;
     }
-    const char **matches = cbm_alloc(CBM_MEM_CLASS_OTHER,
-                                    (size_t)bucket->count * SWIFT_MATCH_BUFFERS * sizeof(*matches));
+    const char **matches = cbm_alloc(
+        CBM_MEM_CLASS_OTHER, (size_t)bucket->count * SWIFT_MATCH_BUFFERS * sizeof(*matches));
     if (!matches) {
         return SWIFT_INCOMPATIBLE;
     }
