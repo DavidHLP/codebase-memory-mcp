@@ -1356,8 +1356,15 @@ static void registry_visitor(const cbm_gbuf_node_t *node, void *userdata) {
             unsigned long params = strtoul(count, &count_end, CBM_DECIMAL_BASE);
             if (mask_end == mask + CBM_SZ_16 && *mask_end == '"' && count_end != count &&
                 params <= UINT8_MAX) {
-                cbm_registry_set_swift_signature(seed->registry, node->qualified_name,
-                                                 (uint64_t)defaults, (uint8_t)params);
+                yyjson_doc *doc =
+                    yyjson_read(node->properties_json, strlen(node->properties_json), 0);
+                if (doc) {
+                    const char *selector =
+                        yyjson_get_str(yyjson_obj_get(yyjson_doc_get_root(doc), "swift_selector"));
+                    cbm_registry_set_swift_signature(seed->registry, node->qualified_name,
+                                                     (uint64_t)defaults, (uint8_t)params, selector);
+                    yyjson_doc_free(doc);
+                }
             }
         }
     }

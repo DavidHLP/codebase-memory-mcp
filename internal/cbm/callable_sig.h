@@ -3,7 +3,7 @@
  *
  * A callable's graph identity is
  *
- *     callable_qn := base_qn [<tparams>] (params) [cvref/async] [=>return_type]
+ *     callable_qn := base_qn [<tparams>] (params) [cvref/static/class] [async] [=>return_type]
  * Swift includes generic declarations and where requirements in <tparams>
  * (associated-type paths use '/' instead of '.') and appends function-level
  * async after params and an explicit return type after "=>". Swift preserves
@@ -66,6 +66,8 @@ CBMCallableIdentity cbm_callable_identity(CBMLanguage lang);
 /* Swift parameter defaults are call-resolution metadata, not graph identity.
  * Returns a bit per parameter; count > 64 is reported as 255. */
 uint64_t cbm_swift_default_mask(TSNode func_node, const char *source, uint8_t *count);
+/* Uncapped parameter spelling: matching must not parse a hashed identity. */
+const char *cbm_swift_selector(CBMArena *a, TSNode func_node, const char *source);
 /* The identity suffix for the callable at `func_node` in the language's own
  * mode, or NULL when that mode is NONE (or the node carries no parameter
  * information the mode can use). Arena-owned. */

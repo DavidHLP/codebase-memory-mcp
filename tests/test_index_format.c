@@ -333,7 +333,7 @@ static int swift_collision_migration_case(int scenario) {
                         .type = "CALLS",
                         .properties_json = "{\"candidates\":1}"};
     ASSERT_GT(cbm_store_insert_edge(s, &stale), 0);
-    ASSERT_EQ(cbm_store_set_format_version(s, scenario ? 3 : 2), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_set_format_version(s, scenario + 2), CBM_STORE_OK);
     cbm_store_close(s);
     for (int run = 0; run < 2; run++) {
         char *resp = index_capture(&lp);

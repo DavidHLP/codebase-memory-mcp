@@ -430,6 +430,7 @@ static char *surface_file_to_json(const CBMFileResult *result, CBMLanguage langu
                        (unsigned long long)d->swift_default_mask);
         yyjson_mut_obj_add_strcpy(doc, o, "d", defaults);
         yyjson_mut_obj_add_int(doc, o, "p", d->swift_param_count);
+        yyjson_mut_obj_add_str(doc, o, "s", d->swift_selector ? d->swift_selector : "");
         yyjson_mut_arr_add_val(swift, o);
     }
     if (swift) {

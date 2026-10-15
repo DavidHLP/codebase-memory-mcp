@@ -789,10 +789,23 @@ static void sig_swift_params(sig_ctx_t *c, TSNode node) {
 /* Keep generic declarations and requirements in identity, without interpreting
  * applicability at call sites. '/' preserves associated-type paths without
  * introducing a QN separator; comments and whitespace use the token rules. */
+static TSNode sig_swift_extension_requirements(sig_ctx_t *c, TSNode node) {
+    for (TSNode parent = ts_node_parent(node); !ts_node_is_null(parent);
+         parent = ts_node_parent(parent)) {
+        if (strcmp(ts_node_type(parent), "class_declaration") == 0) {
+            return sig_node_text_is(c, sig_field(parent, "declaration_kind"), "extension")
+                       ? cbm_find_child_by_kind(parent, "type_constraints")
+                       : (TSNode){0};
+        }
+    }
+    return (TSNode){0};
+}
+
 static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
     TSNode params = cbm_find_child_by_kind(node, "type_parameters");
     TSNode requirements = cbm_find_child_by_kind(node, "type_constraints");
-    if (ts_node_is_null(params) && ts_node_is_null(requirements)) {
+    TSNode extension = sig_swift_extension_requirements(c, node);
+    if (ts_node_is_null(params) && ts_node_is_null(requirements) && ts_node_is_null(extension)) {
         return;
     }
     size_t start = c->len;
@@ -808,12 +821,31 @@ static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
         sig_raw_str(c, ";");
         sig_type_tokens(c, requirements);
     }
+    if (!ts_node_is_null(extension)) {
+        sig_raw_str(c, ";");
+        sig_type_tokens(c, extension);
+    }
     sig_raw_str(c, ">");
     for (size_t i = start; i < c->len; i++) {
         if (c->buf[i] == '.') {
             c->buf[i] = '/';
         }
     }
+}
+
+static const char *sig_swift_dispatch(sig_ctx_t *c, TSNode node) {
+    TSNode modifiers = cbm_find_child_by_kind(node, "modifiers");
+    uint32_t count = ts_node_is_null(modifiers) ? 0 : ts_node_child_count(modifiers);
+    for (uint32_t i = 0; i < count; i++) {
+        TSNode modifier = ts_node_child(modifiers, i);
+        if (sig_node_text_is(c, modifier, "static")) {
+            return "static";
+        }
+        if (sig_node_text_is(c, modifier, "class")) {
+            return "class";
+        }
+    }
+    return ts_node_is_null(cbm_find_child_by_kind(node, "class")) ? NULL : "class";
 }
 
 static bool sig_swift_parameter_has_default(TSNode parameter) {
@@ -1079,11 +1111,18 @@ static void sig_render(sig_ctx_t *c, TSNode node) {
     sig_raw(c, ")", 1);
     c->close_off = c->len;
     if (c->lang == CBM_LANG_SWIFT) {
+        const char *dispatch = sig_swift_dispatch(c, node);
+        if (dispatch) {
+            sig_raw_str(c, dispatch);
+        }
         /* Only direct declaration children: a parameter's async closure type
          * is already in params and must not mark the enclosing function. */
         uint32_t count = ts_node_child_count(node);
         for (uint32_t i = 0; i < count; i++) {
             if (sig_node_text_is(c, ts_node_child(node, i), "async")) {
+                if (dispatch) {
+                    sig_raw_str(c, " ");
+                }
                 sig_raw_str(c, "async");
                 break;
             }
@@ -1111,6 +1150,22 @@ static bool sig_roundtrips(const char *suffix, size_t n) {
 /* "(#<hash>)": the identity of a signature that cannot be spelled safely. */
 static const char *sig_hashed(CBMArena *a, const char *full, size_t n) {
     return cbm_arena_sprintf(a, "(#%016llx)", (unsigned long long)sig_fnv64(full, n));
+}
+
+const char *cbm_swift_selector(CBMArena *a, TSNode node, const char *source) {
+    if (!a || !source || ts_node_is_null(node)) {
+        return NULL;
+    }
+    sig_ctx_t c = {
+        .arena = a, .src = source, .lang = CBM_LANG_SWIFT, .mode = CBM_CALLABLE_ID_LABELED_TYPED};
+    sig_raw_str(&c, "(");
+    sig_swift_params(&c, node);
+    sig_raw_str(&c, ")");
+    if (c.overflow) {
+        return NULL;
+    }
+    (void)sig_spell(c.buf, c.len, CBM_LANG_SWIFT);
+    return c.buf;
 }
 
 const char *cbm_callable_sig_mode(CBMArena *a, TSNode func_node, const char *source,
@@ -1259,6 +1314,21 @@ static bool sig_return_type_valid(const char *type) {
     return depth == 0;
 }
 
+static size_t sig_swift_qualifiers_start(const char *text, size_t end) {
+    static const char *const qualifiers[] = {"async", "static", "class"};
+    for (size_t i = 0; i < sizeof(qualifiers) / sizeof(qualifiers[0]); i++) {
+        size_t len = strlen(qualifiers[i]);
+        if (end > len && memcmp(text + end - len, qualifiers[i], len) == 0 &&
+            (text[end - len - 1] == ')' || text[end - len - 1] == ' ')) {
+            end -= len;
+            while (end && text[end - 1] == ' ') {
+                end--;
+            }
+        }
+    }
+    return end;
+}
+
 size_t cbm_callable_return_offset(const char *suffix) {
     size_t len = strlen(suffix);
     if (!strstr(suffix, "=>")) {
@@ -1270,9 +1340,8 @@ size_t cbm_callable_return_offset(const char *suffix) {
     for (size_t i = 0; i + SIG_CHAR_LEN < len; i++) {
         char ch = suffix[i];
         bool arrow = ch == '=' && suffix[i + SIG_CHAR_LEN] == '>';
-        bool after_params = i && (suffix[i - SIG_CHAR_LEN] == ')' ||
-                                  (i >= SIG_ASYNC_LEN && memcmp(suffix + i - SIG_ASYNC_LEN, "async",
-                                                                SIG_ASYNC_LEN) == 0));
+        size_t params_end = sig_swift_qualifiers_start(suffix, i);
+        bool after_params = params_end && suffix[params_end - SIG_CHAR_LEN] == ')';
         if (arrow && after_params && parens == 0 && brackets == 0 && angles == 0) {
             return sig_return_type_valid(suffix + i + SIG_ARROW_LEN) ? i : 0;
         }
@@ -1300,10 +1369,7 @@ size_t cbm_qn_callable_base_len(const char *qn) {
     }
     size_t len = strlen(qn);
     /* Trailing cvref (C++): const / volatile / & / && after the ')'. */
-    size_t t = cbm_callable_return_offset(qn);
-    if (t >= SIG_ASYNC_LEN && memcmp(qn + t - SIG_ASYNC_LEN, "async", SIG_ASYNC_LEN) == 0) {
-        t -= SIG_ASYNC_LEN;
-    }
+    size_t t = sig_swift_qualifiers_start(qn, cbm_callable_return_offset(qn));
     for (;;) {
         if (t > 0 && qn[t - 1] == '&') {
             t--;

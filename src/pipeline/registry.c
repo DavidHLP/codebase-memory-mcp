@@ -96,6 +96,7 @@ typedef struct {
 typedef struct {
     uint64_t defaults;
     uint8_t count;
+    char selector[];
 } swift_signature_t;
 _Static_assert(CBM_LANG_COUNT <= UINT8_MAX, "CBMLanguage must fit the per-entry lang byte");
 
@@ -1133,7 +1134,7 @@ static void free_qn_array(const char *key, void *value, void *ud) {
 static void free_swift_signature(const char *key, void *value, void *ud) {
     (void)key;
     (void)ud;
-    free(value);
+    cbm_free(CBM_MEM_CLASS_OTHER, value);
 }
 
 void cbm_registry_free(cbm_registry_t *r) {
@@ -1284,7 +1285,8 @@ void cbm_registry_add_lang(cbm_registry_t *r, const char *name, const char *qual
 }
 
 void cbm_registry_set_swift_signature(cbm_registry_t *r, const char *qualified_name,
-                                      uint64_t default_mask, uint8_t param_count) {
+                                      uint64_t default_mask, uint8_t param_count,
+                                      const char *selector) {
     if (!r || !qualified_name) {
         return;
     }
@@ -1298,16 +1300,17 @@ void cbm_registry_set_swift_signature(cbm_registry_t *r, const char *qualified_n
             return;
         }
     }
-    swift_signature_t *sig = cbm_ht_get(r->swift_signatures, owned);
+    const char *text =
+        selector ? selector : qualified_name + cbm_qn_callable_base_len(qualified_name);
+    swift_signature_t *sig = cbm_alloc(CBM_MEM_CLASS_OTHER, sizeof(*sig) + strlen(text) + SKIP_ONE);
     if (!sig) {
-        sig = malloc(sizeof(*sig));
-        if (!sig) {
-            return;
-        }
-        cbm_ht_set(r->swift_signatures, owned, sig);
+        return;
     }
     sig->defaults = default_mask;
     sig->count = param_count;
+    strcpy(sig->selector, text);
+    cbm_free(CBM_MEM_CLASS_OTHER, cbm_ht_get(r->swift_signatures, owned));
+    cbm_ht_set(r->swift_signatures, owned, sig);
 }
 
 /* ── Lookup ──────────────────────────────────────────────────────── */
@@ -1965,7 +1968,7 @@ static cbm_resolution_t registry_resolve_scoped(const cbm_registry_t *r, const c
     return res;
 }
 
-/* Read labels from the signature-qualified QN. Types may contain commas in
+/* Read labels from the uncapped selector. Types may contain commas in
  * tuples, generic arguments or function types, so only top-level commas split
  * parameters. The type text is used only to recognize a trailing closure. */
 typedef struct {
@@ -2129,10 +2132,8 @@ static size_t swift_generic_prefix_len(const char *sig, size_t n) {
 }
 
 /* Split only at top-level commas; preserve the closure/variadic spelling rules. */
-static bool swift_parameters_read(const char *qn, const char *name, const swift_signature_t *meta,
-                                  swift_parameters_t *params) {
-    size_t base_len = cbm_qn_callable_base_len_named(qn, name);
-    const char *sig = qn + base_len;
+static bool swift_parameters_read(const swift_signature_t *meta, swift_parameters_t *params) {
+    const char *sig = meta->selector;
     size_t n = cbm_callable_return_offset(sig);
     const size_t async_len = sizeof("async") - SKIP_ONE;
     if (n >= async_len && memcmp(sig + n - async_len, "async", async_len) == 0) {
@@ -2251,8 +2252,7 @@ static bool swift_parameters_match(const swift_parameters_t *params, const swift
     return (states[call->arg_count] & (UINT16_C(1) << trailing_total)) != 0;
 }
 
-static bool swift_signature_matches(const char *qn, const char *name, const swift_signature_t *meta,
-                                    const CBMCall *call) {
+static bool swift_signature_matches(const swift_signature_t *meta, const CBMCall *call) {
     if (!meta || meta->count == UINT8_MAX || call->arg_count < 0 ||
         call->arg_count > CBM_MAX_CALL_ARGS || (call->arg_count > 0 && !call->args) ||
         call->swift_args_truncated || call->swift_trailing_truncated ||
@@ -2261,7 +2261,7 @@ static bool swift_signature_matches(const char *qn, const char *name, const swif
     }
     swift_parameters_t params;
     params.count = 0;
-    if (!swift_parameters_read(qn, name, meta, &params)) {
+    if (!swift_parameters_read(meta, &params)) {
         return false;
     }
     return swift_parameters_match(&params, meta, call);
@@ -2272,12 +2272,12 @@ static bool swift_signature_matches(const char *qn, const char *name, const swif
 static const char *swift_choose_receiver(const cbm_registry_t *r, const char **matches, int matched,
                                          const char *name, const CBMCall *call,
                                          const char *module_qn, const char **import_vals,
-                                         int import_count) {
+                                         int import_count, const char **scratch) {
     if (!strchr(call->callee_name, '.')) {
         return NULL;
     }
     size_t callee_len = strlen(call->callee_name);
-    const char *receiver_matches[REG_MAX_CANDIDATES];
+    const char **receiver_matches = scratch;
     int receiver_count = 0;
     for (int i = 0; i < matched; i++) {
         size_t base = cbm_qn_callable_base_len_named(matches[i], name);
@@ -2290,7 +2290,7 @@ static const char *swift_choose_receiver(const cbm_registry_t *r, const char **m
     if (receiver_count == 0) {
         return NULL;
     }
-    const char *reachable[REG_MAX_CANDIDATES];
+    const char **reachable = scratch + matched;
     int reachable_count = 0;
     if (import_vals) {
         for (int i = 0; i < receiver_count; i++) {
@@ -2307,13 +2307,13 @@ static const char *swift_choose_receiver(const cbm_registry_t *r, const char **m
 static const char *swift_choose_candidate(const cbm_registry_t *r, const char **matches,
                                           int matched, const char *name, const CBMCall *call,
                                           const char *module_qn, const char **import_vals,
-                                          int import_count) {
+                                          int import_count, const char **scratch) {
     const char *chosen = swift_choose_receiver(r, matches, matched, name, call, module_qn,
-                                               import_vals, import_count);
+                                               import_vals, import_count, scratch);
     if (chosen) {
         return chosen;
     }
-    const char *reachable[REG_MAX_CANDIDATES];
+    const char **reachable = scratch;
     int reachable_count = 0;
     if (import_vals) {
         for (int i = 0; i < matched; i++) {
@@ -2345,15 +2345,15 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
     if (!bucket) {
         return 0;
     }
-    if (bucket->count > REG_MAX_CANDIDATES) {
-        for (int i = 0; i < bucket->count; i++) {
-            if (cbm_ht_get(r->swift_signatures, bucket->items[i])) {
-                return SWIFT_INCOMPATIBLE;
-            }
-        }
-        return 0;
+    enum { SWIFT_MATCH_BUFFERS = 3 };
+    if ((size_t)bucket->count > SIZE_MAX / sizeof(const char *) / SWIFT_MATCH_BUFFERS) {
+        return SWIFT_INCOMPATIBLE;
     }
-    const char *matches[REG_MAX_CANDIDATES];
+    const char **matches = cbm_alloc(CBM_MEM_CLASS_OTHER,
+                                    (size_t)bucket->count * SWIFT_MATCH_BUFFERS * sizeof(*matches));
+    if (!matches) {
+        return SWIFT_INCOMPATIBLE;
+    }
     int matched = 0;
     bool has_swift = false;
     for (int i = 0; i < bucket->count; i++) {
@@ -2361,16 +2361,18 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
         swift_signature_t *meta = cbm_ht_get(r->swift_signatures, qn);
         has_swift |= meta != NULL;
         if (meta && receiver_chain_admits(call->callee_name, qn) &&
-            swift_signature_matches(qn, name, meta, call)) {
+            swift_signature_matches(meta, call)) {
             matches[matched++] = qn;
         }
     }
     if (matched == 0) {
+        cbm_free(CBM_MEM_CLASS_OTHER, matches);
         return has_swift ? SWIFT_INCOMPATIBLE : 0;
     }
     const char *chosen = swift_choose_candidate(r, matches, matched, name, call, module_qn,
-                                                import_vals, import_count);
+                                                import_vals, import_count, matches + bucket->count);
     if (!chosen) {
+        cbm_free(CBM_MEM_CLASS_OTHER, matches);
         return 0;
     }
     size_t chosen_base = cbm_qn_callable_base_len_named(chosen, name);
@@ -2379,11 +2381,13 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
         size_t base = cbm_qn_callable_base_len_named(matches[i], name);
         if (base == chosen_base && memcmp(matches[i], chosen, base) == 0) {
             if (found == out_cap) {
+                cbm_free(CBM_MEM_CLASS_OTHER, matches);
                 return SWIFT_INCOMPATIBLE;
             }
             out[found++] = matches[i];
         }
     }
+    cbm_free(CBM_MEM_CLASS_OTHER, matches);
     return found;
 }
 

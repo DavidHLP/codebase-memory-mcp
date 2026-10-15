@@ -30,8 +30,8 @@ typedef struct cbm_store_read_scope cbm_store_read_scope_t;
  *   2  Kubernetes objects: one Resource per YAML document, QN
  *      <file>::<group>/<Kind>/<declared namespace or ->/<name>; a
  *      Dockerfile.<variant> keeps its suffix in its QNs.
- *   4  #2061: Swift declaration identities keep overload nodes and call edges distinct. */
-#define CBM_INDEX_FORMAT_VERSION 4
+ *   5  #2061: Swift declaration identities and uncapped call selectors. */
+#define CBM_INDEX_FORMAT_VERSION 5
 #define CBM_STORE_CANCELLED (-3)
 #define CBM_STORE_SCAN_LIMIT (-4)
 #define CBM_STORE_CALLBACK_ERR (-5)

@@ -6769,6 +6769,7 @@ static void extract_func_def(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec 
         }
         def.swift_default_mask =
             cbm_swift_default_mask(func_node, ctx->source, &def.swift_param_count);
+        def.swift_selector = cbm_swift_selector(ctx->arena, func_node, ctx->source);
     }
 
     // C++/CUDA: GoogleTest macros are test functions (#1266).
@@ -8406,6 +8407,7 @@ static void push_method_def(CBMExtractCtx *ctx, TSNode child, TSNode class_node,
             return;
         }
         def.swift_default_mask = cbm_swift_default_mask(child, ctx->source, &def.swift_param_count);
+        def.swift_selector = cbm_swift_selector(ctx->arena, child, ctx->source);
     }
     def.label = "Method";
     def.file_path = ctx->rel_path;

@@ -5500,13 +5500,7 @@ static char *union_query(int branches, const char *join) {
     return q;
 }
 
-#ifdef _WIN32
-/* Windows sanitizer runs exceed the 900s suite budget at 20,000 branches;
- * 5,000 still stresses the 256 KiB worker stack, while POSIX retains 20,000. */
-enum { CYPHER_UNION_MANY_BRANCHES = 5000 };
-#else
 enum { CYPHER_UNION_MANY_BRANCHES = 20000 };
-#endif
 
 /* UNION ALL keeps every branch's row in branch order. */
 static int union_many_check(void *arg) {
@@ -5538,8 +5532,8 @@ static int union_many_check(void *arg) {
     return 0;
 }
 
-/* A large UNION ALL chain parses, runs and frees on the worker stack, and every
- * branch contributes its row. */
+/* 20,000 UNION ALL branches parse, run and free on the worker stack, and
+ * every branch contributes its row. */
 TEST(cypher_many_union_branches) {
     int rc = run_on_worker_stack(union_many_check, NULL);
     if (rc != 0) {

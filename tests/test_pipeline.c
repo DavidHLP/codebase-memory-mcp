@@ -10931,6 +10931,96 @@ TEST(pipeline_swift_generic_async_identity_issue2061) {
                                            "func invoke() { self.service.pick(value) }\n}\n");
 }
 
+TEST(pipeline_swift_static_instance_identity_issue2061) {
+    const char *suffixes[] = {"pick(_:Int)static", "pick(_:Int)"};
+    return swift_declaration_identity_case(
+        suffixes, 2,
+        "class Service {\nstatic func pick(_ x: Int) { mark0() }\n"
+        "func pick(_ x: Int) { mark1() }\n}\n"
+        "func mark0() {}\nfunc mark1() {}\n",
+        "class Caller {\nlet service = Service()\n"
+        "func invoke() { self.service.pick(1) }\n}\n");
+}
+
+TEST(pipeline_swift_extension_constraints_identity_issue2061) {
+    const char *suffixes[] = {"pick<;where T:P>(_:Int)", "pick<;where T:Q>(_:Int)"};
+    return swift_declaration_identity_case(
+        suffixes, 2,
+        "class Service<T> {}\n"
+        "extension Service where T: P { func pick(_ x: Int) { mark0() } }\n"
+        "extension Service where T: Q { func pick(_ x: Int) { mark1() } }\n"
+        "func mark0() {}\nfunc mark1() {}\nprotocol P {}\nprotocol Q {}\nstruct OnlyP: P {}\n",
+        "class Caller {\nlet service = Service<OnlyP>()\n"
+        "func invoke() { self.service.pick(1) }\n}\n");
+}
+
+TEST(pipeline_swift_capped_selector_survives_incremental_issue2061) {
+    char type[2049], service[4608], caller[2304];
+    memset(type, 'T', sizeof(type) - 1);
+    type[sizeof(type) - 1] = '\0';
+    snprintf(service, sizeof(service),
+             "struct %s {}\nclass Service {\nfunc pick(value: %s) { marker() }\n}\n"
+             "func marker() {}\n",
+             type, type);
+    snprintf(caller, sizeof(caller),
+             "class Caller {\nlet service = Service()\n"
+             "func invokeLong(_ value: %s) { service.pick(value: value) }\n}\n",
+             type);
+    for (int mode = 0; mode < 2; mode++) {
+        char tmp[256] = "/tmp/cbm_swift_capped_XXXXXX";
+        ASSERT_NOT_NULL(cbm_mkdtemp(tmp));
+        write_temp_file(tmp, "Sources/Service.swift", service);
+        write_temp_file(tmp, "Sources/Caller.swift", caller);
+        for (int i = 0; mode && i < 50; i++) {
+            char path[64], filler[64];
+            snprintf(path, sizeof(path), "Sources/Filler%d.swift", i);
+            snprintf(filler, sizeof(filler), "func filler%d() {}\n", i);
+            write_temp_file(tmp, path, filler);
+        }
+        XlangEnvSave saved = xlang_env_select(mode != 0);
+        char db[512], path[512];
+        snprintf(db, sizeof(db), "%s/capped.db", tmp);
+        snprintf(path, sizeof(path), "%s/Sources/Caller.swift", tmp);
+        for (int phase = 0; phase < 2; phase++) {
+            if (phase) {
+                char changed[2400];
+                snprintf(changed, sizeof(changed), "%s// changed\n", caller);
+                write_temp_file(tmp, "Sources/Caller.swift", changed);
+                ASSERT_EQ(pipeline_test_set_mtime(path, 2000000000, 0), 0);
+            }
+            cbm_pipeline_t *p = cbm_pipeline_new(tmp, db, CBM_MODE_FULL);
+            ASSERT_NOT_NULL(p);
+            ASSERT_EQ(cbm_pipeline_run(p), 0);
+            if (phase) {
+                ASSERT_EQ(cbm_pipeline_incremental_test_last_route(),
+                          CBM_INCREMENTAL_ROUTE_CLOSURE_REPAIR);
+            }
+            cbm_store_t *s = cbm_store_open_path(db);
+            ASSERT_NOT_NULL(s);
+            const char *project = cbm_pipeline_project_name(p);
+            cbm_node_t *picks = NULL, *calls = NULL;
+            int pick_count = 0, call_count = 0;
+            ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "pick", &picks, &pick_count),
+                      CBM_STORE_OK);
+            ASSERT_EQ(pick_count, 1);
+            ASSERT_EQ(cbm_store_find_nodes_by_name(s, project, "invokeLong", &calls, &call_count),
+                      CBM_STORE_OK);
+            ASSERT_EQ(call_count, 1);
+            ASSERT_NOT_NULL(strchr(picks[0].qualified_name, '#'));
+            ASSERT_NOT_NULL(strstr(picks[0].properties_json, "\"swift_selector\":\"(value:"));
+            ASSERT_NOT_NULL(strstr(picks[0].properties_json, type));
+            ASSERT_EQ(pipeline_has_calls_edge(s, calls[0].id, picks[0].id), 1);
+            cbm_store_free_nodes(picks, pick_count);
+            cbm_store_free_nodes(calls, call_count);
+            cbm_store_close(s);
+            cbm_pipeline_free(p);
+        }
+        xlang_env_restore(&saved);
+        th_rmtree(tmp);
+    }
+    PASS();
+}
+
 TEST(pipeline_swift_qualified_and_return_identity_issue2061) {
     const char *qualified[] = {"pick(_:A/Item)", "pick(_:B/Item)"};
     return swift_declaration_identity_case(qualified, 2,
@@ -23863,6 +23953,9 @@ SUITE(pipeline) {
     RUN_TEST(pipeline_swift_overloads_keep_argument_labels_issue2061);
     RUN_TEST(pipeline_swift_overloads_parallel_candidates_issue2061);
     RUN_TEST(pipeline_swift_generic_async_identity_issue2061);
+    RUN_TEST(pipeline_swift_static_instance_identity_issue2061);
+    RUN_TEST(pipeline_swift_extension_constraints_identity_issue2061);
+    RUN_TEST(pipeline_swift_capped_selector_survives_incremental_issue2061);
     RUN_TEST(pipeline_swift_qualified_and_return_identity_issue2061);
     RUN_TEST(pipeline_swift_return_identity_issue2061);
     RUN_TEST(pipeline_swift_default_before_required_candidates_issue2061);

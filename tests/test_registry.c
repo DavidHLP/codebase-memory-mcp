@@ -1738,7 +1738,7 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         uint64_t defaults = (i == 5 || i == 15)  ? UINT64_C(1) << 1
                             : i == 17 || i >= 19 ? UINT64_C(1)
                                                  : 0;
-        cbm_registry_set_swift_signature(r, qns[i], defaults, counts[i]);
+        cbm_registry_set_swift_signature(r, qns[i], defaults, counts[i], NULL);
     }
 
     const char *out[8] = {0};
@@ -1746,7 +1746,7 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
                                  "proj.Service.constrained<T>(_:T)async"};
     for (int i = 0; i < 2; i++) {
         cbm_registry_add(r, "constrained", generic_qns[i], "Method");
-        cbm_registry_set_swift_signature(r, generic_qns[i], 0, 1);
+        cbm_registry_set_swift_signature(r, generic_qns[i], 0, 1, NULL);
     }
     CBMCallArg generic_arg = {0};
     CBMCall generic_call = {
@@ -1754,7 +1754,7 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
     ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 2);
     const char *nested = "proj.Service.nested<T,U;where T==Box<[Int]>,U==()=>Void>(_:T)=>Int";
     cbm_registry_add(r, "nested", nested, "Method");
-    cbm_registry_set_swift_signature(r, nested, 0, 1);
+    cbm_registry_set_swift_signature(r, nested, 0, 1, NULL);
     generic_call.callee_name = "Service.nested";
     ASSERT_EQ(cbm_registry_swift_candidates(r, &generic_call, "proj.Caller", NULL, 0, out, 8), 1);
     ASSERT_STR_EQ(out[0], nested);
@@ -1762,7 +1762,7 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
                              "proj.Service.pick()async=>(A/Item)=>B/Item"};
     for (int i = 0; i < 2; i++) {
         cbm_registry_add(r, "pick", returns[i], "Method");
-        cbm_registry_set_swift_signature(r, returns[i], 0, 0);
+        cbm_registry_set_swift_signature(r, returns[i], 0, 0, NULL);
     }
     CBMCall returned = {.callee_name = "Service.pick"};
     ASSERT_EQ(cbm_registry_swift_candidates(r, &returned, "proj.Caller", NULL, 0, out, 8), 2);
@@ -1770,7 +1770,7 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
                                "proj.Service.bad()=>Int)"};
     for (int i = 0; i < 3; i++) {
         cbm_registry_add(r, "bad", malformed[i], "Method");
-        cbm_registry_set_swift_signature(r, malformed[i], 0, 0);
+        cbm_registry_set_swift_signature(r, malformed[i], 0, 0, NULL);
     }
     returned.callee_name = "Service.bad";
     ASSERT_EQ(cbm_registry_swift_candidates(r, &returned, "proj.Caller", NULL, 0, out, 8), 0);
@@ -1779,7 +1779,7 @@ TEST(swift_overload_labels_defaults_and_trailing_closure) {
         char qn[128];
         snprintf(qn, sizeof(qn), "proj.Service.%s(_:A,_:A)=>Bool", operators[i]);
         cbm_registry_add(r, operators[i], qn, "Method");
-        cbm_registry_set_swift_signature(r, qn, 0, 2);
+        cbm_registry_set_swift_signature(r, qn, 0, 2, NULL);
         CBMCallArg operands[2] = {{0}};
         CBMCall operation = {.callee_name = operators[i], .args = operands, .arg_count = 2};
         ASSERT_EQ(cbm_registry_swift_candidates(r, &operation, "proj.Caller", NULL, 0, out, 8), 1);
@@ -1927,8 +1927,8 @@ TEST(swift_receiver_resolution_is_independent_of_registration_order) {
         const char *second = reverse ? alpha : beta;
         cbm_registry_add(r, "work", first, "Method");
         cbm_registry_add(r, "work", second, "Method");
-        cbm_registry_set_swift_signature(r, first, 0, 1);
-        cbm_registry_set_swift_signature(r, second, 0, 1);
+        cbm_registry_set_swift_signature(r, first, 0, 1, NULL);
+        cbm_registry_set_swift_signature(r, second, 0, 1, NULL);
 
         const char *out[4] = {0};
         ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.alpha.Caller", NULL, 0, out, 4), 1);
@@ -1949,8 +1949,8 @@ TEST(swift_multiple_trailing_closures_match_labels) {
     const char *two_qn = "proj.Service.handle(completion:()=>Void,onError:()=>Void)";
     cbm_registry_add(r, "handle", one_qn, "Method");
     cbm_registry_add(r, "handle", two_qn, "Method");
-    cbm_registry_set_swift_signature(r, one_qn, 0, 1);
-    cbm_registry_set_swift_signature(r, two_qn, 0, 2);
+    cbm_registry_set_swift_signature(r, one_qn, 0, 1, NULL);
+    cbm_registry_set_swift_signature(r, two_qn, 0, 2, NULL);
 
     const char *good[2] = {NULL, "onError"};
     CBMCall call = {.callee_name = "Service.handle",
@@ -1982,7 +1982,8 @@ TEST(swift_multiple_trailing_closures_match_labels) {
     const char *delayed_qn =
         "proj.Service.delayed(onDismiss:(()=>Void)?,content:()=>Void,onError:(()=>Void)?)";
     cbm_registry_add(r, "delayed", delayed_qn, "Method");
-    cbm_registry_set_swift_signature(r, delayed_qn, (UINT64_C(1) << 0) | (UINT64_C(1) << 2), 3);
+    cbm_registry_set_swift_signature(r, delayed_qn, (UINT64_C(1) << 0) | (UINT64_C(1) << 2), 3,
+                                     NULL);
     call.callee_name = "Service.delayed";
     call.swift_trailing_labels = good;
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 4), 1);
@@ -1999,7 +2000,7 @@ TEST(swift_repeated_labels_skip_default_before_next_trailing_label) {
     ASSERT_NOT_NULL(r);
     const char *qn = "proj.Service.repeated(a:()=>Void,b:()=>Void,a:()=>Void,b:()=>Void)";
     cbm_registry_add(r, "repeated", qn, "Method");
-    cbm_registry_set_swift_signature(r, qn, (UINT64_C(1) << 0) | (UINT64_C(1) << 3), 4);
+    cbm_registry_set_swift_signature(r, qn, (UINT64_C(1) << 0) | (UINT64_C(1) << 3), 4, NULL);
     const char *labels[3] = {NULL, "a", "b"};
     CBMCall call = {.callee_name = "Service.repeated",
                     .swift_trailing_closure = true,
@@ -2019,7 +2020,7 @@ TEST(swift_repeated_labels_do_not_skip_default_past_next_trailing_label) {
     ASSERT_NOT_NULL(r);
     const char *qn = "proj.Service.repeated(a:()=>Void,b:()=>Void,a:()=>Void,b:()=>Void)";
     cbm_registry_add(r, "repeated", qn, "Method");
-    cbm_registry_set_swift_signature(r, qn, (UINT64_C(1) << 0) | (UINT64_C(1) << 1), 4);
+    cbm_registry_set_swift_signature(r, qn, (UINT64_C(1) << 0) | (UINT64_C(1) << 1), 4, NULL);
     const char *labels[2] = {NULL, "b"};
     CBMCall call = {.callee_name = "Service.repeated",
                     .swift_trailing_closure = true,
@@ -2040,7 +2041,7 @@ TEST(swift_variadic_trailing_closures_do_not_precede_parenthesized_argument) {
     ASSERT_NOT_NULL(r);
     const char *qn = "proj.Service.f(callbacks:(()=>Void)~,flag:Bool,done:()=>Void)";
     cbm_registry_add(r, "f", qn, "Method");
-    cbm_registry_set_swift_signature(r, qn, UINT64_C(1) << 1, 3);
+    cbm_registry_set_swift_signature(r, qn, UINT64_C(1) << 1, 3, NULL);
     CBMCallArg arg = {.keyword = "flag"};
     const char *labels[2] = {NULL, "done"};
     CBMCall call = {.callee_name = "Service.f",
@@ -2062,16 +2063,27 @@ TEST(swift_overloaded_bucket_fails_closed) {
     ASSERT_NOT_NULL(r);
     const char *first_qn = "proj.Service.work(flag:Bool)";
     cbm_registry_add(r, "work", first_qn, "Method");
-    cbm_registry_set_swift_signature(r, first_qn, 0, 1);
-    cbm_registry_add(r, "work", "proj.Other.work()", "Method");
+    cbm_registry_set_swift_signature(r, first_qn, 0, 1, NULL);
+    const char *other = "proj.Other.work(flag:Bool)";
+    cbm_registry_add(r, "work", other, "Method");
+    cbm_registry_set_swift_signature(r, other, 0, 1, NULL);
     char qns[256][64];
     for (int i = 1; i < 256; i++) {
-        snprintf(qns[i], sizeof(qns[i]), "proj.Other%d.work()", i);
+        snprintf(qns[i], sizeof(qns[i]), "proj.Other%d.work(flag:Bool)", i);
         cbm_registry_add(r, "work", qns[i], "Method");
+        cbm_registry_set_swift_signature(r, qns[i], 0, 1, NULL);
     }
     CBMCall call = {.callee_name = "Service.work"};
     const char *out[4] = {0};
     ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 4), -1);
+    CBMCallArg arg = {.keyword = "flag"};
+    call.args = &arg;
+    call.arg_count = 1;
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Caller", NULL, 0, out, 4), 1);
+    ASSERT_STR_EQ(out[0], first_qn);
+    call.callee_name = "work";
+    ASSERT_EQ(cbm_registry_swift_candidates(r, &call, "proj.Service", NULL, 0, out, 4), 1);
+    ASSERT_STR_EQ(out[0], first_qn);
     cbm_registry_free(r);
     PASS();
 }

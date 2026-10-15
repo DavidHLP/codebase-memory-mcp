@@ -292,6 +292,7 @@ typedef struct {
     /* Swift only: defaulted parameters, indexed in declaration order. */
     uint64_t swift_default_mask;
     uint8_t swift_param_count;
+    const char *swift_selector;
     /* C# only: declared namespace of a TOP-LEVEL type (NULL for nested types,
      * the global namespace and every other language). Per type, because the
      * file-level namespace_name records only a file's first namespace. */

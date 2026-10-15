@@ -256,7 +256,8 @@ void cbm_registry_add(cbm_registry_t *r, const char *name, const char *qualified
  * QNs are borrowed from the registry and all belong to one base callable.
  * -1 means this name has Swift definitions but no compatible overload. */
 void cbm_registry_set_swift_signature(cbm_registry_t *r, const char *qualified_name,
-                                      uint64_t default_mask, uint8_t param_count);
+                                      uint64_t default_mask, uint8_t param_count,
+                                      const char *selector);
 int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
                                   const char *module_qn, const char **import_vals, int import_count,
                                   const char **out, int out_cap);
