@@ -1,0 +1,115 @@
+.github/workflows/release.yml
+  s_a7a162efa36745::t_4d30c02a49f68a 286-289,293-294,519-523
+  s_a7a162efa36745::t_e2504c4be431bb 524
+scripts/smoke-wrappers.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 1-156
+scripts/license-gate.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 16-17,83
+src/cli/runtime_settings.h
+  s_a7a162efa36745::t_4d30c02a49f68a 28-32
+src/cli/runtime_settings.c
+  s_a7a162efa36745::t_4d30c02a49f68a 206-231,263,471-529,541-545,720-722,727,731,842-846
+pkg/scoop/codebase-memory-mcp.json
+  s_a7a162efa36745::t_4d30c02a49f68a 2,9-10,13-14
+src/pipeline/pipeline_internal.h
+  s_a7a162efa36745::t_4d30c02a49f68a 1060-1062,1338-1341
+pkg/npm/test/archive-limits.test.js
+  s_a7a162efa36745::t_4d30c02a49f68a 6,17,20,27,29-30,131,147-148,157-159,161-163,178-186,188-194,197-199,202,204-207,211-216,221,223-230,233,236-238,241-317,338,345,357,362
+src/pipeline/pipeline_incremental.c
+  s_a7a162efa36745::t_4d30c02a49f68a 2483-2508,2528-2541
+pkg/chocolatey/tools/chocolateyInstall.ps1
+  s_a7a162efa36745::t_4d30c02a49f68a 4,6
+server.json
+  s_a7a162efa36745::t_4d30c02a49f68a 11,16,25
+tests/windows/test_daemon_stability.py
+  s_a7a162efa36745::t_4d30c02a49f68a 15-16,54,253-343,425-431,557
+pkg/go/cmd/codebase-memory-mcp/main_test.go
+  s_a7a162efa36745::t_4d30c02a49f68a 13,33-35,37,39-44,161,164-188,190-227,229-238,240-256,258,261-272,276-293,295-301,303-312,315-318,320-321,349,351-356,358-362,1375-1390
+flake.nix
+  s_a7a162efa36745::t_4d30c02a49f68a 66
+src/pipeline/pass_k8s.c
+  s_a7a162efa36745::t_4d30c02a49f68a 3634-3772,4659,4667-4668
+scripts/security-strings.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 249
+.github/workflows/_security.yml
+  s_a7a162efa36745::t_4d30c02a49f68a 41-45
+pkg/chocolatey/codebase-memory-mcp.nuspec
+  s_a7a162efa36745::t_4d30c02a49f68a 5,31
+pkg/npm/package.json
+  s_a7a162efa36745::t_4d30c02a49f68a 3
+pkg/pypi/tests/test_cli.py
+  s_a7a162efa36745::t_4d30c02a49f68a 1,4,845,848,861-862,870-894,915,918,920,922,927-930,934,937-940,954,959,979-983,985-986,990,1000-1001,1017,1021,1041-1198
+pkg/npm/install.js
+  s_a7a162efa36745::t_4d30c02a49f68a 6,21-22,24-28,82-107,129-130,135-138,213,215-217,223-224,226,230,244-248,258-262,312-313,315,600,602,643-644,661,675,682,689-691,694,698,742,753,761-762,850
+pkg/go/cmd/codebase-memory-mcp/main.go
+  s_a7a162efa36745::t_4d30c02a49f68a 10-15,36,38,47,50-55,162,368-373,375,384,390,449-506,516-526,549-560,563-570,572,574-580,582,594,606-608,611,619,708,719-721,723,737,740-743,745,773,775,787,792,796,799,801,836,838,856,867-868,883,888,892,895,897,905,907,922-923,925,963
+pkg/pypi/pyproject.toml
+  s_a7a162efa36745::t_4d30c02a49f68a 11
+pkg/npm/README.md
+  s_a7a162efa36745::t_4d30c02a49f68a 20-21
+pkg/npm/test/install-failure.test.js
+  s_a7a162efa36745::t_4d30c02a49f68a 5,55-108
+  s_a7a162efa36745::t_7d758cd2176020 109
+pkg/homebrew/Formula/codebase-memory-mcp.rb
+  s_a7a162efa36745::t_4d30c02a49f68a 4,10,14,18-19,22-23,26-27
+.github/workflows/pr.yml
+  s_a7a162efa36745::t_4d30c02a49f68a 193-199,242,253,264
+scripts/ci/select-lanes.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 131
+tests/test_grammar_probe_f.c
+  s_a7a162efa36745::t_4d30c02a49f68a 1707,1964-1965,1983,1988-2047,2063-2066,2146-2147,2208-2211,2266,2268-2269,2377-2387,2395-2408,4435-4505,6277,6315
+src/main.c
+  s_a7a162efa36745::t_4d30c02a49f68a 2486,2494-2495,2714-2720,2730,2732-2733,2737,3380-3383,3386,3404-3407
+docs/index.html
+  s_a7a162efa36745::t_4d30c02a49f68a 543,808
+tests/test_runtime_settings.c
+  s_a7a162efa36745::t_4d30c02a49f68a 7,401-628,630-634
+tests/test_version_metadata_contract.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 111
+.github/workflows/_smoke.yml
+  s_a7a162efa36745::t_4d30c02a49f68a 98-104,128,186-192,242,298-303,326
+pkg/pypi/README.md
+  s_a7a162efa36745::t_4d30c02a49f68a 19-20
+src/pipeline/pass_docker.c
+  s_a7a162efa36745::t_4d30c02a49f68a 14-17,284-292,311-313,315-316,326,329,375-377,383,385,387-388,2069,2088-2092,2094,2098,2103-2105
+docs/llms.txt
+  s_a7a162efa36745::t_4d30c02a49f68a 18
+.github/scancode-constraints.txt
+  s_a7a162efa36745::t_4d30c02a49f68a 1-5
+src/store/store.h
+  s_a7a162efa36745::t_d625c331247815 35-39
+  s_a7a162efa36745::t_4d30c02a49f68a 33-34
+src/cli/cli.c
+  s_a7a162efa36745::t_4d30c02a49f68a 17,7413-7415
+tests/test_index_format.c
+  s_a7a162efa36745::t_d625c331247815 423,429,440,447,460-471,479
+  s_a7a162efa36745::t_ccaff73e8746ed 413-414
+  s_a7a162efa36745::t_4d30c02a49f68a 19,415-422,424-428,430-439,441-446,448-459,478
+  s_a7a162efa36745::t_d0154c6bd2cbd0 472
+tests/test_security_strings_allowlist.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 173-178
+scripts/smoke-test.sh
+  s_a7a162efa36745::t_4d30c02a49f68a 3999-4010
+tests/test_pipeline.c
+  s_a7a162efa36745::t_4d30c02a49f68a 3983,3986,4134,4138,4140,4178-4207,24855
+pkg/pypi/src/codebase_memory_mcp/_cli.py
+  s_a7a162efa36745::t_4d30c02a49f68a 41-46,50-51,74,81-117,135-144,147,152,158-161,171,262-263,267-268,270,275,283-284,286,290,300,303,306,318,322,329,340,350,361,363,400,404-408,411,414,471,1298-1300,1313,1321-1322
+README.md
+  s_a7a162efa36745::t_4d30c02a49f68a 5,66,363
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4ab447f8dcc75059e562c7d9afdc603d054eae33",
+  "prompts": {},
+  "sessions": {
+    "s_a7a162efa36745": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a13ad6-434c-7850-9323-4f095031cde6",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
