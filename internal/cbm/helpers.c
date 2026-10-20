@@ -301,6 +301,16 @@ bool cbm_is_keyword(const char *name, CBMLanguage lang) {
     case CBM_LANG_PUPPET:
         keywords = puppet_keywords;
         break;
+    case CBM_LANG_SWIFT:
+        /* `init` and `deinit` are Swift keywords. A reference to one
+         * (`.init(...)`, `Foo.init`) names an initializer of a type the bare
+         * name does not carry, so resolving it by name can only guess among
+         * every type's initializer (#2379). Otherwise the generic set. */
+        if (strcmp(name, "init") == 0 || strcmp(name, "deinit") == 0) {
+            return true;
+        }
+        keywords = generic_keywords;
+        break;
     default:
         keywords = generic_keywords;
         break;
