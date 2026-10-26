@@ -3334,8 +3334,16 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
                                (lsp && !lsp_target && cbm_pipeline_lsp_external_receiver(lsp));
         bool rust_external = lsp && cbm_pipeline_rust_external_target(
                                         lang, lsp->strategy, lsp->callee_qn, rc->project_name);
+        /* Typed Swift calls must not scan the global name bucket first. */
+        const char *candidates[CBM_SZ_256];
+        int count = 0;
+        if (lang == CBM_LANG_SWIFT && !lsp_target && !call->requires_lsp_resolution) {
+            count = cbm_registry_swift_candidates_in_file(rc->registry, call, result, rc->main_gbuf,
+                                                          module_qn, imp_vals, imp_count,
+                                                          candidates, CBM_SZ_256);
+        }
         if ((!res.qualified_name || !res.qualified_name[0]) && !call->requires_lsp_resolution &&
-            !rust_external && !php_vendor_call) {
+            !rust_external && !php_vendor_call && count == 0) {
             /* Python LEGB fallback first (MUST match pass_calls.c). */
             res = cbm_registry_resolve_call_scoped(rc->registry, call->callee_name, module_qn,
                                                    imp_keys, imp_vals, imp_count, lang,
@@ -3422,7 +3430,9 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
                                     lang == CBM_LANG_ARKTS ||
                                     /* embedded-script hosts — see pass_calls.c */
                                     lang == CBM_LANG_HTML || lang == CBM_LANG_VUE ||
-                                    lang == CBM_LANG_SVELTE || lang == CBM_LANG_ASTRO;
+                                    lang == CBM_LANG_SVELTE || lang == CBM_LANG_ASTRO ||
+                                    /* Swift initializer calls only — see pass_calls.c */
+                                    lang == CBM_LANG_SWIFT;
         /* Bare-call local-binding suppression — see the note in pass_calls.c.
          * This gate MUST stay identical to the one there. */
         bool suppress_weak_local_binding = lang == CBM_LANG_PYTHON;
@@ -3501,9 +3511,6 @@ static void resolve_file_calls(resolve_ctx_t *rc, resolve_worker_state_t *ws, CB
         }
 
         if (lang == CBM_LANG_SWIFT && !lsp_target) {
-            const char *candidates[CBM_SZ_256];
-            int count = cbm_registry_swift_candidates_in_file(
-                rc->registry, call, result, module_qn, imp_vals, imp_count, candidates, CBM_SZ_256);
             if (count > 0) {
                 for (int i = 0; i < count; i++) {
                     const cbm_gbuf_node_t *target =

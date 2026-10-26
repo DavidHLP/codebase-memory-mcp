@@ -33,6 +33,7 @@ enum { REG_MAX_CANDIDATES = 256 };
 #include "foundation/mem_core.h"
 #include "foundation/platform.h"
 #include "callable_sig.h" /* cbm_qn_callable_base_len_named: overloads share the name key */
+#include "yyjson/yyjson.h"
 
 #include <ctype.h>
 #include <math.h>
@@ -2789,7 +2790,7 @@ static const char *swift_choose_candidate(const cbm_registry_t *r, const char **
     return chosen;
 }
 
-static int swift_typed_candidates(const cbm_registry_t *r, const CBMCall *call, const char *type_qn,
+static int swift_owner_candidates(const cbm_registry_t *r, const CBMCall *call, const char *type_qn,
                                   const char *name, const char **out, int out_cap) {
     char base[CBM_SZ_4K];
     int n = snprintf(base, sizeof(base), "%s.%s", type_qn, name);
@@ -2798,7 +2799,7 @@ static int swift_typed_candidates(const cbm_registry_t *r, const CBMCall *call, 
     }
     const qn_array_t *bucket = r->swift_overloads ? cbm_ht_get(r->swift_overloads, base) : NULL;
     if (!bucket) {
-        return SWIFT_INCOMPATIBLE;
+        return 0;
     }
     int found = 0;
     for (int i = 0; i < bucket->count; i++) {
@@ -2810,14 +2811,75 @@ static int swift_typed_candidates(const cbm_registry_t *r, const CBMCall *call, 
             out[found++] = bucket->items[i];
         }
     }
-    return found ? found : SWIFT_INCOMPATIBLE;
+    return found;
+}
+
+enum { SWIFT_MAX_ANCESTORS = 64 };
+
+static bool swift_type_seen(const char **types, int count, const char *qn) {
+    for (int i = 0; i < count; i++) {
+        if (strcmp(types[i], qn) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void swift_parent_types(const cbm_registry_t *r, const cbm_gbuf_t *graph, const char *owner,
+                               const char **types, int *count) {
+    const cbm_gbuf_node_t *node = cbm_gbuf_find_by_qn(graph, owner);
+    if (!node || !node->properties_json) {
+        return;
+    }
+    yyjson_doc *doc = yyjson_read(node->properties_json, strlen(node->properties_json), 0);
+    if (!doc) {
+        return;
+    }
+    yyjson_val *bases = yyjson_obj_get(yyjson_doc_get_root(doc), "base_classes");
+    size_t i;
+    size_t max;
+    yyjson_val *base;
+    yyjson_arr_foreach(bases, i, max, base) {
+        const char *name = yyjson_get_str(base);
+        if (*count == SWIFT_MAX_ANCESTORS) {
+            break;
+        }
+        if (!name) {
+            continue;
+        }
+        cbm_resolution_t parent = cbm_registry_resolve(r, name, owner, NULL, NULL, 0);
+        if (parent.qualified_name && !swift_type_seen(types, *count, parent.qualified_name)) {
+            types[(*count)++] = parent.qualified_name;
+        }
+    }
+    yyjson_doc_free(doc);
+}
+
+static int swift_typed_candidates(const cbm_registry_t *r, const cbm_gbuf_t *graph,
+                                  const CBMCall *call, const char *type_qn, const char *name,
+                                  const char **out, int out_cap) {
+    const char *types[SWIFT_MAX_ANCESTORS] = {type_qn};
+    int count = SKIP_ONE;
+    /* shortcut: visit at most 64 hierarchy types, expand for larger valid hierarchies. */
+    for (int i = 0; i < count; i++) {
+        int found = swift_owner_candidates(r, call, types[i], name, out, out_cap);
+        if (found != 0) {
+            return found;
+        }
+        if (!graph || strcmp(name, "init") == 0 || strcmp(name, "deinit") == 0) {
+            break;
+        }
+        swift_parent_types(r, graph, types[i], types, &count);
+    }
+    return SWIFT_INCOMPATIBLE;
 }
 
 enum { SWIFT_NO_TYPE_RECEIVER = -2 };
 
-static int swift_named_candidates(const cbm_registry_t *r, const CBMCall *call,
-                                  const char *module_qn, const char **import_vals, int import_count,
-                                  const char **out, int out_cap) {
+static int swift_named_candidates(const cbm_registry_t *r, const cbm_gbuf_t *graph,
+                                  const CBMCall *call, const char *module_qn,
+                                  const char **import_vals, int import_count, const char **out,
+                                  int out_cap) {
     const char *dot = strrchr(call->callee_name, '.');
     if (dot && isupper((unsigned char)call->callee_name[0]) &&
         (size_t)(dot - call->callee_name) < CBM_SZ_512) {
@@ -2827,7 +2889,7 @@ static int swift_named_candidates(const cbm_registry_t *r, const CBMCall *call,
         cbm_resolution_t receiver =
             cbm_registry_resolve(r, type, module_qn, NULL, import_vals, import_count);
         if (receiver.qualified_name) {
-            return swift_typed_candidates(r, call, receiver.qualified_name,
+            return swift_typed_candidates(r, graph, call, receiver.qualified_name,
                                           simple_name(call->callee_name), out, out_cap);
         }
         return SWIFT_INCOMPATIBLE;
@@ -2842,7 +2904,8 @@ int cbm_registry_swift_candidates(const cbm_registry_t *r, const CBMCall *call,
         return 0;
     }
     const char *name = simple_name(call->callee_name);
-    int typed = swift_named_candidates(r, call, module_qn, import_vals, import_count, out, out_cap);
+    int typed =
+        swift_named_candidates(r, NULL, call, module_qn, import_vals, import_count, out, out_cap);
     if (typed != SWIFT_NO_TYPE_RECEIVER) {
         return typed;
     }
@@ -3006,13 +3069,13 @@ static const CBMCall *swift_inner_call(const CBMFileResult *file, const CBMCall 
     return NULL;
 }
 
-static const char *swift_chain_return(const cbm_registry_t *r, const CBMCall *inner,
-                                      const char *receiver, const char *member, const char **out,
-                                      int out_cap) {
+static const char *swift_chain_return(const cbm_registry_t *r, const cbm_gbuf_t *graph,
+                                      const CBMCall *inner, const char *receiver,
+                                      const char *member, const char **out, int out_cap) {
     if (!inner) {
         return NULL;
     }
-    int count = swift_typed_candidates(r, inner, receiver, member, out, out_cap);
+    int count = swift_typed_candidates(r, graph, inner, receiver, member, out, out_cap);
     const char *type = NULL;
     for (int i = 0; i < count; i++) {
         size_t offset = cbm_callable_return_offset(out[i]);
@@ -3026,16 +3089,20 @@ static const char *swift_chain_return(const cbm_registry_t *r, const CBMCall *in
 }
 
 int cbm_registry_swift_candidates_in_file(const cbm_registry_t *r, const CBMCall *call,
-                                          const CBMFileResult *file, const char *module_qn,
-                                          const char **import_vals, int import_count,
-                                          const char **out, int out_cap) {
+                                          const CBMFileResult *file, const cbm_gbuf_t *graph,
+                                          const char *module_qn, const char **import_vals,
+                                          int import_count, const char **out, int out_cap) {
     if (!r || !call || !call->callee_name || !out || out_cap < SKIP_ONE) {
         return 0;
     }
     if (!file || !strchr(call->callee_name, '.') ||
         (isupper((unsigned char)call->callee_name[0]) && !strchr(call->callee_name, '('))) {
-        return cbm_registry_swift_candidates(r, call, module_qn, import_vals, import_count, out,
-                                             out_cap);
+        int named = swift_named_candidates(r, graph, call, module_qn, import_vals, import_count,
+                                           out, out_cap);
+        return named == SWIFT_NO_TYPE_RECEIVER
+                   ? cbm_registry_swift_candidates(r, call, module_qn, import_vals, import_count,
+                                                   out, out_cap)
+                   : named;
     }
     char expression[CBM_SZ_4K];
     char class_qn[CBM_SZ_4K] = {0};
@@ -3064,7 +3131,8 @@ int cbm_registry_swift_candidates_in_file(const cbm_registry_t *r, const CBMCall
         }
         char *args = strchr(member, '(');
         if (!args) {
-            return swift_typed_candidates(r, call, receiver.qualified_name, member, out, out_cap);
+            return swift_typed_candidates(r, graph, call, receiver.qualified_name, member, out,
+                                          out_cap);
         }
         char *after = swift_after_arguments(args);
         if (!after || *after != '.') {
@@ -3072,7 +3140,7 @@ int cbm_registry_swift_candidates_in_file(const cbm_registry_t *r, const CBMCall
         }
         *args = '\0';
         const CBMCall *inner = swift_inner_call(file, call, (size_t)(args - expression));
-        type = swift_chain_return(r, inner, receiver.qualified_name, member, out, out_cap);
+        type = swift_chain_return(r, graph, inner, receiver.qualified_name, member, out, out_cap);
         member = after + SKIP_ONE;
     }
     return SWIFT_INCOMPATIBLE;

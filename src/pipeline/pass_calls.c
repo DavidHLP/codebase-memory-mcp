@@ -994,8 +994,9 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call, const CBM
     int swift_candidates = 0;
     if (lang == CBM_LANG_SWIFT) {
         const char *candidates[CBM_SZ_256];
-        swift_candidates = cbm_registry_swift_candidates_in_file(
-            ctx->registry, call, result, module_qn, imp_vals, imp_count, candidates, CBM_SZ_256);
+        swift_candidates =
+            cbm_registry_swift_candidates_in_file(ctx->registry, call, result, ctx->gbuf, module_qn,
+                                                  imp_vals, imp_count, candidates, CBM_SZ_256);
         if (swift_candidates > 0) {
             int emitted = 0;
             for (int i = 0; i < swift_candidates; i++) {
@@ -1166,7 +1167,11 @@ static int resolve_single_call(cbm_pipeline_ctx_t *ctx, CBMCall *call, const CBM
                                  * to a docs bundle (2026-09-16 probe: 4,207 junk
                                  * edges on JetBrains/Exposed). */
                                 lang == CBM_LANG_HTML || lang == CBM_LANG_VUE ||
-                                lang == CBM_LANG_SVELTE || lang == CBM_LANG_ASTRO;
+                                lang == CBM_LANG_SVELTE || lang == CBM_LANG_ASTRO ||
+                                /* Swift flags only initializer calls `T.init(...)`
+                                 * (#2379, extract_calls.c); every other Swift call
+                                 * keeps is_method=false and is unaffected. */
+                                lang == CBM_LANG_SWIFT;
     /* Bare-call local-binding suppression. A member call has a receiver the
      * guard above can reason about; a bare `run()` has none, so that guard
      * cannot see this class at all. Python-only today because the extraction
