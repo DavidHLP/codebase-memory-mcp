@@ -33,10 +33,10 @@ typedef struct cbm_store_read_scope cbm_store_read_scope_t;
  *   3  Image identity invents no registry: a reference without a host is
  *      __image__<repository as written>, registry "unknown" -- no longer
  *      __image__docker.io/[library/]<repository>.
- *   5  #2061: Swift declaration identities and uncapped call selectors.
- *   6  Combine image and Swift identities; rebuild pre-merge format-5 indexes
- *      that still carry invented image registry hosts. */
-#define CBM_INDEX_FORMAT_VERSION 6
+ *   4  #1913: Go method QNs are receiver-qualified (pkg.Recv.method, generic
+ *      receivers unwrapped); free functions stay pkg.func.
+ *   5  #2061: Swift declaration identities and uncapped call selectors. */
+#define CBM_INDEX_FORMAT_VERSION 5
 #define CBM_STORE_CANCELLED (-3)
 #define CBM_STORE_SCAN_LIMIT (-4)
 #define CBM_STORE_CALLBACK_ERR (-5)

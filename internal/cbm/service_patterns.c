@@ -1130,18 +1130,6 @@ cbm_svc_kind_t cbm_service_pattern_match(const char *resolved_qn) {
         }
     }
 
-    size_t base_len = cbm_qn_callable_base_len(resolved_qn);
-    char *base_qn = NULL;
-    const char *match_qn_text = resolved_qn;
-    if (base_len < strlen(resolved_qn)) {
-        base_qn = cbm_alloc(CBM_MEM_CLASS_EXTRACT, base_len + SKIP_ONE);
-        if (!base_qn) {
-            return CBM_SVC_NONE;
-        }
-        memcpy(base_qn, resolved_qn, base_len);
-        base_qn[base_len] = '\0';
-        match_qn_text = base_qn;
-    }
     cbm_svc_kind_t result = CBM_SVC_NONE;
     /* Route registration checked first — prevents gin/echo from matching
      * as HTTP clients (both have .get/.post suffixes). */
@@ -1149,19 +1137,36 @@ cbm_svc_kind_t cbm_service_pattern_match(const char *resolved_qn) {
                                            config_libraries,    grpc_libraries, graphql_libraries,
                                            trpc_libraries};
     for (size_t i = 0; i < sizeof(tables) / sizeof(tables[0]); i++) {
-        const lib_pattern_t *p = match_qn(match_qn_text, tables[i]);
+        const lib_pattern_t *p = match_qn(resolved_qn, tables[i]);
         if (p) {
             result = p->kind;
             break;
         }
     }
-    cbm_free(CBM_MEM_CLASS_EXTRACT, base_qn);
-
     if (_svc_cache) {
         char *kdup = strdup(resolved_qn);
         if (kdup)
             cbm_ht_set(_svc_cache, kdup, svc_enum_to_ptr(result));
     }
+    return result;
+}
+
+cbm_svc_kind_t cbm_service_pattern_match_named(const char *resolved_qn, const char *name) {
+    if (!resolved_qn || !name) {
+        return cbm_service_pattern_match(resolved_qn);
+    }
+    size_t base_len = cbm_qn_callable_base_len_named(resolved_qn, name);
+    if (base_len == strlen(resolved_qn)) {
+        return cbm_service_pattern_match(resolved_qn);
+    }
+    char *base = cbm_alloc(CBM_MEM_CLASS_EXTRACT, base_len + SKIP_ONE);
+    if (!base) {
+        return CBM_SVC_NONE;
+    }
+    memcpy(base, resolved_qn, base_len);
+    base[base_len] = '\0';
+    cbm_svc_kind_t result = cbm_service_pattern_match(base);
+    cbm_free(CBM_MEM_CLASS_EXTRACT, base);
     return result;
 }
 

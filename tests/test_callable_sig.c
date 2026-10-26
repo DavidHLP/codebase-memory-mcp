@@ -124,7 +124,7 @@ static const sig_case_t k_cases[] = {
      "function_declaration", 0,
      "<T:Encodable>(_:Data,to:URLConvertible,method:HTTPMethod,headers:[String:String]?,handler:("
      "Int)=>Void,"
-     "xs:Int~,io:inout Swift/Int,t:(a:Int,String))=>UploadRequest"},
+     "xs:Int~,io:inout Int,t:(a:Int,String))=>UploadRequest"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "class Session {\n  func upload(_ data: Data, with request: URLRequest) {}\n}",
      "function_declaration", 0, "(_:Data,with:URLRequest)"},
@@ -162,6 +162,9 @@ static const sig_case_t k_cases[] = {
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f < T > ( _ x : T ) where T . Element == Int { }", "function_declaration", 0,
      "<T;where T/Element==Int>(_:T)"},
+    {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
+     "func f<T: Module.P, U>(_ x: T) where T.Element == U.Element, U: Module.Q {}",
+     "function_declaration", 0, "<T:P,U;where T/Element==U/Element,U:Q>(_:T)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f(_ x: Int) async {}",
      "function_declaration", 0, "(_:Int)async"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f(body: () async -> Void) {}",
@@ -169,22 +172,22 @@ static const sig_case_t k_cases[] = {
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f<T>(_ x: T) where T == () -> Void {}",
      "function_declaration", 0, "<T;where T==()=>Void>(_:T)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func work(_ x: A.Item) {}",
-     "function_declaration", 0, "(_:A/Item)"},
+     "function_declaration", 0, "(_:Item)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func work(_ x: B.Item) {}",
-     "function_declaration", 0, "(_:B/Item)"},
+     "function_declaration", 0, "(_:Item)"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func pick() -> Int { 1 }",
      "function_declaration", 0, "()=>Int"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func pick() -> String { \"x\" }",
      "function_declaration", 0, "()=>String"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f(_ x: [A.Item], body: (B.Item) -> A.Item) async -> (A.Item, [B.Item]) {}",
-     "function_declaration", 0, "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
+     "function_declaration", 0, "(_:[Item],body:(Item)=>Item)async=>(Item,[Item])"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f ( _ x : [ A /* comment */ . Item ], body : ( B.Item ) -> A.Item ) async "
      "-> ( A.Item, [ B.Item ] ) {}",
-     "function_declaration", 0, "(_:[A/Item],body:(B/Item)=>A/Item)async=>(A/Item,[B/Item])"},
+     "function_declaration", 0, "(_:[Item],body:(Item)=>Item)async=>(Item,[Item])"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, "func f() -> (A.Item) -> B.Item {}",
-     "function_declaration", 0, "()=>(A/Item)=>B/Item"},
+     "function_declaration", 0, "()=>(Item)=>Item"},
     {CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED,
      "func f<T,U>(_ x: T, _ y: U) -> Int where T == Box<[Int]>, U == () -> Void {}",
      "function_declaration", 0, "<T,U;where T==Box<[Int]>,U==()=>Void>(_:T,_:U)=>Int"},
@@ -280,7 +283,7 @@ TEST(callable_sig_cap_keeps_identity) {
     }
     memcpy(src_b, src_a, n);
     snprintf(src_a + n, sizeof(src_a) - n, ",A.Last) {}");
-    snprintf(src_b + n, sizeof(src_b) - n, ",B.Last) {}");
+    snprintf(src_b + n, sizeof(src_b) - n, ",B.Other) {}");
     cbm_arena_init(&a);
     sa =
         sig_of(&a, CBM_LANG_SWIFT, CBM_CALLABLE_ID_LABELED_TYPED, src_a, "function_declaration", 0);

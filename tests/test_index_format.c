@@ -288,17 +288,16 @@ static int swift_collision_migration_case(int scenario) {
                              "func caller() { pick(value) }\n"
                              "func wrong() { pick(key: 1) }\n",
                              "func pick(_ x: A.Item) { first() }\n"
-                             "func pick(_ x: B.Item) { second() }\n"
+                             "func pick(_ x: B.Other) { second() }\n"
                              "func first() {}\nfunc second() {}\n"
                              "func caller() { pick(value) }\n"
                              "func wrong() { pick(key: 1) }\n"
-                             "enum A { struct Item {} }\nenum B { struct Item {} }\n",
+                             "enum A { struct Item {} }\nenum B { struct Other {} }\n",
                              "func pick() -> Int { first(); return 1 }\n"
                              "func pick() -> String { second(); return \"x\" }\n"
                              "func first() {}\nfunc second() {}\n"
                              "func caller() { let _: Int = pick() }\n"
                              "func wrong() { pick(key: 1) }\n"};
-    const char *legacy_suffix[] = {"pick(_:T)", "pick(_:Item)", "pick()"};
     const RFile files[] = {{"Service.swift", sources[scenario]}};
     RProj lp;
     cbm_store_t *s = rh_index_files(&lp, files, 1);
@@ -308,7 +307,7 @@ static int swift_collision_migration_case(int scenario) {
     ASSERT_NOT_NULL(s);
     ASSERT_EQ(cbm_store_delete_nodes_by_label(s, lp.project, "Function"), CBM_STORE_OK);
     char legacy_qn[512], wrong_qn[512];
-    snprintf(legacy_qn, sizeof(legacy_qn), "%s.Service.%s", lp.project, legacy_suffix[scenario]);
+    snprintf(legacy_qn, sizeof(legacy_qn), "%s.Service.%s", lp.project, "pick");
     snprintf(wrong_qn, sizeof(wrong_qn), "%s.Service.wrong()", lp.project);
     cbm_node_t legacy = {.project = lp.project,
                          .label = "Function",
@@ -410,7 +409,7 @@ TEST(index_format_swift_collisions_and_stale_calls_rebuild) {
     PASS();
 }
 
-/* Format 2 and the pre-merge Swift format 5 stored a hostless image under
+/* Format 2 stored a hostless image under
  * an invented docker.io identity. Refreshed in place, only touched files get the
  * new identity: both forms of one image in a single graph. */
 static const RFile k_image_files[] = {
@@ -420,7 +419,7 @@ static const RFile k_image_files[] = {
                  "          image: nginx:1.27\n"},
 };
 
-static int images_rebuild_without_invented_host(int old_format) {
+TEST(index_format_v2_images_rebuild_without_invented_host) {
     RProj lp;
     cbm_store_t *q0 = rh_index_files(&lp, k_image_files, 2);
     ASSERT_NOT_NULL(q0);
@@ -437,7 +436,7 @@ static int images_rebuild_without_invented_host(int old_format) {
                            NULL, NULL, NULL),
               SQLITE_OK);
     ASSERT_EQ(sqlite3_changes(cbm_store_get_db(w)), 1);
-    ASSERT_EQ(cbm_store_set_format_version(w, old_format), CBM_STORE_OK);
+    ASSERT_EQ(cbm_store_set_format_version(w, 2), CBM_STORE_OK);
     cbm_store_close(w);
 
     char *resp = index_capture(&lp);
@@ -460,21 +459,10 @@ static int images_rebuild_without_invented_host(int old_format) {
     PASS();
 }
 
-TEST(index_format_v2_images_rebuild_without_invented_host) {
-    ASSERT_EQ(images_rebuild_without_invented_host(2), 0);
-    PASS();
-}
-
-TEST(index_format_v5_images_rebuild_without_invented_host) {
-    ASSERT_EQ(images_rebuild_without_invented_host(5), 0);
-    PASS();
-}
-
 SUITE(index_format) {
     RUN_TEST(index_format_siblings_distinct_and_searchable);
     RUN_TEST(index_format_legacy_index_rebuilds_and_repairs);
     RUN_TEST(index_format_version_one_rebuilds);
     RUN_TEST(index_format_swift_collisions_and_stale_calls_rebuild);
     RUN_TEST(index_format_v2_images_rebuild_without_invented_host);
-    RUN_TEST(index_format_v5_images_rebuild_without_invented_host);
 }

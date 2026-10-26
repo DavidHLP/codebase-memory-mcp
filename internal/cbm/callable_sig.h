@@ -6,9 +6,8 @@
  *     callable_qn := base_qn [<tparams>] (params) [cvref/static/class] [async] [=>return_type]
  * Swift includes generic declarations and where requirements in <tparams>
  * (associated-type paths use '/' instead of '.') and appends function-level
- * async after params and an explicit return type after "=>". Swift preserves
- * qualified type paths using '/'. These distinguish declarations, not call
- * applicability.
+ * async after params and an explicit return type after "=>". Qualified types keep their last
+ * segment. These distinguish declarations, not call applicability.
  *
  * so overloads that share a base QN (Java/C#/C++/Kotlin/Swift/Scala/ObjC)
  * become distinct nodes instead of merging into one node that collects every
@@ -27,7 +26,7 @@
  *   - it is whitespace-normalized: one space only between two identifier
  *     characters ("unsigned long", "const T&"), none elsewhere;
  *   - type spelling: comments, annotations and attributes are dropped;
- *     except Swift, qualified paths keep their last segment (java.util.List
+ *     qualified paths keep their last segment (java.util.List
  *     -> List, std::vector -> vector); "->" in function types is spelled "=>"; a
  *     variadic/rest marker is "[]" for Java (the JVM array it is) and "~"
  *     everywhere else; C++ top-level cv-qualifiers are dropped and array

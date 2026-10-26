@@ -917,6 +917,21 @@ static const char *objectscript_get_method_qn(CBMExtractCtx *ctx, TSNode node,
     return NULL;
 }
 
+/* Python: the nearest named scope around the node -- a def or a class. A def
+ * or class nested in a def is qualified by that def (proj.mod.create_app.index),
+ * exactly as extract_defs.c mints it; enclosing_class_qn alone would skip the
+ * def and hand a def nested in a method its method's QN. Lambdas push no named
+ * frame, so they stay transparent. */
+static const char *py_nearest_scope_qn(const WalkState *state) {
+    for (int i = state->scope_top - SKIP_ONE; i >= 0; i--) {
+        const CBMWalkScope *f = &state->scopes[i];
+        if ((f->kind == SCOPE_FUNC || f->kind == SCOPE_CLASS) && f->qn) {
+            return f->qn;
+        }
+    }
+    return NULL;
+}
+
 // Compute function QN for scope tracking (mirrors cbm_enclosing_func_qn logic).
 static const char *compute_func_qn(CBMExtractCtx *ctx, TSNode node, const CBMLangSpec *spec,
                                    WalkState *state) {
@@ -1096,6 +1111,29 @@ static const char *compute_func_qn(CBMExtractCtx *ctx, TSNode node, const CBMLan
         }
     }
 
+    /* Go method `func (s *Storage) Close() {...}`: the def extractor records
+     * this as Method "proj.pkg.Storage.Close" (receiver-qualified, mirroring
+     * the C++ out-of-line rule above). The call-scope QN must match — a bare
+     * "proj.pkg.Close" names a node that no longer exists, so every call
+     * inside the method body would fall back to File-node attribution
+     * (calls_find_source). Same ONE-formula contract as the def side:
+     * cbm_go_receiver_type_name + cbm_fqn_compute_source_lang. */
+    if (ctx->language == CBM_LANG_GO && strcmp(ts_node_type(node), "method_declaration") == 0) {
+        TSNode recv = ts_node_child_by_field_name(node, TS_FIELD("receiver"));
+        if (!ts_node_is_null(recv)) {
+            char *recv_type = cbm_go_receiver_type_name(ctx->arena, recv, ctx->source);
+            if (recv_type && recv_type[0]) {
+                const char *type_qn = cbm_fqn_compute_source_lang(
+                    ctx->arena, ctx->project, ctx->rel_path, recv_type, ctx->language);
+                /* NULL only on allocation failure: fall through to the flat
+                 * QN, as the def side does (extract_defs.c). */
+                if (type_qn) {
+                    return cbm_arena_sprintf(ctx->arena, "%s.%s", type_qn, name);
+                }
+            }
+        }
+    }
+
     /* Nix: a binding's own attrpath contributes scope (`a.b.fn = …`), and the def
      * extractor bakes it into the def QN. Compose it identically here — otherwise
      * an in-body call sources to a QN one or more segments short of the def, and
@@ -1103,12 +1141,9 @@ static const char *compute_func_qn(CBMExtractCtx *ctx, TSNode node, const CBMLan
     const char *qn_name = name;
     if (ctx->language == CBM_LANG_SWIFT) {
         const char *sig = cbm_callable_sig(ctx->arena, node, ctx->source, ctx->language);
-        if (!sig) {
-            return NULL;
-        }
-        qn_name = cbm_arena_sprintf(ctx->arena, "%s%s", name, sig);
-        if (!qn_name) {
-            return NULL;
+        const char *qualified = sig ? cbm_arena_sprintf(ctx->arena, "%s%s", name, sig) : NULL;
+        if (qualified) {
+            qn_name = qualified;
         }
     }
     if (ctx->language == CBM_LANG_NIX) {
@@ -1118,8 +1153,10 @@ static const char *compute_func_qn(CBMExtractCtx *ctx, TSNode node, const CBMLan
         }
     }
 
-    if (state->enclosing_class_qn) {
-        return cbm_arena_sprintf(ctx->arena, "%s.%s", state->enclosing_class_qn, qn_name);
+    const char *outer_qn =
+        ctx->language == CBM_LANG_PYTHON ? py_nearest_scope_qn(state) : state->enclosing_class_qn;
+    if (outer_qn) {
+        return cbm_arena_sprintf(ctx->arena, "%s.%s", outer_qn, qn_name);
     }
     /* Java/Go: directory-based module so this enclosing-func QN matches the def
      * QN and the LSP caller_qn (the lsp_resolve join keys on exact equality). */
@@ -1170,12 +1207,32 @@ static const char *compute_class_qn(CBMExtractCtx *ctx, TSNode node, const WalkS
     if (!name || !name[0]) {
         return NULL;
     }
+    /* Rust: the impl's type text carries its generic arguments (`impl<T> Gen<T>`,
+     * `impl<'a> Parser<'a>`), which the def side strips before naming the type
+     * (extract_defs.c extract_rust_impl: `Buffer<T>` -> `Buffer`). Strip them the
+     * same way, or every method of a generic impl gets a scope QN no node carries
+     * and all its calls fall back to the File node. */
+    if (ctx->language == CBM_LANG_RUST && strcmp(ts_node_type(node), "impl_item") == 0) {
+        char *lt = strchr(name, '<');
+        if (lt == name) {
+            return NULL; /* `<T as Tr>`-style self type: no name to scope by */
+        }
+        if (lt) {
+            *lt = '\0';
+        }
+    }
 
     /* Nested class: prefix with the enclosing class QN (Outer.Inner) so this
      * scope QN matches the def-side class QN (extract_defs.c compute_class_qn /
-     * extract_class_def), which the lsp_resolve join requires for nested types. */
-    if (state && state->enclosing_class_qn) {
-        return cbm_arena_sprintf(ctx->arena, "%s.%s", state->enclosing_class_qn, name);
+     * extract_class_def), which the lsp_resolve join requires for nested types.
+     * Python: a class inside a def is qualified by the def (py_nearest_scope_qn). */
+    const char *outer_qn = NULL;
+    if (state) {
+        outer_qn = ctx->language == CBM_LANG_PYTHON ? py_nearest_scope_qn(state)
+                                                    : state->enclosing_class_qn;
+    }
+    if (outer_qn) {
+        return cbm_arena_sprintf(ctx->arena, "%s.%s", outer_qn, name);
     }
 
     /* Java/Go: directory-based module (see compute_func_qn). */

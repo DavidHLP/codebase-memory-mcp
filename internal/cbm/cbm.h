@@ -289,10 +289,10 @@ typedef struct {
      * qualified_name (base QN = the first qn_sig_off bytes); 0 = no suffix.
      * Always 0 until a language enables its callable_identity mode. */
     uint32_t qn_sig_off;
-    /* Swift only: defaulted parameters, indexed in declaration order. */
-    uint64_t swift_default_mask;
-    uint8_t swift_param_count;
-    const char *swift_selector;
+    /* Call matching: defaulted parameters, indexed in declaration order. */
+    uint64_t param_default_mask;
+    uint8_t selector_param_count;
+    const char *call_selector;
     /* C# only: declared namespace of a TOP-LEVEL type (NULL for nested types,
      * the global namespace and every other language). Per type, because the
      * file-level namespace_name records only a file's first namespace. */
@@ -388,20 +388,20 @@ typedef struct {
                                      // (self.compiler.apply_converters()). An object the
                                      // class owns, not a parameter: read by the weak-member
                                      // guard's unique-name exemption. Default false.
-    bool swift_trailing_closure;
-    bool swift_args_truncated;
-    /* Swift multi-trailing-closure capture (#2061). `swift_trailing_closure`
+    bool has_trailing_closure;
+    bool args_truncated;
+    /* Swift multi-trailing-closure capture (#2061). `has_trailing_closure`
      * stays the "there is at least one trailing closure" flag manual callers
-     * and existing tests set; `swift_trailing_count` is the actual number
+     * and existing tests set; `trailing_closure_count` is the actual number
      * captured (0 => fall back to the bool, treated as one unlabelled closure).
-     * `swift_trailing_labels[i]` is closure i's argument label from the
+     * `trailing_closure_labels[i]` is closure i's argument label from the
      * grammar's `lambda_literal (simple_identifier ':')*` sequence (NULL when
      * unlabelled; entry 0 is always unlabelled). More closures than
-     * CBM_MAX_TRAILING_CLOSURES sets `swift_trailing_truncated`, and the
+     * CBM_MAX_TRAILING_CLOSURES sets `trailing_closure_truncated`, and the
      * overload matcher then fails closed rather than guessing a partial set. */
-    uint8_t swift_trailing_count;
-    bool swift_trailing_truncated;
-    const char **swift_trailing_labels;
+    uint8_t trailing_closure_count;
+    bool trailing_closure_truncated;
+    const char **trailing_closure_labels;
 } CBMCall;
 
 // What an import statement names, when the syntax says so. Only PHP's
@@ -419,11 +419,26 @@ typedef struct {
     const char *member;      // ES named import: the exported name the local binds (`get` in
                              // `import { get as navigate } from "axios"`); NULL otherwise
     bool is_default;         // ES default import (`import X from "Y"`), JS/TS only (#1916)
+    bool type_checking_only; // Python: inside a module-level `if TYPE_CHECKING:` block --
+                             // binds the name for annotations, never at runtime (#1277)
     CBMImportKind kind;      // CBM_IMPORT_KIND_DEFAULT unless the syntax names a member kind
 } CBMImport;
 
-/* Content-only ordered Python namespace facts; no resolved target identities. */
-#define CBM_PY_NAMESPACE_FACTS_VERSION 1u
+/* True when an import binds its local name at runtime. A Python import under
+ * `if TYPE_CHECKING:` exists for annotations only: a call through that name
+ * cannot happen, so no CALLS import map may bind it (an import_map edge
+ * through it would be fabricated by construction). THE one rule every CALLS
+ * import-map builder applies. */
+static inline bool cbm_import_binds_runtime_name(const CBMImport *imp) {
+    return imp && !imp->type_checking_only;
+}
+
+/* Content-only ordered Python namespace facts; no resolved target identities.
+ * The version travels in the lsp_surface "py" payload, and a stored payload of
+ * another version does not decode: an incremental run then re-extracts in full,
+ * so stored facts of an older extraction never mix with fresh ones.
+ * 2: string-literal statements are no effect; `from __future__` imports bind. */
+#define CBM_PY_NAMESPACE_FACTS_VERSION 2u
 
 typedef enum {
     CBM_PY_NS_NOT_CAPTURED = 0,
@@ -545,8 +560,8 @@ typedef struct {
 
 typedef struct {
     const char *var_name;          // variable being assigned
-    const char *type_name;         // class/type name of RHS constructor
-    const char *enclosing_func_qn; // QN of enclosing function
+    const char *type_name;         // declared type or RHS constructor type
+    const char *enclosing_func_qn; // enclosing function, class, or module QN
 } CBMTypeAssign;
 
 // String reference: URL, config key, or async target found in source.
@@ -740,7 +755,9 @@ typedef struct {
  *     from the URL `name`; a HelmRelease whose chartRef names it deploys the
  *     chart there.
  *   CBM_K8S_FACT_IMAGE: object def_index runs its container `container`
- *     (NULL: unnamed) from image `name` (a literal reference); via "container".
+ *     (NULL: unnamed) from image `name` (a literal reference, or a Helm
+ *     template's placeholder `<...>`, which names none); via "container";
+ *     `line` the image's line, start_line / end_line the container's.
  *   CBM_K8S_FACT_ENV: object def_index sets environment variable `name` in
  *     its container `container` (NULL: unnamed) at `line`; via = where the
  *     value comes from ("value", or the valueFrom kind) -- never the value.
@@ -779,6 +796,8 @@ typedef struct {
     const char *url;      /* DEPLOY (kustomize): the chart repository */
     const char *release;  /* DEPLOY (kustomize): the release name */
     int line;
+    int start_line; /* IMAGE: the container mapping's first line */
+    int end_line;   /* IMAGE: its last line */
 } CBMK8sFact;
 
 typedef struct {
@@ -1327,6 +1346,14 @@ void cbm_py_namespace_test_copy_fail_after(int successful_allocations);
 void cbm_defs_push(CBMDefArray *arr, CBMArena *a, CBMDefinition def);
 void cbm_calls_push(CBMCallArray *arr, CBMArena *a, CBMCall call);
 void cbm_imports_push(CBMImportArray *arr, CBMArena *a, CBMImport imp);
+/* True unless every import of `imports` that binds `local_name` is
+ * annotation-only (cbm_import_binds_runtime_name), so also true when no import
+ * names it: the rule for the builders that key IMPORTS edges by local name. */
+bool cbm_imports_local_binds_runtime_name(const CBMImportArray *imports, const char *local_name);
+/* The same for the `len` bytes at `name` (not NUL-terminated): lets a caller
+ * decide before it copies the name. */
+bool cbm_imports_local_span_binds_runtime_name(const CBMImportArray *imports, const char *name,
+                                               size_t len);
 void cbm_usages_push(CBMUsageArray *arr, CBMArena *a, CBMUsage usage);
 void cbm_throws_push(CBMThrowArray *arr, CBMArena *a, CBMThrow thr);
 void cbm_rw_push(CBMRWArray *arr, CBMArena *a, CBMReadWrite rw);

@@ -35,7 +35,9 @@
 #include "pipeline/worker_pool.h"
 #include "yyjson/yyjson.h"
 
-enum { SURFACE_CODEC_VERSION = 2 };
+/* 3: Go defs carry their parsed result list `|`-joined in "ret" (F-G8 D1);
+ * a version-2 surface holds the raw result text and must be re-extracted. */
+enum { SURFACE_CODEC_VERSION = 3 };
 
 /* Labels the incremental name registry serves that pxc_map_label does NOT
  * carry into the CBMLSPDef set. Their (name, qn, label) triple must still
@@ -427,14 +429,14 @@ static char *surface_file_to_json(const CBMFileResult *result, CBMLanguage langu
         yyjson_mut_obj_add_str(doc, o, "q", d->qualified_name);
         char defaults[CBM_SZ_16 + SKIP_ONE];
         (void)snprintf(defaults, sizeof(defaults), "%016llx",
-                       (unsigned long long)d->swift_default_mask);
+                       (unsigned long long)d->param_default_mask);
         yyjson_mut_obj_add_strcpy(doc, o, "d", defaults);
-        yyjson_mut_obj_add_int(doc, o, "p", d->swift_param_count);
-        yyjson_mut_obj_add_str(doc, o, "s", d->swift_selector ? d->swift_selector : "");
+        yyjson_mut_obj_add_int(doc, o, "p", d->selector_param_count);
+        yyjson_mut_obj_add_str(doc, o, "s", d->call_selector ? d->call_selector : "");
         yyjson_mut_arr_add_val(swift, o);
     }
     if (swift) {
-        yyjson_mut_obj_add_val(doc, root, "swift", swift);
+        yyjson_mut_obj_add_val(doc, root, "callables", swift);
     }
 
     /* #1916: an axios instance binding's baseURL is consumed by the files

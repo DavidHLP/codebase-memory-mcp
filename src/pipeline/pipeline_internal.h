@@ -260,6 +260,24 @@ cbm_resolution_t cbm_registry_resolve_call_lang(const cbm_registry_t *r, const c
                                                 const char *module_qn, const char **import_map_keys,
                                                 const char **import_map_vals, int import_map_count,
                                                 CBMLanguage lang);
+/* The registry step of BOTH call resolvers once the LSP has not answered:
+ * for Python, the def or class `callee_name` binds in the nearest def enclosing
+ * `scope_qn` (cbm_registry_resolve_lexical, "lexical_scope"); otherwise, or
+ * when there is no such local, cbm_registry_resolve_call_lang. */
+cbm_resolution_t cbm_registry_resolve_call_scoped(const cbm_registry_t *r, const char *callee_name,
+                                                  const char *module_qn,
+                                                  const char **import_map_keys,
+                                                  const char **import_map_vals,
+                                                  int import_map_count, CBMLanguage lang,
+                                                  const char *scope_qn);
+/* Python: the bare base `base` of the class `class_qn` nested in a class body
+ * binds the sibling class of that body (`<enclosing class>.<base>`) when the
+ * sibling is defined earlier in the same file (Python evaluates the bases in
+ * the class body). Exact lookups only; the registry-owned sibling QN, or NULL
+ * to resolve the base as before. Every base-class resolver asks this first. */
+const char *cbm_registry_resolve_python_class_body_base(const cbm_registry_t *r,
+                                                        const cbm_gbuf_t *gb, const char *class_qn,
+                                                        const char *base, CBMLanguage lang);
 #ifdef CBM_ENABLE_TEST_SEAMS
 void cbm_pxc_test_import_probe_fail_after(int successful_allocations);
 #endif
@@ -283,6 +301,15 @@ void cbm_pxc_test_import_probe_fail_after(int successful_allocations);
 #define CBM_PIPELINE_FORCE_FULL_REINDEX (-3)
 
 /* cbm_route_canon_path: cbm.h (route_path.c). */
+
+/* A definition's decorator route (def->route_path, e.g. an ASP.NET [HttpGet("x")]
+ * action): upsert its Route node and the definition -> Route HANDLES edge. Both
+ * resolvers call it per DEFINITION at node creation (pass_parallel.c,
+ * pass_definitions.c), so overloads sharing one QN -- a GET form action and its
+ * POST submit -- each keep their route; the merged node properties hold only one
+ * of them. Defined in pass_route_nodes.c. */
+void cbm_pipeline_emit_def_route(cbm_gbuf_t *gb, int64_t func_id, const CBMDefinition *def,
+                                 const char *rel);
 
 /* A file and the directory beside it share a stem (`pkg/foo.sh` beside
  * `pkg/foo/`): the file's Module QN equals the directory's Folder QN, and the
@@ -379,6 +406,16 @@ typedef struct {
     cbm_envjoin_reader_row_t *readers;
     int reader_count;
 } cbm_envjoin_base_t;
+
+/* A Terraform helm_release (pass_terraform.c): the chart it DEPLOYS and its
+ * values -- `values = [...]` coalesced in order, then `set` -- as JSON; NULL
+ * when a part is not a literal (an interpolation, a variable). pass_k8s.c
+ * renders the chart's images with them. */
+typedef struct cbm_tf_release {
+    int64_t src;   /* the resource.helm_release node */
+    int64_t chart; /* the Chart node */
+    char *values;  /* owned (cbm_free); NULL: unknown */
+} cbm_tf_release_t;
 
 /* Shared context passed to each pass function.
  * Derived from cbm_pipeline_t fields during run. */
@@ -486,6 +523,12 @@ typedef struct {
     const struct cbm_doclink_scope *doc_link_base;
     int doc_link_base_count;
     bool doc_links_failed;
+
+    /* The run's Terraform helm_releases (pass_terraform.c fills them, the K8s
+     * pass reads and frees them right after). */
+    cbm_tf_release_t *tf_releases;
+    int tf_release_n;
+    int tf_release_cap;
 } cbm_pipeline_ctx_t;
 
 /* Origin-aware LSP returns only success/failure. Never retain partial output
@@ -716,6 +759,16 @@ typedef enum {
  * gbuf. */
 cbm_psr4_member_t cbm_pipeline_psr4_member_qn(const cbm_gbuf_t *gbuf, const char *class_fqn,
                                               const char *member, const char **out_qn);
+
+/* Get the current pipeline's declared-package map (NULL if none): the
+ * namespace/package → File-QN map built by cbm_pipeline_namespace_map_build
+ * from every indexed file's own `package`/`namespace`/`using` declaration.
+ * The import passes build it to resolve namespace imports; it is published
+ * here so the call passes can ask whether a package-path specifier names a
+ * package the tree itself declares (#1355). Set before resolve starts, read
+ * only afterwards — same single-writer contract as the pkgmap above. */
+CBMHashTable *cbm_pipeline_get_nsmap(void);
+void cbm_pipeline_set_nsmap(CBMHashTable *map);
 
 /* Unified module resolver: relative → pkgmap → fqn_module fallback.
  * Handles bare specifiers via pkgmap lookup with prefix matching.
@@ -1060,6 +1113,9 @@ bool cbm_is_k8s_manifest(const char *name, const char *content);
 /* A Helm values file name: values.yaml / .yml, values-<x>.yaml / .yml
  * (pass_k8s.c; beside Chart.yaml it CONFIGURES the chart). */
 bool cbm_helm_values_name(const char *base);
+/* Is `dir` (repository relative) a werf chart: a `.helm` directory without a
+ * Chart.yaml whose parent holds werf.yaml (pass_k8s.c)? */
+bool cbm_werf_helm_dir(const char *repo_path, const char *dir);
 
 /* Secret detection */
 bool cbm_is_secret_binding(const char *key, const char *value);
@@ -1259,6 +1315,7 @@ typedef struct {
     const char *via;        /* "skaffold" / "compose" */
     const char *image;      /* the reference, variables expanded */
     const char *dockerfile; /* repository path */
+    const char *build_args; /* compose build.args as a JSON object; NULL: none */
     int line;
 } cbm_build_site_t;
 typedef void (*cbm_build_site_fn)(const cbm_build_site_t *site, void *ud);
@@ -1269,10 +1326,17 @@ typedef void (*cbm_build_site_fn)(const cbm_build_site_t *site, void *ud);
  * depends_on and links list, and the names of the environment variables its
  * environment sets (map keys / list items' names -- never a value), with
  * their 1-based lines and the service name each value addresses (a bare
- * name, `name:port`, a URL's host; NULL: none -- cbm_env_address). */
+ * name, `name:port`, a URL's host; NULL: none -- cbm_env_address).
+ * image_default_of: the variables whose inline default (${X:-d}) named the
+ * image; image_override_of: those whose default the project's .env replaced
+ * (JSON arrays, NULL: none), and default_image the image those defaults
+ * name. */
 typedef struct {
     const char *name;
     const char *image;
+    const char *image_default_of;
+    const char *image_override_of;
+    const char *default_image;
     const char *dockerfile;
     const char **deps;
     int ndeps;
@@ -1340,6 +1404,12 @@ bool cbm_repo_rel_join(const char *dir, const char *v, char *out, size_t sz);
  * for an official image; registry "unknown" when the reference names no
  * host -- none is invented), made when new; 0 for scratch or no image. */
 int64_t cbm_pipeline_image_node(cbm_pipeline_ctx_t *ctx, const char *ref);
+/* Does `ref` follow the image reference grammar (distribution/reference):
+ * [host[:port]/]path[:tag][@algo:hex], path components lowercase alphanumerics
+ * joined by `.`, `_`, `__` or dashes, a tag of word characters, `.` and `-`
+ * (128 at most)? A value rendered from a template is checked before it names
+ * an Image (pass_docker.c). */
+bool cbm_image_ref_valid(const char *ref);
 
 /* A chart repository URL as an identity (pass_k8s.c): `url` trimmed, its
  * scheme and host lower-cased, trailing `/` and `.git` dropped. False for no
@@ -1730,7 +1800,8 @@ int cbm_delta_drop_edges_from_label(cbm_store_t *store, const char *project, con
                                     const char *label);
 /* The edges that keep a file-less shared node alive. */
 #define SH_PROCESS_EDGES ((const char *const[]){"SPAWNS", NULL})
-#define DK_IMAGE_EDGES ((const char *const[]){"DEPENDS_ON", "USAGE", NULL})
+/* An Image a release DEPLOYS (pass_k8s.c release images) may have no other edge. */
+#define DK_IMAGE_EDGES ((const char *const[]){"DEPENDS_ON", "USAGE", "DEPLOYS", NULL})
 /* Pre-seed proxy nodes with their REAL database ids and move the gbuf id
  * watermark above MAX(id); returns that max id, or -1 on failure. */
 int64_t cbm_delta_preseed(cbm_store_t *store, const char *project, cbm_gbuf_t *gbuf);

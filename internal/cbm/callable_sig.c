@@ -801,6 +801,57 @@ static TSNode sig_swift_extension_requirements(sig_ctx_t *c, TSNode node) {
     return (TSNode){0};
 }
 
+static bool sig_swift_generic_root(const sig_ctx_t *c, TSNode params, TSNode requirements,
+                                   const char *root, size_t len) {
+    TSNode lists[] = {params, requirements};
+    for (size_t list = 0; list < sizeof(lists) / sizeof(lists[0]); list++) {
+        if (ts_node_is_null(lists[list])) {
+            continue;
+        }
+        for (uint32_t i = 0; i < ts_node_named_child_count(lists[list]); i++) {
+            TSNode entry = ts_node_named_child(lists[list], i);
+            if (ts_node_named_child_count(entry) == 0) {
+                continue;
+            }
+            TSNode name = ts_node_named_child(entry, 0);
+            if (list != 0) {
+                TSNode constrained = sig_field(name, "constrained_type");
+                if (ts_node_is_null(constrained) || ts_node_named_child_count(constrained) == 0) {
+                    continue;
+                }
+                name = ts_node_named_child(constrained, 0);
+            }
+            uint32_t start = ts_node_start_byte(name);
+            if (ts_node_end_byte(name) - start == len && memcmp(c->src + start, root, len) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static void sig_swift_requirements(sig_ctx_t *c, TSNode requirements, TSNode params) {
+    size_t start = c->len;
+    sig_type_tokens(c, requirements);
+    for (size_t i = start; i < c->len; i++) {
+        if (c->buf[i] != '.') {
+            continue;
+        }
+        size_t root = i;
+        while (root > start && (sig_ident_char((unsigned char)c->buf[root - SIG_CHAR_LEN]) ||
+                                c->buf[root - SIG_CHAR_LEN] == '/')) {
+            root--;
+        }
+        size_t len = 0;
+        while (root + len < i && sig_ident_char((unsigned char)c->buf[root + len])) {
+            len++;
+        }
+        if (sig_swift_generic_root(c, params, requirements, c->buf + root, len)) {
+            c->buf[i] = '/';
+        }
+    }
+}
+
 static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
     TSNode params = cbm_find_child_by_kind(node, "type_parameters");
     TSNode requirements = cbm_find_child_by_kind(node, "type_constraints");
@@ -819,18 +870,13 @@ static void sig_swift_tparams(sig_ctx_t *c, TSNode node) {
     }
     if (!ts_node_is_null(requirements)) {
         sig_raw_str(c, ";");
-        sig_type_tokens(c, requirements);
+        sig_swift_requirements(c, requirements, params);
     }
     if (!ts_node_is_null(extension)) {
         sig_raw_str(c, ";");
-        sig_type_tokens(c, extension);
+        sig_swift_requirements(c, extension, params);
     }
     sig_raw_str(c, ">");
-    for (size_t i = start; i < c->len; i++) {
-        if (c->buf[i] == '.') {
-            c->buf[i] = '/';
-        }
-    }
 }
 
 static const char *sig_swift_dispatch(sig_ctx_t *c, TSNode node) {
@@ -968,11 +1014,12 @@ static void sig_generic_params(sig_ctx_t *c, TSNode node) {
 
 /* ── Spelling pass ─────────────────────────────────────────────── */
 
-/* Swift qualified paths use '/'; other type paths keep their last segment.
+/* Qualified type paths keep their last segment.
  * "->" becomes "=>"; any other
  * '.' or "::" (a receiver function type, a leading global scope) is dropped,
  * so the suffix contract holds whatever the grammar produced. */
 static size_t sig_spell(char *s, size_t n, CBMLanguage lang) {
+    (void)lang;
     size_t out = 0;
     size_t i = 0;
     while (i < n) {
@@ -983,11 +1030,6 @@ static size_t sig_spell(char *s, size_t n, CBMLanguage lang) {
             sep = 2;
         }
         if (sep) {
-            if (lang == CBM_LANG_SWIFT) {
-                s[out++] = '/';
-                i += sep;
-                continue;
-            }
             bool ident_before = out > 0 && sig_ident_char((unsigned char)s[out - 1]);
             bool ident_after = i + sep < n && sig_ident_char((unsigned char)s[i + sep]);
             if (ident_before && ident_after) {

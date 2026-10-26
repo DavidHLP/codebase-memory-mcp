@@ -3922,24 +3922,24 @@ static TSNode swift_call_args(TSNode node) {
 static void swift_store_trailing_label(CBMExtractCtx *ctx, CBMCall *call, uint32_t index,
                                        const char *label, bool has_label) {
     if (index == 0) {
-        call->swift_trailing_closure = true;
+        call->has_trailing_closure = true;
         return;
     }
     if (index >= CBM_MAX_TRAILING_CLOSURES) {
-        call->swift_trailing_truncated = true;
+        call->trailing_closure_truncated = true;
         return;
     }
-    if (!call->swift_trailing_labels) {
+    if (!call->trailing_closure_labels) {
         size_t bytes = CBM_MAX_TRAILING_CLOSURES * sizeof(char *);
-        call->swift_trailing_labels = cbm_arena_calloc(ctx->arena, bytes);
+        call->trailing_closure_labels = cbm_arena_calloc(ctx->arena, bytes);
     }
-    if (!call->swift_trailing_labels) {
-        call->swift_trailing_truncated = true;
+    if (!call->trailing_closure_labels) {
+        call->trailing_closure_truncated = true;
         return;
     }
-    call->swift_trailing_labels[index] = label;
+    call->trailing_closure_labels[index] = label;
     if (has_label && !label) {
-        call->swift_trailing_truncated = true;
+        call->trailing_closure_truncated = true;
     }
 }
 
@@ -3954,17 +3954,22 @@ static void swift_store_trailing_label(CBMExtractCtx *ctx, CBMCall *call, uint32
 static void swift_capture_trailing_closures(CBMExtractCtx *ctx, TSNode call_node, TSNode suffix,
                                             CBMCall *call) {
     if (ts_node_has_error(call_node)) {
-        call->swift_trailing_truncated = true;
+        call->trailing_closure_truncated = true;
     }
-    uint32_t children = ts_node_child_count(suffix);
+    uint32_t children = ts_node_child_count(suffix) + ts_node_child_count(call_node);
     uint32_t closures = 0;
     const char *pending_label = NULL;
     bool has_pending_label = false;
     for (uint32_t i = 0; i < children; i++) {
-        TSNode child = ts_node_child(suffix, i);
+        uint32_t suffix_children = ts_node_child_count(suffix);
+        TSNode child = i < suffix_children ? ts_node_child(suffix, i)
+                                           : ts_node_child(call_node, i - suffix_children);
+        if (i >= suffix_children && ts_node_start_byte(child) < ts_node_end_byte(suffix)) {
+            continue;
+        }
         const char *kind = ts_node_type(child);
         if (ts_node_is_missing(child) || ts_node_has_error(child)) {
-            call->swift_trailing_truncated = true;
+            call->trailing_closure_truncated = true;
         }
         if (strcmp(kind, "lambda_literal") == 0) {
             swift_store_trailing_label(ctx, call, closures, pending_label, has_pending_label);
@@ -3973,16 +3978,16 @@ static void swift_capture_trailing_closures(CBMExtractCtx *ctx, TSNode call_node
             has_pending_label = false;
         } else if (strcmp(kind, "simple_identifier") == 0) {
             if (has_pending_label) {
-                call->swift_trailing_truncated = true;
+                call->trailing_closure_truncated = true;
             }
             pending_label = cbm_node_text(ctx->arena, child, ctx->source);
             has_pending_label = true;
         }
     }
     if (has_pending_label) {
-        call->swift_trailing_truncated = true;
+        call->trailing_closure_truncated = true;
     }
-    call->swift_trailing_count =
+    call->trailing_closure_count =
         (uint8_t)(closures > CBM_MAX_TRAILING_CLOSURES ? CBM_MAX_TRAILING_CLOSURES : closures);
 }
 
@@ -4582,6 +4587,24 @@ CBMInvocationDescriptor handle_calls(CBMExtractCtx *ctx, TSNode node, const CBML
                     }
                 }
             }
+            // Go receiver-aware guard (same direction as the TS/JS flag above).
+            // Flag a selector call x.foo(). The Go AST cannot separate a method
+            // call on a value from a package-qualified call — but every selector
+            // call the Go LSP or the import/qualified registry strategies CAN
+            // place never reaches the weak short-name guards, so the flag only
+            // bites on unresolvable receivers (`f.Close()` on an os.File,
+            // `sha256.New()` behind an unindexed import), where a project-wide
+            // short-name match fabricates an edge to an unrelated project
+            // symbol sharing the name. Bare calls (helper()) keep
+            // is_method=false and resolve same-module/import paths as before.
+            if (ctx->language == CBM_LANG_GO &&
+                strcmp(ts_node_type(node), "call_expression") == 0) {
+                TSNode gofn = ts_node_child_by_field_name(node, TS_FIELD("function"));
+                if (!ts_node_is_null(gofn) &&
+                    strcmp(ts_node_type(gofn), "selector_expression") == 0) {
+                    call.is_method = true;
+                }
+            }
 
             TSNode args = ts_node_child_by_field_name(node, TS_FIELD("arguments"));
             /* tree-sitter-elixir attaches NO field name to a call's arguments
@@ -4622,7 +4645,7 @@ CBMInvocationDescriptor handle_calls(CBMExtractCtx *ctx, TSNode node, const CBML
                     }
                 }
                 if (value_arg_count > CBM_MAX_CALL_ARGS) {
-                    call.swift_args_truncated = true;
+                    call.args_truncated = true;
                 }
             }
             if (!ts_node_is_null(args)) {
