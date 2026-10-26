@@ -1,0 +1,19 @@
+src/pipeline/registry.c
+  s_3c88d2522097d6::t_39d9ac5edba66c 2125-2126,2128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "debefaff45f4c77b9ba17a87d1d707eacc8d8345",
+  "prompts": {},
+  "sessions": {
+    "s_3c88d2522097d6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a175e2-0894-75c1-9be8-ce9ec9627a41",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
