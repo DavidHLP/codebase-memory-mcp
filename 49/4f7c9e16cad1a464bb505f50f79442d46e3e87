@@ -1,0 +1,19 @@
+tests/test_venue_parity_contract.sh
+  s_3c88d2522097d6::t_75b1d04489d109 414
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "494f7c9e16cad1a464bb505f50f79442d46e3e87",
+  "prompts": {},
+  "sessions": {
+    "s_3c88d2522097d6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a175e2-0894-75c1-9be8-ce9ec9627a41",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
