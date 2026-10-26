@@ -1,0 +1,24 @@
+tests/test_extraction.c
+  s_3c88d2522097d6::t_97d6fa086fa435 10253-10256,10258
+  s_3c88d2522097d6::t_d0b6248317cbff 10257
+src/pipeline/doc_links_rst.c
+  s_3c88d2522097d6::t_d0b6248317cbff 408-410
+internal/cbm/callable_sig.c
+  s_3c88d2522097d6::t_d0b6248317cbff 82-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "889c36104a9246aec78715a4eec7ab93cf7226be",
+  "prompts": {},
+  "sessions": {
+    "s_3c88d2522097d6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a175e2-0894-75c1-9be8-ce9ec9627a41",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
