@@ -1,0 +1,37 @@
+tests/test_main.c
+  s_3c88d2522097d6::t_39d9ac5edba66c 217-219
+  s_3c88d2522097d6::t_aa61eac51c85bf 214-215
+tests/test_smoke_fixture_contract.sh
+  s_3c88d2522097d6::t_39d9ac5edba66c 121-123
+tests/test_mcp.c
+  s_3c88d2522097d6::t_41cb3e25a6c606 17738
+  s_3c88d2522097d6::t_d8c46fd434b20c 17739
+src/mcp/mcp.c
+  s_3c88d2522097d6::t_39d9ac5edba66c 19021-19024,19028-19031
+src/pipeline/doc_links_perl.c
+  s_3c88d2522097d6::t_d5fe9e3f5111cb 247
+  s_3c88d2522097d6::t_39d9ac5edba66c 248-249
+internal/cbm/doclink_perl.c
+  s_3c88d2522097d6::t_39d9ac5edba66c 1541-1543
+  s_3c88d2522097d6::t_06e40899de81f7 1578-1580
+internal/cbm/vendored/grammars/objectscript_routine/scanner.c
+  s_3c88d2522097d6::t_18a9d031254bb2 118-120
+internal/cbm/vendored/grammars/objectscript_udl/scanner.c
+  s_3c88d2522097d6::t_2d4957803cb8ba 122-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a4ef43b4556fb6135d3d9e34b4b5c209d7b2bbf8",
+  "prompts": {},
+  "sessions": {
+    "s_3c88d2522097d6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a175e2-0894-75c1-9be8-ce9ec9627a41",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
