@@ -1,0 +1,19 @@
+scripts/vendored-checksums.txt
+  s_3c88d2522097d6::t_aa0319c693585e 528,535,1019
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "678bc5841d67bd44a9b65101e4167b018169a1c3",
+  "prompts": {},
+  "sessions": {
+    "s_3c88d2522097d6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a175e2-0894-75c1-9be8-ce9ec9627a41",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
