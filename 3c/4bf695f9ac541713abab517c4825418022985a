@@ -1,0 +1,25 @@
+tests/test_mimalloc_preinit.sh
+  s_3c88d2522097d6::t_51d02167dd2178 1-31
+vendored/mimalloc/src/page-map.c
+  s_3c88d2522097d6::t_259fd5b480490f 28-31,204-208,271
+Makefile.cbm
+  s_3c88d2522097d6::t_259fd5b480490f 1056-1057,1060-1061
+scripts/test.sh
+  s_3c88d2522097d6::t_259fd5b480490f 495
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c4bf695f9ac541713abab517c4825418022985a",
+  "prompts": {},
+  "sessions": {
+    "s_3c88d2522097d6": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a175e2-0894-75c1-9be8-ce9ec9627a41",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
