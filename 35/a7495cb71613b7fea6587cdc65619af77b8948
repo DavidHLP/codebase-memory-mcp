@@ -1,0 +1,19 @@
+scripts/run-test-wave.py
+  s_cd36d8dd548065::t_8731ce17cb4665 54-55,59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "35a7495cb71613b7fea6587cdc65619af77b8948",
+  "prompts": {},
+  "sessions": {
+    "s_cd36d8dd548065": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a17b27-94ee-7921-a2f5-12cdd81238c9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
