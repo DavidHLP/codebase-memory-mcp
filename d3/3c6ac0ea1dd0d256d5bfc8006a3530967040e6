@@ -1,0 +1,29 @@
+internal/cbm/extract_defs.c
+  s_56ad1968420ff9::t_4a488f46499990 8327-8329,8331-8341
+  s_56ad1968420ff9::t_b288474b78f18f 8326,8330
+tests/test_pipeline.c
+  s_56ad1968420ff9::t_40ddaf8ff701a9 14365,14402-14403
+  s_56ad1968420ff9::t_ef4071e0ecc27b 14358-14364,14366-14401,14404-14426,29625
+src/pipeline/pipeline_delta.c
+  s_56ad1968420ff9::t_f986d4689ccac6 653-655
+  s_56ad1968420ff9::t_d81ea249a8390e 652,656
+src/pipeline/registry.c
+  s_56ad1968420ff9::t_77709eb7ce3688 2793-2794,2802,2816-2837,2839-2860,2905-2906,2913
+  s_56ad1968420ff9::t_6cef2e189637c8 2838,2874
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d33c6ac0ea1dd0d256d5bfc8006a3530967040e6",
+  "prompts": {},
+  "sessions": {
+    "s_56ad1968420ff9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a447-8e9c-7071-9bad-2d58e03f9cc9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
