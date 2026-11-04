@@ -1,0 +1,19 @@
+tests/test_registry.c
+  s_0769690b4df50e::t_d5b000d028bfa3 970-972,974,982,2063,2066
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff4b1ebe797c99a196e1bba62ccf2b3809e0f4cb",
+  "prompts": {},
+  "sessions": {
+    "s_0769690b4df50e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a6cc-0575-7f63-8b1d-1b3c6c474cd8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
