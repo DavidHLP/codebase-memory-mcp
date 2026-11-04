@@ -1,0 +1,19 @@
+internal/cbm/callable_sig.c
+  s_0769690b4df50e::t_4214f7311fd2ec 789-809,837-841
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a6b2923c961df569de20b88e76e053f3702b973",
+  "prompts": {},
+  "sessions": {
+    "s_0769690b4df50e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a6cc-0575-7f63-8b1d-1b3c6c474cd8",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
