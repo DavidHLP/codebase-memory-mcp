@@ -1,0 +1,19 @@
+tests/test_pipeline.c
+  s_56ad1968420ff9::t_9d847e5b46cab0 16716
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c652f231b54241723a162e25c6baba9bb73b9cc3",
+  "prompts": {},
+  "sessions": {
+    "s_56ad1968420ff9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1a447-8e9c-7071-9bad-2d58e03f9cc9",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
