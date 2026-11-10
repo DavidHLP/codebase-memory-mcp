@@ -1,0 +1,20 @@
+tests/test_smoke_wrapper_run.py
+  s_8f43ce2b802b18::t_8bcf5831fe84d5 62-63
+  s_8f43ce2b802b18::t_219ae5f2698d09 37,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1b7926d0267819c454105d04d15b55073658181c",
+  "prompts": {},
+  "sessions": {
+    "s_8f43ce2b802b18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c46a-a62f-7d72-bd8f-641fe138cbb7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
