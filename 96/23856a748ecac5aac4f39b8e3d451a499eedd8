@@ -1,0 +1,34 @@
+scripts/smoke-wrappers.sh
+  s_8f43ce2b802b18::t_d0c1421ead1cd2 143-154
+scripts/ci/test-package-wrappers.sh
+  s_8f43ce2b802b18::t_d0c1421ead1cd2 55-56
+pkg/go/cmd/codebase-memory-mcp/main_test.go
+  s_8f43ce2b802b18::t_4ca8accb7115d7 8,13,1393-1490
+pkg/go/cmd/codebase-memory-mcp/main.go
+  s_8f43ce2b802b18::t_d0c1421ead1cd2 1016-1017
+  s_8f43ce2b802b18::t_4ca8accb7115d7 1010-1015,1018
+scripts/smoke-wrapper-run.py
+  s_8f43ce2b802b18::t_d0c1421ead1cd2 1-37
+tests/test_smoke_wrapper_run.py
+  s_8f43ce2b802b18::t_d88fa1b506846c 55-58
+  s_8f43ce2b802b18::t_d0c1421ead1cd2 1-4,6-7,9-27,71-78,80-98
+  s_8f43ce2b802b18::t_396da9bacaab16 79
+  s_8f43ce2b802b18::t_4c36a4feaee9cf 5,8,29-54,59-70
+  s_8f43ce2b802b18::t_5359fd19dadc97 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9623856a748ecac5aac4f39b8e3d451a499eedd8",
+  "prompts": {},
+  "sessions": {
+    "s_8f43ce2b802b18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c46a-a62f-7d72-bd8f-641fe138cbb7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
