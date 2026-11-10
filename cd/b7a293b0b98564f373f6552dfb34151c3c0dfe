@@ -1,0 +1,36 @@
+src/pipeline/pass_calls.c
+  s_467034cecf3053::t_944dc8a02cd7ec 855
+  s_467034cecf3053::t_62af43777b0aa8 857-859
+  s_467034cecf3053::t_4f7d7c203ea24a 856,1393-1396
+  s_467034cecf3053::t_a4d65c70ea56be 1397-1398
+internal/cbm/service_patterns.h
+  s_467034cecf3053::t_944dc8a02cd7ec 39-40
+  s_467034cecf3053::t_62af43777b0aa8 38
+tests/test_pipeline.c
+  s_467034cecf3053::t_944dc8a02cd7ec 16068
+internal/cbm/service_patterns.c
+  s_467034cecf3053::t_944dc8a02cd7ec 1173-1183
+src/pipeline/pass_parallel.c
+  s_467034cecf3053::t_944dc8a02cd7ec 2869-2873,3626-3627,3649-3650,3686-3687,3796-3799,3807-3809
+  s_467034cecf3053::t_4f7d7c203ea24a 2874
+  s_467034cecf3053::t_62af43777b0aa8 2875-2877
+  s_467034cecf3053::t_4e980abef71c85 3810
+tests/test_infrascan.c
+  s_467034cecf3053::t_944dc8a02cd7ec 187-192
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cdb7a293b0b98564f373f6552dfb34151c3c0dfe",
+  "prompts": {},
+  "sessions": {
+    "s_467034cecf3053": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c34e-1aab-7791-9e78-990bff3a4877",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
