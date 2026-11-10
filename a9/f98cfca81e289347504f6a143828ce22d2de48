@@ -1,0 +1,23 @@
+tests/windows/test_worker_trace.py
+  s_8f43ce2b802b18::t_70c561e5d64b65 1-66
+scripts/test-windows.ps1
+  s_8f43ce2b802b18::t_fac37aa407893b 162
+tests/windows/test_daemon_stability.py
+  s_8f43ce2b802b18::t_70c561e5d64b65 523-545,591,608,629
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9f98cfca81e289347504f6a143828ce22d2de48",
+  "prompts": {},
+  "sessions": {
+    "s_8f43ce2b802b18": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1c46a-a62f-7d72-bd8f-641fe138cbb7",
+        "model": "gpt-6.1-sol"
+      },
+      "human_author": "DavidHLP <lysf15520112973@163.com>"
+    }
+  }
+}
